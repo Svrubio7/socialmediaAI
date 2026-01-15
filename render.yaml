@@ -1,0 +1,137 @@
+# Render Blueprint Configuration
+# https://render.com/docs/blueprint-spec
+
+services:
+  # Frontend - Nuxt.js
+  - type: web
+    name: social-media-ai-frontend
+    env: node
+    region: oregon
+    plan: starter
+    buildCommand: cd frontend && npm install && npm run build
+    startCommand: cd frontend && node .output/server/index.mjs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NUXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: social-media-ai-backend
+          property: hostport
+      - key: NUXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NUXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+    healthCheckPath: /
+
+  # Backend - FastAPI
+  - type: web
+    name: social-media-ai-backend
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: cd backend && pip install -r requirements.txt
+    startCommand: cd backend && gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:$PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: social-media-ai-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: social-media-ai-redis
+          property: connectionString
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: INSTAGRAM_CLIENT_ID
+        sync: false
+      - key: INSTAGRAM_CLIENT_SECRET
+        sync: false
+      - key: TIKTOK_CLIENT_KEY
+        sync: false
+      - key: TIKTOK_CLIENT_SECRET
+        sync: false
+      - key: YOUTUBE_CLIENT_ID
+        sync: false
+      - key: YOUTUBE_CLIENT_SECRET
+        sync: false
+      - key: FACEBOOK_APP_ID
+        sync: false
+      - key: FACEBOOK_APP_SECRET
+        sync: false
+    healthCheckPath: /health
+
+  # Celery Worker - Video Processing
+  - type: worker
+    name: social-media-ai-worker
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: cd backend && pip install -r requirements.txt
+    startCommand: cd backend && celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: social-media-ai-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: social-media-ai-redis
+          property: connectionString
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+
+  # Celery Beat - Scheduled Tasks
+  - type: worker
+    name: social-media-ai-beat
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: cd backend && pip install -r requirements.txt
+    startCommand: cd backend && celery -A app.workers.celery_app beat --loglevel=info
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: social-media-ai-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: social-media-ai-redis
+          property: connectionString
+
+  # Redis
+  - type: redis
+    name: social-media-ai-redis
+    region: oregon
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+
+databases:
+  - name: social-media-ai-db
+    region: oregon
+    plan: starter
+    databaseName: socialmediaai
+    user: socialmediaai
