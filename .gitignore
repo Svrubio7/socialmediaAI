@@ -78,3 +78,14 @@ dump.rdb
 # Uploads (local dev)
 uploads/
 temp/
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# nginx SSL certificates
+nginx/ssl/
+
+# Database data (local Docker volumes)
+postgres_data/
+redis_data/

@@ -2,7 +2,151 @@
 
 This guide will help you set up the Social Media AI SaaS platform locally.
 
-## Quick Start
+There are two setup methods:
+1. **Docker Setup (Recommended)** - Quick setup using containers
+2. **Manual Setup** - Install each service individually
+
+---
+
+## Docker Setup (Recommended)
+
+Docker is the easiest way to get the full stack running locally. It includes all services pre-configured.
+
+### Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (includes Docker Compose)
+- Git
+
+### Step 1: Configure Environment
+
+```bash
+# Copy the Docker environment template
+cp .env.docker.example .env.docker
+```
+
+Edit `.env.docker` with your values:
+
+| Variable | Required | How to Get |
+|----------|----------|------------|
+| SUPABASE_URL | Yes | [Supabase Dashboard](https://supabase.com) > Settings > API |
+| SUPABASE_KEY | Yes | Supabase Dashboard > Settings > API (service_role key) |
+| SUPABASE_JWT_SECRET | Yes | Supabase Dashboard > Settings > API |
+| NUXT_PUBLIC_SUPABASE_URL | Yes | Same as SUPABASE_URL |
+| NUXT_PUBLIC_SUPABASE_ANON_KEY | Yes | Supabase Dashboard > Settings > API (anon key) |
+| GEMINI_API_KEY | Yes | [Google AI Studio](https://makersuite.google.com/app/apikey) |
+| OPENAI_API_KEY | Yes | [OpenAI Platform](https://platform.openai.com/api-keys) |
+| ENCRYPTION_KEY | Yes | Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| SECRET_KEY | Yes | Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+
+### Step 2: Start All Services
+
+```bash
+# Start the full stack
+docker-compose up -d
+
+# Wait for services to be healthy (about 60 seconds)
+docker-compose ps
+
+# Run database migrations
+docker-compose exec backend alembic upgrade head
+```
+
+### Step 3: Access the Application
+
+| Service | URL |
+|---------|-----|
+| Application (via nginx) | http://localhost |
+| Frontend (direct) | http://localhost:3000 |
+| Backend API (direct) | http://localhost:8000 |
+| API Documentation | http://localhost/docs |
+| Health Check | http://localhost/health |
+
+### Docker Commands Reference
+
+```bash
+# Start all services
+docker-compose up -d
+
+# Stop all services
+docker-compose down
+
+# View logs (all services)
+docker-compose logs -f
+
+# View logs (specific service)
+docker-compose logs -f backend
+docker-compose logs -f frontend
+docker-compose logs -f celery-worker
+
+# Rebuild after Dockerfile changes
+docker-compose up -d --build
+
+# Reset database (delete volumes)
+docker-compose down -v
+
+# Open shell in container
+docker-compose exec backend bash
+docker-compose exec frontend sh
+
+# Run a command in container
+docker-compose exec backend python -c "print('hello')"
+```
+
+### Testing Production Build Locally
+
+To test with production-like builds:
+
+```bash
+docker-compose -f docker-compose.prod.yml up -d --build
+```
+
+### Docker Troubleshooting
+
+1. **Container won't start**
+   ```bash
+   # Check logs for errors
+   docker-compose logs backend
+   
+   # Restart specific service
+   docker-compose restart backend
+   ```
+
+2. **Database connection issues**
+   ```bash
+   # Check if postgres is healthy
+   docker-compose ps postgres
+   
+   # Check postgres logs
+   docker-compose logs postgres
+   ```
+
+3. **Out of disk space**
+   ```bash
+   # Clean up unused Docker resources
+   docker system prune -a
+   ```
+
+4. **Port already in use**
+   ```bash
+   # Stop conflicting services or change ports in docker-compose.yml
+   # Check what's using the port:
+   netstat -ano | findstr :80      # Windows
+   lsof -i :80                      # Linux/Mac
+   ```
+
+---
+
+## Manual Setup
+
+If you prefer not to use Docker, follow this section.
+
+### Prerequisites
+
+- Node.js 20+
+- Python 3.11+
+- PostgreSQL 15+ (or Supabase account)
+- Redis 7+
+- FFmpeg
 
 ### 1. Environment Files
 
@@ -175,4 +319,78 @@ Open http://localhost:3000 in your browser. You should see the application (may 
 
 ## Production Deployment
 
-See `render.yaml` for Render deployment configuration. Update environment variables in Render dashboard after deployment.
+### Render Deployment
+
+This project is configured for deployment on Render using `render.yaml`.
+
+1. **Connect Repository**
+   - Go to [Render Dashboard](https://dashboard.render.com)
+   - Create a new Blueprint Instance
+   - Connect your GitHub repository
+   - Render will auto-detect `render.yaml`
+
+2. **Configure Environment Variables**
+   
+   Set these in each service's environment settings:
+   - `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_JWT_SECRET`
+   - `GEMINI_API_KEY`, `OPENAI_API_KEY`
+   - `ENCRYPTION_KEY`, `SECRET_KEY`
+   - OAuth credentials (if using social publishing)
+
+3. **Deploy**
+   - Render will automatically deploy on push to main branch
+
+### CI/CD Pipeline
+
+The project includes GitHub Actions for automated testing and deployment:
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `ci.yml` | PR/Push to main/develop | Lint, test, build verification |
+| `deploy-staging.yml` | Push to develop | Deploy to staging |
+| `deploy-production.yml` | Push to main | Deploy to production |
+
+To enable CI/CD:
+
+1. **Add GitHub Repository Secrets/Variables:**
+   ```
+   # Render deploy hook URLs
+   RENDER_BACKEND_HOOK_URL
+   RENDER_FRONTEND_HOOK_URL
+   RENDER_WORKER_HOOK_URL
+   RENDER_BEAT_HOOK_URL
+   
+   # Health check URLs
+   PRODUCTION_BACKEND_URL
+   PRODUCTION_FRONTEND_URL
+   ```
+
+2. **Create GitHub Environments:**
+   - `staging`
+   - `production`
+   - `production-approval` (for manual approval gate)
+
+3. **Get Deploy Hook URLs:**
+   - Go to each Render service
+   - Settings > Deploy Hook
+   - Copy the URL
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Render                                │
+├─────────────────────────────────────────────────────────────┤
+│  ┌──────────┐   ┌──────────┐   ┌──────────┐  ┌──────────┐  │
+│  │ Frontend │   │ Backend  │   │  Worker  │  │   Beat   │  │
+│  │ (Nuxt)   │   │ (FastAPI)│   │ (Celery) │  │ (Celery) │  │
+│  └────┬─────┘   └────┬─────┘   └────┬─────┘  └────┬─────┘  │
+│       │              │              │             │         │
+│       └──────────────┼──────────────┼─────────────┘         │
+│                      │              │                        │
+│               ┌──────┴──────┐  ┌────┴────┐                  │
+│               │    Redis    │  │  Supabase│                 │
+│               │   (Render)  │  │(External)│                 │
+│               └─────────────┘  └──────────┘                 │
+└─────────────────────────────────────────────────────────────┘
+```

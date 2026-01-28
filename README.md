@@ -32,8 +32,11 @@ AI-powered social media marketing hub for video pattern analysis, strategy gener
 - **FFmpeg** - Video processing
 
 ### Infrastructure
+- **Docker** - Containerization for local development
+- **nginx** - Reverse proxy
 - **Render** - Cloud hosting
 - **Supabase** - Database, Auth, Storage
+- **GitHub Actions** - CI/CD pipelines
 
 ## Project Structure
 
@@ -47,7 +50,8 @@ socialmediaAI/
 │   ├── middleware/          # Route middleware
 │   ├── pages/               # Route pages
 │   ├── stores/              # Pinia stores
-│   └── nuxt.config.ts       # Nuxt configuration
+│   ├── nuxt.config.ts       # Nuxt configuration
+│   └── Dockerfile           # Frontend container
 ├── backend/                  # FastAPI backend
 │   ├── app/
 │   │   ├── api/             # API endpoints
@@ -58,13 +62,100 @@ socialmediaAI/
 │   │   ├── services/        # Business logic
 │   │   ├── utils/           # Utilities
 │   │   └── workers/         # Celery tasks
-│   └── requirements.txt
-├── render.yaml              # Render deployment config
-├── PRD.md                   # Product requirements
+│   ├── requirements.txt
+│   └── Dockerfile           # Backend container
+├── nginx/                    # nginx configuration
+│   ├── nginx.conf           # Production config
+│   └── nginx.dev.conf       # Development config
+├── .github/workflows/        # CI/CD pipelines
+│   ├── ci.yml               # Continuous integration
+│   ├── deploy-staging.yml   # Staging deployment
+│   └── deploy-production.yml # Production deployment
+├── docker-compose.yml        # Local development stack
+├── docker-compose.prod.yml   # Production-like testing
+├── render.yaml               # Render deployment config
+├── PRD.md                    # Product requirements
 └── README.md
 ```
 
 ## Getting Started
+
+There are two ways to run this project locally:
+1. **Docker (Recommended)** - Uses containers for all services
+2. **Manual Setup** - Install each service individually
+
+---
+
+## Option 1: Docker Development (Recommended)
+
+### Prerequisites
+- Docker Desktop (includes Docker Compose)
+- Git
+
+### Quick Start
+
+1. **Clone and configure:**
+   ```bash
+   git clone <repository-url>
+   cd socialmediaAI
+   cp .env.docker.example .env.docker
+   # Edit .env.docker with your API keys (Supabase, Gemini, OpenAI)
+   ```
+
+2. **Start all services:**
+   ```bash
+   docker-compose up -d
+   ```
+
+3. **Run database migrations:**
+   ```bash
+   docker-compose exec backend alembic upgrade head
+   ```
+
+4. **Access the application:**
+   - Application: http://localhost (via nginx)
+   - Frontend direct: http://localhost:3000
+   - Backend direct: http://localhost:8000
+   - API Docs: http://localhost/docs
+
+### Docker Commands
+
+```bash
+# Start all services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f                    # All services
+docker-compose logs -f backend            # Specific service
+
+# Stop all services
+docker-compose down
+
+# Rebuild after code changes
+docker-compose up -d --build
+
+# Run migrations
+docker-compose exec backend alembic upgrade head
+
+# Open shell in container
+docker-compose exec backend bash
+docker-compose exec frontend sh
+
+# Reset everything (including volumes)
+docker-compose down -v
+```
+
+### Production-like Testing
+
+To test with production builds locally:
+
+```bash
+docker-compose -f docker-compose.prod.yml up -d --build
+```
+
+---
+
+## Option 2: Manual Setup
 
 ### Prerequisites
 
@@ -168,14 +259,69 @@ Once the backend is running, visit:
 | NUXT_PUBLIC_SUPABASE_URL | Supabase project URL |
 | NUXT_PUBLIC_SUPABASE_ANON_KEY | Supabase anon key |
 
+## CI/CD Pipeline
+
+This project includes GitHub Actions workflows for continuous integration and deployment.
+
+### Workflows
+
+| Workflow | Trigger | Description |
+|----------|---------|-------------|
+| `ci.yml` | PR to main/develop | Lint, test, and build verification |
+| `deploy-staging.yml` | Push to develop | Deploy to staging environment |
+| `deploy-production.yml` | Push to main | Deploy to production (with approval) |
+
+### CI Checks
+- Backend: Ruff linting, Black formatting, mypy type checking, pytest
+- Frontend: ESLint, TypeScript check, build verification
+- Docker: Image build verification
+- Security: Trivy vulnerability scanning
+
+### Setting Up CI/CD
+
+1. **GitHub Secrets/Variables** - Add these in your repository settings:
+   ```
+   # Staging
+   RENDER_BACKEND_STAGING_HOOK_URL
+   RENDER_FRONTEND_STAGING_HOOK_URL
+   STAGING_BACKEND_URL
+   STAGING_FRONTEND_URL
+   
+   # Production
+   RENDER_BACKEND_HOOK_URL
+   RENDER_FRONTEND_HOOK_URL
+   PRODUCTION_BACKEND_URL
+   PRODUCTION_FRONTEND_URL
+   ```
+
+2. **GitHub Environments** - Create `staging`, `production`, and `production-approval` environments
+
+3. **Render Deploy Hooks** - Get deploy hook URLs from each Render service's settings
+
 ## Deployment
 
 This project is configured for deployment on Render using the `render.yaml` blueprint.
 
+### Render Setup
+
 1. Connect your GitHub repo to Render
 2. Render will auto-detect the `render.yaml` configuration
-3. Set environment variables in Render dashboard
+3. Set environment variables in Render dashboard:
+   - All variables from `.env.docker.example`
+   - Database URL (auto-configured by Render)
+   - Redis URL (auto-configured by Render)
 4. Deploy!
+
+### Services Deployed
+
+| Service | Type | Description |
+|---------|------|-------------|
+| social-media-ai-frontend | Web | Nuxt.js SSR application |
+| social-media-ai-backend | Web | FastAPI REST API |
+| social-media-ai-worker | Worker | Celery video processing |
+| social-media-ai-beat | Worker | Celery scheduled tasks |
+| social-media-ai-redis | Redis | Cache and task queue |
+| social-media-ai-db | PostgreSQL | Database |
 
 ## License
 
