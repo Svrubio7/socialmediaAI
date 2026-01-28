@@ -145,6 +145,28 @@ export const useApi = () => {
       post<{ message: string; cards: { type: string; payload: Record<string, unknown> }[] }>('/chat', { messages }),
   }
 
+  // Materials endpoints (user assets: logos, images)
+  const materials = {
+    list: (params?: { type?: string }) => {
+      const query = new URLSearchParams()
+      if (params?.type) query.set('type', params.type)
+      return get<any>(`/materials?${query}`)
+    },
+    get: (id: string) => get<any>(`/materials/${id}`),
+    upload: async (file: File, assetType: string = 'image') => {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('asset_type', assetType)
+      const authHeaders = await getAuthHeaders()
+      return $fetch(`${config.public.apiUrl}/materials/upload`, {
+        method: 'POST',
+        body: formData,
+        headers: authHeaders,
+      })
+    },
+    delete: (id: string) => del(`/materials/${id}`),
+  }
+
   // Analytics endpoints
   const analytics = {
     video: (videoId: string) => get<any>(`/analytics/videos/${videoId}`),

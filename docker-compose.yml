@@ -1,14 +1,16 @@
 # =============================================================================
 # Social Media AI - Docker Compose (Development)
-# Full local development stack with hot reload support
-# =============================================================================
+# Full local development stack with hot reload support.
+#
+# Database: Supabase only. Set DATABASE_URL in backend/.env to your Supabase
+# Postgres connection string (Project Settings → Database → Connection string).
+# No local Postgres container; frontend and backend run as separate containers.
 #
 # Usage:
 #   docker-compose up -d          # Start all services
 #   docker-compose logs -f        # View logs
 #   docker-compose down           # Stop all services
 #   docker-compose down -v        # Stop and remove volumes
-#
 # =============================================================================
 
 services:
@@ -91,14 +93,10 @@ services:
       - backend-temp:/app/temp
     environment:
       - DEBUG=true
-      # Docker network: use postgres/redis container hostnames
-      - DATABASE_URL=postgresql://socialmediaai:socialmediaai_password@postgres:5432/socialmediaai
+      # Redis for Celery; DATABASE_URL from backend/.env (Supabase Postgres connection string)
       - REDIS_URL=redis://redis:6379
-      # SUPABASE_*, GEMINI_API_KEY, OPENAI_API_KEY, ENCRYPTION_KEY, SECRET_KEY, OAuth: from env_file (backend/.env)
     command: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -127,12 +125,9 @@ services:
       - backend-temp:/app/temp
     environment:
       - DEBUG=true
-      - DATABASE_URL=postgresql://socialmediaai:socialmediaai_password@postgres:5432/socialmediaai
       - REDIS_URL=redis://redis:6379
     command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -154,12 +149,9 @@ services:
       - ./backend:/app
     environment:
       - DEBUG=true
-      - DATABASE_URL=postgresql://socialmediaai:socialmediaai_password@postgres:5432/socialmediaai
       - REDIS_URL=redis://redis:6379
     command: celery -A app.workers.celery_app beat --loglevel=info
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -187,31 +179,6 @@ services:
       retries: 5
       start_period: 10s
 
-  # ===========================================================================
-  # PostgreSQL - Local Database
-  # ===========================================================================
-  postgres:
-    image: postgres:15-alpine
-    container_name: socialmediaai-postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./backend/app/db/migrations/versions:/docker-entrypoint-initdb.d:ro
-    environment:
-      - POSTGRES_USER=socialmediaai
-      - POSTGRES_PASSWORD=socialmediaai_password
-      - POSTGRES_DB=socialmediaai
-    networks:
-      - socialmediaai-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U socialmediaai -d socialmediaai"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-
 # =============================================================================
 # Networks
 # =============================================================================
@@ -223,8 +190,6 @@ networks:
 # Volumes
 # =============================================================================
 volumes:
-  postgres-data:
-    driver: local
   redis-data:
     driver: local
   backend-temp:

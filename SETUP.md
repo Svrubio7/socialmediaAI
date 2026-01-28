@@ -10,29 +10,33 @@ There are two setup methods:
 
 ## Docker Setup (Recommended)
 
-Docker is the easiest way to get the full stack running locally. It includes all services pre-configured.
+Docker is the easiest way to get the full stack running locally. The stack uses **Supabase as the only database** (no local Postgres container). Frontend and backend run as **separate containers**.
 
 ### Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (includes Docker Compose)
 - Git
+- [Supabase](https://supabase.com) project (for database and auth)
 
 ### Step 1: Configure Environment
 
-```bash
-# Copy the Docker environment template
-cp .env.docker.example .env.docker
-```
+**Backend** (`backend/.env`): Copy from `backend/env.example`. Set at least:
 
-Edit `.env.docker` with your values:
+- **DATABASE_URL** – Supabase Postgres connection string (Supabase Dashboard → Project Settings → Database → Connection string, URI)
+- **REDIS_URL** – `redis://redis:6379` is set by Docker; for local runs use `redis://localhost:6379` if Redis runs on host
+- **SUPABASE_URL**, **SUPABASE_KEY**, **SUPABASE_JWT_SECRET** – from Supabase Dashboard → Settings → API
+- **GEMINI_API_KEY**, **OPENAI_API_KEY**, **ENCRYPTION_KEY**, **SECRET_KEY** – as in the table below
+
+**Frontend** (`frontend/.env`): Copy from `frontend/env.example`. Set:
 
 | Variable | Required | How to Get |
 |----------|----------|------------|
-| SUPABASE_URL | Yes | [Supabase Dashboard](https://supabase.com) > Settings > API |
-| SUPABASE_KEY | Yes | Supabase Dashboard > Settings > API (service_role key) |
-| SUPABASE_JWT_SECRET | Yes | Supabase Dashboard > Settings > API |
+| DATABASE_URL (backend) | Yes | Supabase Dashboard → Project Settings → Database → Connection string (URI) |
+| SUPABASE_URL | Yes | Supabase Dashboard → Settings → API |
+| SUPABASE_KEY | Yes | Supabase Dashboard → Settings → API (service_role key) |
+| SUPABASE_JWT_SECRET | Yes | Supabase Dashboard → Settings → API |
 | NUXT_PUBLIC_SUPABASE_URL | Yes | Same as SUPABASE_URL |
-| NUXT_PUBLIC_SUPABASE_ANON_KEY | Yes | Supabase Dashboard > Settings > API (anon key) |
+| NUXT_PUBLIC_SUPABASE_ANON_KEY | Yes | Supabase Dashboard → Settings → API (anon key) |
 | GEMINI_API_KEY | Yes | [Google AI Studio](https://makersuite.google.com/app/apikey) |
 | OPENAI_API_KEY | Yes | [OpenAI Platform](https://platform.openai.com/api-keys) |
 | ENCRYPTION_KEY | Yes | Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
@@ -47,7 +51,7 @@ docker-compose up -d
 # Wait for services to be healthy (about 60 seconds)
 docker-compose ps
 
-# Run database migrations
+# Run database migrations (against Supabase)
 docker-compose exec backend alembic upgrade head
 ```
 
@@ -81,7 +85,7 @@ docker-compose logs -f celery-worker
 # Rebuild after Dockerfile changes
 docker-compose up -d --build
 
-# Reset database (delete volumes)
+# Stop and remove volumes (Redis data; no Postgres volume)
 docker-compose down -v
 
 # Open shell in container
@@ -111,14 +115,9 @@ docker-compose -f docker-compose.prod.yml up -d --build
    docker-compose restart backend
    ```
 
-2. **Database connection issues**
-   ```bash
-   # Check if postgres is healthy
-   docker-compose ps postgres
-   
-   # Check postgres logs
-   docker-compose logs postgres
-   ```
+2. **Database connection issues** (Supabase)
+   - Ensure `DATABASE_URL` in `backend/.env` is your Supabase Postgres connection string (URI from Project Settings → Database).
+   - Check backend logs: `docker-compose logs backend`
 
 3. **Out of disk space**
    ```bash
@@ -294,6 +293,55 @@ Open http://localhost:3000 in your browser. You should see the application (may 
    - Verify backend is running
    - Check `NUXT_PUBLIC_API_URL` matches backend URL
    - Check CORS settings in backend
+
+## Deploying on Render
+
+The app is set up to deploy on [Render](https://render.com) with **Supabase as the only database** and **separate frontend and backend services** (no Render Postgres).
+
+### 1. One-time setup
+
+1. **Supabase**: Create a project and get:
+   - **Database**: Project Settings → Database → Connection string (URI) → use as `DATABASE_URL`.
+   - **Auth**: Settings → API → Project URL, anon key, service role key, JWT secret.
+
+2. **Render**: Connect your repo. Use the repo’s `render.yaml` (Blueprint) so Render creates:
+   - **Web**: `social-media-ai-frontend` (Nuxt)
+   - **Web**: `social-media-ai-backend` (FastAPI)
+   - **Worker**: `social-media-ai-worker` (Celery)
+   - **Worker**: `social-media-ai-beat` (Celery Beat)
+   - **Redis**: `social-media-ai-redis`
+
+### 2. Environment variables on Render
+
+Set these in each service’s **Environment** (no Render database; use Supabase):
+
+| Variable | Where | Value |
+|----------|--------|--------|
+| **DATABASE_URL** | Backend, Worker, Beat | Supabase Postgres connection string (URI) |
+| **NUXT_PUBLIC_API_URL** | Frontend | Backend URL + `/api/v1` (e.g. `https://social-media-ai-backend.onrender.com/api/v1`) |
+| **NUXT_PUBLIC_SUPABASE_URL** | Frontend | Supabase project URL |
+| **NUXT_PUBLIC_SUPABASE_ANON_KEY** | Frontend | Supabase anon key |
+| **SUPABASE_URL**, **SUPABASE_KEY**, **SUPABASE_JWT_SECRET** | Backend, Worker | From Supabase API settings |
+| **REDIS_URL** | Backend, Worker, Beat | Set automatically from Render Redis if using Blueprint |
+| **GEMINI_API_KEY**, **OPENAI_API_KEY**, **ENCRYPTION_KEY**, **SECRET_KEY** | Backend, Worker | Your keys / generated secrets |
+
+After the first deploy, set **NUXT_PUBLIC_API_URL** on the frontend to your backend’s public URL + `/api/v1`.
+
+### 3. Migrations
+
+Run migrations against Supabase once (e.g. from your machine or a one-off Render job):
+
+```bash
+cd backend
+# With DATABASE_URL pointing to Supabase
+alembic upgrade head
+```
+
+### 4. Summary
+
+- **Database**: Supabase only; set `DATABASE_URL` on backend and workers to the Supabase Postgres URI.
+- **Containers**: Frontend and backend are separate Render web services; workers and Redis are separate as in `render.yaml`.
+- No Render Postgres; the `databases` block was removed from the Blueprint so everything uses Supabase.
 
 ## Next Steps
 
