@@ -15,7 +15,8 @@
     "title3": "mit KI",
     "subtitle": "Transformieren Sie, wie Ihr Unternehmen Social-Media-Inhalte erstellt und veröffentlicht. Analysieren Sie Videomuster, generieren Sie erfolgreiche Strategien und erreichen Sie Ihr Publikum auf allen Plattformen.",
     "cta1": "Jetzt testen!",
-    "cta2": "Demo ansehen"
+    "cta2": "Demo ansehen",
+    "trustLine": "Kostenlos starten. Keine Kreditkarte erforderlich."
   },
   "stats": {
     "faster": "Schnellere Content-Erstellung",
@@ -57,7 +58,7 @@
   "howItWorks": {
     "badge": "So funktioniert's",
     "title": "Drei einfache Schritte zu",
-    "titleHighlight": "Besserem Engagement",
+    "titleHighlight": "besserem Engagement",
     "subtitle": "ElevoAI macht Content-Optimierung für Ihr Unternehmen mühelos. Hochladen, analysieren und veröffentlichen in Minuten.",
     "step1": {
       "title": "Laden Sie Ihren Content hoch",
@@ -74,7 +75,7 @@
       "feature3": "Plattformspezifische Optimierung"
     },
     "step3": {
-      "title": "Veröffentlichen & Verfolgen",
+      "title": "Veröffentlichen & verfolgen",
       "description": "Planen und veröffentlichen Sie optimierte Inhalte auf allen Plattformen und verfolgen Sie dann die Leistung in Echtzeit.",
       "feature1": "Ein-Klick-Multi-Plattform-Veröffentlichung",
       "feature2": "Intelligente Planung",
@@ -105,7 +106,7 @@
     "button1": "Kostenlos starten",
     "button2": "Mit Vertrieb sprechen",
     "badge1": "SOC 2 konform",
-    "badge2": "99,9% Uptime",
+    "badge2": "99,9% uptime",
     "badge3": "24/7 Support"
   },
   "footer": {
@@ -127,7 +128,7 @@
     "terms": "Nutzungsbedingungen"
   },
   "about": {
-    "badge": "Über Uns",
+    "badge": "Über uns",
     "title": "Unternehmen stärken mit",
     "titleHighlight": "KI-getriebenem Marketing",
     "subtitle": "Wir haben die Mission, Social-Media-Marketing für kleine und mittlere Unternehmen zu demokratisieren.",

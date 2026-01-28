@@ -3,7 +3,7 @@
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
       <div>
-        <h1 class="text-3xl lg:text-4xl font-display font-bold text-surface-100">Videos</h1>
+        <h1 class="text-3xl lg:text-4xl font-mono font-bold text-surface-100">Videos</h1>
         <p class="text-surface-400 mt-2">Manage and analyze your video content</p>
       </div>
       <Button variant="primary" @click="showUpload = true">

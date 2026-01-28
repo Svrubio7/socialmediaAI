@@ -1,34 +1,35 @@
 <template>
   <header 
-    class="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
-    :class="isScrolled ? 'bg-surface-900/90 backdrop-blur-xl border-b border-surface-700/50' : 'bg-transparent'"
+    class="fixed top-0 left-0 right-0 z-50"
+    :class="isScrolled ? 'header-scrolled' : 'bg-transparent'"
   >
     <div class="container-wide">
-      <div class="flex items-center justify-between h-16 lg:h-20">
+      <div class="flex items-center justify-between h-16">
         <!-- Logo -->
-        <UiLogo size="md" />
+        <UiLogo size="sm" />
 
         <!-- Desktop Navigation -->
-        <nav class="hidden lg:flex items-center gap-1">
+        <nav class="hidden lg:flex items-center" style="gap: 32px;">
           <NuxtLink
             v-for="item in navItems"
             :key="item.to"
             :to="localePath(item.to)"
-            class="px-4 py-2 text-sm font-medium text-surface-300 hover:text-surface-100 transition-colors rounded-lg hover:bg-surface-700/30"
+            class="font-mono text-sm text-surface-300 hover:text-surface-50"
+            style="white-space: nowrap;"
           >
             {{ $t(item.label) }}
           </NuxtLink>
         </nav>
 
         <!-- Desktop Actions -->
-        <div class="hidden lg:flex items-center gap-3">
+        <div class="hidden lg:flex items-center" style="gap: 20px;">
           <!-- Language Switcher -->
           <UiDropdown align="right" width="sm">
             <template #trigger="{ open }">
               <button 
-                class="flex items-center gap-2 px-3 py-2 text-sm text-surface-300 hover:text-surface-100 rounded-lg hover:bg-surface-700/30 transition-colors"
+                class="flex items-center font-mono text-sm text-surface-300 hover:text-surface-50"
+                style="gap: 6px;"
               >
-                <UiIcon name="Globe" :size="16" />
                 <span>{{ currentLocaleName }}</span>
                 <UiIcon name="ChevronDown" :size="14" :class="{ 'rotate-180': open }" class="transition-transform" />
               </button>
@@ -37,7 +38,7 @@
               <button
                 v-for="loc in availableLocales"
                 :key="loc.code"
-                class="w-full px-4 py-2 text-left text-sm text-surface-300 hover:text-surface-100 hover:bg-surface-700/50 transition-colors"
+                class="w-full px-4 py-2 text-left font-mono text-sm text-surface-300 hover:text-surface-50 hover:bg-white/5"
                 :class="{ 'text-primary-400': loc.code === currentLocale }"
                 @click="switchLocale(loc.code)"
               >
@@ -46,17 +47,17 @@
             </div>
           </UiDropdown>
 
-          <NuxtLink :to="localePath('/dashboard')" class="btn-primary text-sm">
+          <NuxtLink :to="localePath('/dashboard')" class="btn-accent btn-sm font-mono">
             {{ $t('nav.goToApp') }}
           </NuxtLink>
         </div>
 
         <!-- Mobile Menu Button -->
         <button
-          class="lg:hidden p-2 rounded-lg text-surface-300 hover:text-surface-100 hover:bg-surface-700/30 transition-colors"
+          class="lg:hidden p-2 rounded-lg text-surface-300 hover:text-surface-50 hover:bg-white/5"
           @click="mobileMenuOpen = true"
         >
-          <UiIcon name="Menu" :size="24" />
+          <UiIcon name="Menu" :size="22" />
         </button>
       </div>
     </div>
@@ -120,7 +121,7 @@ const handleLogout = async () => {
 // Handle scroll for header background
 onMounted(() => {
   const handleScroll = () => {
-    isScrolled.value = window.scrollY > 50
+    isScrolled.value = window.scrollY > 20
   }
   window.addEventListener('scroll', handleScroll)
   handleScroll()
@@ -130,3 +131,15 @@ onMounted(() => {
   })
 })
 </script>
+
+<style scoped>
+.header-scrolled {
+  background: rgba(10, 10, 9, 0.7);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 
+    0 4px 30px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+</style>

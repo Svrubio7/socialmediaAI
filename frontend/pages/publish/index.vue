@@ -2,14 +2,14 @@
   <div class="container-wide py-8 lg:py-12">
     <!-- Header -->
     <div class="mb-8">
-      <h1 class="text-3xl lg:text-4xl font-display font-bold text-surface-100">Publish</h1>
+      <h1 class="text-3xl lg:text-4xl font-mono font-bold text-surface-100">Publish</h1>
       <p class="text-surface-400 mt-2">Connect accounts and publish content across platforms</p>
     </div>
 
     <!-- Connected Accounts -->
     <Card class="mb-8">
       <div class="flex items-center justify-between mb-6">
-        <h2 class="text-xl font-display font-semibold text-surface-100">Connected Accounts</h2>
+        <h2 class="text-xl font-mono font-semibold text-surface-100">Connected Accounts</h2>
       </div>
       
       <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -60,7 +60,7 @@
     <div class="grid lg:grid-cols-2 gap-6 lg:gap-8">
       <!-- Publish Form -->
       <Card>
-        <h2 class="text-xl font-display font-semibold text-surface-100 mb-6">Publish Content</h2>
+        <h2 class="text-xl font-mono font-semibold text-surface-100 mb-6">Publish Content</h2>
         
         <form @submit.prevent="publishContent" class="space-y-5">
           <!-- Video Selection -->
@@ -150,7 +150,7 @@
 
       <!-- Scheduled Posts -->
       <Card>
-        <h2 class="text-xl font-display font-semibold text-surface-100 mb-6">Scheduled Posts</h2>
+        <h2 class="text-xl font-mono font-semibold text-surface-100 mb-6">Scheduled Posts</h2>
         
         <EmptyState
           v-if="scheduledPosts.length === 0"

@@ -10,18 +10,16 @@
     <!-- Logo Icon -->
     <div 
       v-if="variant !== 'text'"
-      class="relative flex items-center justify-center rounded-lg bg-gradient-to-br from-primary-500 to-accent-200"
+      class="relative flex items-center justify-center rounded-lg bg-gradient-to-br from-primary-500 to-primary-600"
       :class="iconSizeClass"
     >
-      <span class="font-display font-bold text-surface-900" :class="iconTextClass">E</span>
-      <!-- Subtle shine effect -->
-      <div class="absolute inset-0 rounded-lg bg-gradient-to-tr from-white/20 to-transparent opacity-50" />
+      <span class="font-bold text-surface-950" :class="iconTextClass">E</span>
     </div>
 
     <!-- Logo Text -->
     <span 
       v-if="variant !== 'icon'"
-      class="font-display font-bold tracking-tight"
+      class="font-semibold tracking-tight"
       :class="[textSizeClass, textColorClass]"
     >
       Elevo<span class="text-primary-400">AI</span>
@@ -48,7 +46,7 @@ const linkClass = computed(() => props.class || '')
 const gapClass = computed(() => {
   if (props.variant === 'icon' || props.variant === 'text') return ''
   switch (props.size) {
-    case 'sm': return 'gap-1.5'
+    case 'sm': return 'gap-2'
     case 'md': return 'gap-2'
     case 'lg': return 'gap-2.5'
     case 'xl': return 'gap-3'
@@ -58,7 +56,7 @@ const gapClass = computed(() => {
 
 const iconSizeClass = computed(() => {
   switch (props.size) {
-    case 'sm': return 'w-6 h-6'
+    case 'sm': return 'w-7 h-7'
     case 'md': return 'w-8 h-8'
     case 'lg': return 'w-10 h-10'
     case 'xl': return 'w-12 h-12'
@@ -68,7 +66,7 @@ const iconSizeClass = computed(() => {
 
 const iconTextClass = computed(() => {
   switch (props.size) {
-    case 'sm': return 'text-sm'
+    case 'sm': return 'text-base'
     case 'md': return 'text-lg'
     case 'lg': return 'text-xl'
     case 'xl': return 'text-2xl'
@@ -86,5 +84,5 @@ const textSizeClass = computed(() => {
   }
 })
 
-const textColorClass = computed(() => 'text-surface-100')
+const textColorClass = computed(() => 'text-surface-50')
 </script>

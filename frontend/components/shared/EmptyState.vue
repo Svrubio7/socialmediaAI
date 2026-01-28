@@ -9,7 +9,7 @@
     </div>
     
     <!-- Title -->
-    <h3 class="text-xl font-display font-semibold text-surface-100 mb-2">
+    <h3 class="text-xl font-mono font-semibold text-surface-100 mb-2">
       {{ title }}
     </h3>
     

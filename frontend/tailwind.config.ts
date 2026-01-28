@@ -14,11 +14,11 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        display: ['Outfit', 'system-ui', 'sans-serif'],
+        sans: ['ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', 'sans-serif'],
+        mono: ['"Space Mono"', 'ui-monospace', 'SFMono-Regular', '"SF Mono"', 'Menlo', 'Monaco', 'Consolas', '"Liberation Mono"', '"Courier New"', 'monospace'],
       },
       colors: {
-        // New color palette based on user preference - darker variants
+        // Color palette based on user preference - darker variants
         primary: {
           50: '#f4f7f4',
           100: '#e6ebe6',
@@ -45,19 +45,19 @@ export default {
           900: '#664a38',
           950: '#36261c',
         },
-        // Deep dark theme based on the palette
+        // Deep dark theme - even darker
         surface: {
           50: '#f5f5f5',
           100: '#e8e8e8',
           200: '#d4d4d4',
           300: '#b0b0b0',
           400: '#888888',
-          500: '#697565', // Sage as mid-tone
-          600: '#3C3D37', // Dark gray-green
-          700: '#2d2e2a',
-          800: '#252621',
-          900: '#1E201E', // Primary dark
-          950: '#111211', // Deepest black
+          500: '#697565',
+          600: '#3C3D37',
+          700: '#252622',
+          800: '#1a1b18',
+          900: '#121310',
+          950: '#0a0a09', // Near black
         },
       },
       animation: {
@@ -73,6 +73,11 @@ export default {
         'shimmer': 'shimmer 2s linear infinite',
         'float': 'float 6s ease-in-out infinite',
         'glow': 'glow 2s ease-in-out infinite alternate',
+        'typewriter': 'typewriter 2s steps(40) forwards',
+        'blink': 'blink 1s step-end infinite',
+        'text-reveal': 'textReveal 0.8s ease-out forwards',
+        'word-reveal': 'wordReveal 0.5s ease-out forwards',
+        'letter-bounce': 'letterBounce 0.3s ease-out forwards',
       },
       keyframes: {
         fadeIn: {
@@ -118,6 +123,49 @@ export default {
         glow: {
           '0%': { opacity: '0.5' },
           '100%': { opacity: '1' },
+        },
+        typewriter: {
+          'from': { width: '0' },
+          'to': { width: '100%' },
+        },
+        blink: {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0' },
+        },
+        textReveal: {
+          '0%': { 
+            opacity: '0',
+            transform: 'translateY(20px)',
+            filter: 'blur(10px)',
+          },
+          '100%': { 
+            opacity: '1',
+            transform: 'translateY(0)',
+            filter: 'blur(0)',
+          },
+        },
+        wordReveal: {
+          '0%': { 
+            opacity: '0',
+            transform: 'translateY(100%)',
+          },
+          '100%': { 
+            opacity: '1',
+            transform: 'translateY(0)',
+          },
+        },
+        letterBounce: {
+          '0%': { 
+            opacity: '0',
+            transform: 'translateY(-20px) scale(0.8)',
+          },
+          '60%': { 
+            transform: 'translateY(5px) scale(1.1)',
+          },
+          '100%': { 
+            opacity: '1',
+            transform: 'translateY(0) scale(1)',
+          },
         },
       },
       transitionTimingFunction: {

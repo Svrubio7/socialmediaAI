@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen flex flex-col bg-surface-900">
+  <div class="min-h-screen flex flex-col bg-surface-950">
     <!-- Header -->
     <LayoutHeader />
 

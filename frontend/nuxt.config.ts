@@ -42,7 +42,7 @@ export default defineNuxtConfig({
     redirectOptions: {
       login: '/auth/login',
       callback: '/auth/callback',
-      exclude: ['/', '/about', '/contact', '/auth/*'],
+      exclude: ['/', '/about', '/pricing', '/contact', '/auth/*', '/es', '/es/*', '/fr', '/fr/*', '/de', '/de/*'],
     },
   },
 
@@ -58,9 +58,65 @@ export default defineNuxtConfig({
       ],
       link: [
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+        // Preconnect to Google Fonts for faster loading
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
-        { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap' },
+        // Preload the actual font files for faster loading (prevents FOUT)
+        { rel: 'preload', href: 'https://fonts.gstatic.com/s/spacemono/v14/i7dPIFZifjKcF5UAWdDRYEF8RQ.woff2', as: 'font', type: 'font/woff2', crossorigin: 'anonymous' },
+        { rel: 'preload', href: 'https://fonts.gstatic.com/s/spacemono/v14/i7dMIFZifjKcF5UAWdDRaPpZUFWaHg.woff2', as: 'font', type: 'font/woff2', crossorigin: 'anonymous' },
+        // Load Space Mono font CSS
+        { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=block' },
+      ],
+      // Add critical font-face CSS and loading screen inline
+      style: [
+        {
+          children: `
+            /* Critical font-face to ensure font is available immediately */
+            @font-face {
+              font-family: 'Space Mono';
+              font-style: normal;
+              font-weight: 400;
+              font-display: block;
+              src: url(https://fonts.gstatic.com/s/spacemono/v14/i7dPIFZifjKcF5UAWdDRYEF8RQ.woff2) format('woff2');
+              unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+            }
+            @font-face {
+              font-family: 'Space Mono';
+              font-style: normal;
+              font-weight: 700;
+              font-display: block;
+              src: url(https://fonts.gstatic.com/s/spacemono/v14/i7dMIFZifjKcF5UAWdDRaPpZUFWaHg.woff2) format('woff2');
+              unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+            }
+            /* Ensure font is applied immediately */
+            html, body {
+              font-family: 'Space Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace !important;
+            }
+            /* Hide body until fonts are loaded */
+            body {
+              opacity: 0;
+              transition: opacity 0.15s ease-in;
+            }
+            body.fonts-loaded {
+              opacity: 1;
+            }
+          `,
+        },
+      ],
+      // Script to detect font loading and show content
+      script: [
+        {
+          children: `
+            document.fonts.ready.then(function() {
+              document.body.classList.add('fonts-loaded');
+            });
+            // Fallback: show content after 500ms even if fonts haven't loaded
+            setTimeout(function() {
+              document.body.classList.add('fonts-loaded');
+            }, 500);
+          `,
+          type: 'text/javascript',
+        },
       ],
     },
   },

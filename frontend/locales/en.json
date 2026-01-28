@@ -9,72 +9,73 @@
     "getStarted": "Get Started"
   },
   "hero": {
-    "badge": "AI-Powered Marketing Platform for SMEs",
+    "badge": "AI-powered marketing platform for SMEs",
     "title1": "Elevate Your",
     "title2": "Business Marketing",
     "title3": "with AI",
     "subtitle": "Transform how your business creates and publishes social media content. Analyze video patterns, generate winning strategies, and reach your audience across all platforms.",
     "cta1": "Try it out!",
-    "cta2": "Check our demo"
+    "cta2": "Check our demo",
+    "trustLine": "Free to start. No credit card required."
   },
   "stats": {
-    "faster": "Faster Content Creation",
-    "platforms": "Platforms Supported",
-    "timeSaved": "Time Saved",
-    "analysis": "AI Analysis"
+    "faster": "Faster content creation",
+    "platforms": "Platforms supported",
+    "timeSaved": "Time saved",
+    "analysis": "AI analysis"
   },
   "features": {
     "badge": "Features",
-    "title": "Everything Your Business Needs to",
-    "titleHighlight": "Dominate",
-    "titleEnd": "Social Media",
+    "title": "Everything your business needs to",
+    "titleHighlight": "dominate",
+    "titleEnd": "social media",
     "subtitle": "From AI-powered pattern analysis to automated publishing, ElevoAI provides all the tools your business needs to create engaging content consistently.",
     "pattern": {
-      "title": "Pattern Analysis",
+      "title": "Pattern analysis",
       "description": "AI analyzes your videos to identify what makes content successful—hooks, pacing, cuts, transitions, and more."
     },
     "strategy": {
-      "title": "Strategy Generation",
+      "title": "Strategy generation",
       "description": "Get AI-generated marketing strategies tailored to your business goals and target platforms."
     },
     "script": {
-      "title": "Script Creation",
+      "title": "Script creation",
       "description": "Receive detailed filming and editing scripts with timing, visual instructions, and proven success patterns."
     },
     "editing": {
-      "title": "Auto Video Editing",
+      "title": "Auto video editing",
       "description": "Automatically apply patterns to create optimized video variations for each platform."
     },
     "publishing": {
-      "title": "Multi-Platform Publishing",
+      "title": "Multi-platform publishing",
       "description": "Publish to Instagram, TikTok, YouTube, and Facebook with a single click."
     },
     "analytics": {
-      "title": "Performance Analytics",
+      "title": "Performance analytics",
       "description": "Track performance across platforms and watch your engagement metrics improve over time."
     }
   },
   "howItWorks": {
-    "badge": "How It Works",
-    "title": "Three Simple Steps to",
-    "titleHighlight": "Better Engagement",
+    "badge": "How it works",
+    "title": "Three simple steps to",
+    "titleHighlight": "better engagement",
     "subtitle": "ElevoAI makes content optimization effortless for your business. Upload, analyze, and publish in minutes.",
     "step1": {
-      "title": "Upload Your Content",
+      "title": "Upload your content",
       "description": "Simply drag and drop your videos or connect your existing social media accounts to import content.",
       "feature1": "Support for all major formats",
       "feature2": "Batch upload multiple videos",
       "feature3": "Import from social accounts"
     },
     "step2": {
-      "title": "AI Analysis & Strategy",
+      "title": "AI analysis & strategy",
       "description": "Our AI analyzes your content patterns, identifies what works, and generates tailored strategies for your business.",
       "feature1": "Pattern recognition at 5fps",
       "feature2": "Automated script generation",
       "feature3": "Platform-specific optimization"
     },
     "step3": {
-      "title": "Publish & Track",
+      "title": "Publish & track",
       "description": "Schedule and publish optimized content across all platforms, then track performance in real-time.",
       "feature1": "One-click multi-platform publish",
       "feature2": "Smart scheduling",
@@ -83,7 +84,7 @@
   },
   "faq": {
     "badge": "FAQ",
-    "title": "Frequently Asked Questions",
+    "title": "Frequently asked questions",
     "subtitle": "Everything you need to know about ElevoAI",
     "q1": "How does ElevoAI analyze my videos?",
     "a1": "ElevoAI uses Google Gemini 2.0 Flash to analyze your videos at 5 frames per second (0.2s intervals). It examines visual patterns like scene types, camera motion, text overlays, transitions, and pacing to identify what makes content successful.",
@@ -99,14 +100,14 @@
     "a6": "Not at all! ElevoAI is designed to be intuitive and user-friendly. Simply upload your videos, and the AI handles the complex analysis and optimization work for you."
   },
   "cta": {
-    "title": "Ready to Transform Your",
-    "titleHighlight": "Business Marketing?",
+    "title": "Ready to transform your",
+    "titleHighlight": "business marketing?",
     "subtitle": "Join thousands of businesses using AI to create better content, faster. Start your free trial today—no credit card required.",
-    "button1": "Get Started Free",
-    "button2": "Talk to Sales",
-    "badge1": "SOC 2 Compliant",
-    "badge2": "99.9% Uptime",
-    "badge3": "24/7 Support"
+    "button1": "Get started free",
+    "button2": "Talk to sales",
+    "badge1": "SOC 2 compliant",
+    "badge2": "99.9% uptime",
+    "badge3": "24/7 support"
   },
   "footer": {
     "description": "Elevate your business social media presence with AI-powered video analysis, strategy generation, and multi-platform publishing.",
@@ -127,22 +128,22 @@
     "terms": "Terms of Service"
   },
   "about": {
-    "badge": "About Us",
-    "title": "Empowering Businesses with",
-    "titleHighlight": "AI-Driven Marketing",
+    "badge": "About us",
+    "title": "Empowering businesses with",
+    "titleHighlight": "AI-driven marketing",
     "subtitle": "We're on a mission to democratize social media marketing for small and medium-sized enterprises.",
     "story": {
-      "title": "Our Story",
+      "title": "Our story",
       "p1": "ElevoAI was founded with a simple belief: every business deserves access to powerful marketing tools, regardless of their size or budget.",
       "p2": "We saw how large corporations had entire teams dedicated to analyzing content performance and optimizing their social media strategies. Meanwhile, small businesses were left to figure it out on their own.",
       "p3": "That's why we built ElevoAI—to level the playing field. Our AI-powered platform gives SMEs the same analytical capabilities that used to be reserved for companies with massive marketing budgets."
     },
     "mission": {
-      "title": "Our Mission",
+      "title": "Our mission",
       "description": "To empower every business to create engaging, effective social media content through the power of artificial intelligence."
     },
     "values": {
-      "title": "Our Values",
+      "title": "Our values",
       "v1": {
         "title": "Simplicity",
         "description": "Complex technology should be easy to use. We hide the complexity so you can focus on your business."

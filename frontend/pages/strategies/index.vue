@@ -3,7 +3,7 @@
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
       <div>
-        <h1 class="text-3xl lg:text-4xl font-display font-bold text-surface-100">Strategies</h1>
+        <h1 class="text-3xl lg:text-4xl font-mono font-bold text-surface-100">Strategies</h1>
         <p class="text-surface-400 mt-2">AI-generated marketing strategies based on your content</p>
       </div>
       <Button variant="primary" @click="showGenerate = true">
@@ -94,7 +94,7 @@
       <Card v-for="strategy in strategies" :key="strategy.id" variant="hover">
         <div class="flex items-start justify-between mb-4">
           <div>
-            <h3 class="text-lg font-display font-semibold text-surface-100">
+            <h3 class="text-lg font-mono font-semibold text-surface-100">
               Strategy #{{ strategy.id.slice(0, 8) }}
             </h3>
             <p class="text-surface-400 text-sm mt-1">

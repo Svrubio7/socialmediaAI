@@ -1,66 +1,86 @@
 <template>
-  <section id="how-it-works" class="section bg-surface-800/30">
-    <!-- Top divider -->
-    <div class="absolute top-0 left-0 right-0 section-divider" />
-    
+  <section id="how-it-works" class="section overflow-hidden">
     <div class="container-wide">
       <!-- Section Header -->
-      <div class="text-center max-w-3xl mx-auto mb-20">
+      <div class="text-center max-w-2xl mx-auto mb-20">
         <UiBadge variant="accent" class="mb-4">{{ $t('howItWorks.badge') }}</UiBadge>
-        <h2 class="text-3xl sm:text-4xl lg:text-5xl font-display font-bold text-balance mb-6">
+        <h2 class="text-3xl sm:text-4xl font-mono text-balance mb-4">
           {{ $t('howItWorks.title') }}
           <span class="gradient-text">{{ $t('howItWorks.titleHighlight') }}</span>
         </h2>
-        <p class="text-lg text-surface-400">
+        <p class="text-surface-400 leading-relaxed font-mono">
           {{ $t('howItWorks.subtitle') }}
         </p>
       </div>
 
-      <!-- Steps -->
-      <div class="grid lg:grid-cols-3 gap-8 lg:gap-6 max-w-6xl mx-auto">
+      <!-- Steps - horizontally distributed with stair effect -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-6 max-w-6xl mx-auto">
         <div 
           v-for="(step, index) in steps" 
           :key="step.titleKey"
-          class="relative text-center lg:text-left"
+          ref="stepRefs"
+          class="step-item relative transition-all duration-700 ease-out"
+          :class="visibleSteps[index] ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'"
+          :style="{ 
+            transitionDelay: `${index * 200}ms`,
+            marginTop: `${index * 3}rem`
+          }"
         >
-          <!-- Connector line (hidden on mobile, visible on desktop) -->
-          <div 
-            v-if="index < steps.length - 1"
-            class="hidden lg:block absolute top-16 left-[calc(50%+60px)] w-[calc(100%-120px)] h-px bg-gradient-to-r from-surface-600 via-surface-500 to-surface-600 z-0"
-          />
-          
-          <div class="relative z-10 flex flex-col items-center lg:items-start">
+          <!-- Step card -->
+          <div class="bg-surface-900/60 border border-surface-800 rounded-2xl p-6 relative h-full">
             <!-- Step number -->
-            <div class="w-28 h-28 rounded-2xl bg-gradient-to-br from-surface-700 to-surface-800 border border-surface-600 flex items-center justify-center mb-8 mx-auto lg:mx-0">
-              <span class="text-4xl font-display font-bold gradient-text">{{ String(index + 1).padStart(2, '0') }}</span>
+            <div 
+              class="absolute -top-3 -left-3 w-12 h-12 rounded-xl bg-surface-950 border border-surface-700 flex items-center justify-center shadow-lg z-10 transition-all duration-500"
+              :class="visibleSteps[index] ? 'opacity-100 scale-100' : 'opacity-0 scale-75'"
+              :style="{ transitionDelay: `${index * 200 + 100}ms` }"
+            >
+              <span class="text-lg font-mono text-surface-50">{{ String(index + 1).padStart(2, '0') }}</span>
             </div>
             
             <!-- Content -->
-            <h3 class="text-xl font-display font-semibold text-surface-100 mb-3">
-              {{ $t(step.titleKey) }}
-            </h3>
-            <p class="text-surface-400 leading-relaxed mb-6 max-w-sm mx-auto lg:mx-0">
-              {{ $t(step.descKey) }}
-            </p>
-            
-            <!-- Features list -->
-            <ul class="space-y-2 text-left">
-              <li 
-                v-for="feature in step.features" 
-                :key="feature"
-                class="flex items-center gap-2 text-sm text-surface-400"
+            <div class="pt-6">
+              <h3 
+                class="text-lg font-mono text-surface-50 mb-2 transition-all duration-500"
+                :class="visibleSteps[index] ? 'opacity-100' : 'opacity-0'"
+                :style="{ transitionDelay: `${index * 200 + 200}ms` }"
               >
-                <UiIcon name="Check" :size="16" class="text-primary-400 flex-shrink-0" />
-                <span>{{ $t(feature) }}</span>
-              </li>
-            </ul>
+                {{ $t(step.titleKey) }}
+              </h3>
+              <p 
+                class="text-surface-400 text-sm leading-relaxed mb-4 font-mono transition-all duration-500"
+                :class="visibleSteps[index] ? 'opacity-100' : 'opacity-0'"
+                :style="{ transitionDelay: `${index * 200 + 300}ms` }"
+              >
+                {{ $t(step.descKey) }}
+              </p>
+              
+              <!-- Features list -->
+              <ul class="space-y-2">
+                <li 
+                  v-for="(feature, fIndex) in step.features" 
+                  :key="feature"
+                  class="flex items-start gap-2 text-sm text-surface-400 font-mono transition-all duration-500"
+                  :class="visibleSteps[index] ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'"
+                  :style="{ transitionDelay: `${index * 200 + 400 + fIndex * 75}ms` }"
+                >
+                  <UiIcon name="Check" :size="14" class="text-primary-400 flex-shrink-0 mt-0.5" />
+                  <span>{{ $t(feature) }}</span>
+                </li>
+              </ul>
+            </div>
           </div>
+          
+          <!-- Connecting line to next step (desktop only) -->
+          <div 
+            v-if="index < steps.length - 1"
+            class="hidden md:block absolute top-1/2 -right-3 w-6 h-px bg-surface-700"
+          />
         </div>
       </div>
+      
+      <!-- Contained divider -->
+      <div class="section-divider mt-24" />
     </div>
-    
-    <!-- Bottom divider -->
-    <div class="absolute bottom-0 left-0 right-0 section-divider" />
   </section>
 </template>
 
@@ -94,4 +114,34 @@ const steps = [
     ],
   },
 ]
+
+const stepRefs = ref<HTMLElement[]>([])
+const visibleSteps = ref<boolean[]>(new Array(steps.length).fill(false))
+
+onMounted(() => {
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const index = stepRefs.value.indexOf(entry.target as HTMLElement)
+          if (index !== -1) {
+            visibleSteps.value[index] = true
+          }
+        }
+      })
+    },
+    { 
+      threshold: 0.15,
+      rootMargin: '0px 0px -30px 0px'
+    }
+  )
+  
+  stepRefs.value.forEach((el) => {
+    if (el) observer.observe(el)
+  })
+  
+  onUnmounted(() => {
+    observer.disconnect()
+  })
+})
 </script>

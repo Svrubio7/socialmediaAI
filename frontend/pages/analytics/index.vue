@@ -3,7 +3,7 @@
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
       <div>
-        <h1 class="text-3xl lg:text-4xl font-display font-bold text-surface-100">Analytics</h1>
+        <h1 class="text-3xl lg:text-4xl font-mono font-bold text-surface-100">Analytics</h1>
         <p class="text-surface-400 mt-2">Track your content performance across platforms</p>
       </div>
       <div class="relative">
@@ -22,7 +22,7 @@
         <div class="flex items-start justify-between">
           <div>
             <p class="text-surface-400 text-sm mb-1">{{ stat.label }}</p>
-            <p class="text-2xl lg:text-3xl font-display font-bold text-surface-100">
+            <p class="text-2xl lg:text-3xl font-mono font-bold text-surface-100">
               {{ formatNumber(stat.value) }}
             </p>
           </div>
@@ -48,7 +48,7 @@
     <div class="grid lg:grid-cols-2 gap-6 lg:gap-8 mb-8">
       <!-- Platform Performance -->
       <Card>
-        <h2 class="text-xl font-display font-semibold text-surface-100 mb-6">Platform Performance</h2>
+        <h2 class="text-xl font-mono font-semibold text-surface-100 mb-6">Platform Performance</h2>
         
         <div class="space-y-4">
           <div 
@@ -84,7 +84,7 @@
 
       <!-- Top Performing Content -->
       <Card>
-        <h2 class="text-xl font-display font-semibold text-surface-100 mb-6">Top Performing Content</h2>
+        <h2 class="text-xl font-mono font-semibold text-surface-100 mb-6">Top Performing Content</h2>
         
         <EmptyState
           v-if="topVideos.length === 0"
@@ -100,7 +100,7 @@
             :key="video.id" 
             class="flex items-center gap-4 p-3 rounded-xl bg-surface-800/50"
           >
-            <span class="text-2xl font-display font-bold text-surface-600 w-8 text-center">
+            <span class="text-2xl font-mono font-bold text-surface-600 w-8 text-center">
               #{{ index + 1 }}
             </span>
             <div class="w-16 h-12 bg-surface-700 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
@@ -124,7 +124,7 @@
 
     <!-- Pattern Insights -->
     <Card>
-      <h2 class="text-xl font-display font-semibold text-surface-100 mb-6">Pattern Insights</h2>
+      <h2 class="text-xl font-mono font-semibold text-surface-100 mb-6">Pattern Insights</h2>
       
       <EmptyState
         v-if="patternInsights.length === 0"

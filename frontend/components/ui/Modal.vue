@@ -34,7 +34,7 @@
             <!-- Header -->
             <div v-if="title || $slots.header || showClose" class="flex items-center justify-between gap-4 mb-6">
               <slot name="header">
-                <h2 v-if="title" class="text-xl font-display font-semibold">{{ title }}</h2>
+                <h2 v-if="title" class="text-xl font-mono font-semibold">{{ title }}</h2>
               </slot>
               <button
                 v-if="showClose"

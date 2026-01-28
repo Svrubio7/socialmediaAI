@@ -2,7 +2,7 @@
   <div class="container-wide py-8 lg:py-12">
     <!-- Header -->
     <div class="mb-8">
-      <h1 class="text-3xl lg:text-4xl font-display font-bold text-surface-100">Dashboard</h1>
+      <h1 class="text-3xl lg:text-4xl font-mono font-bold text-surface-100">Dashboard</h1>
       <p class="text-surface-400 mt-2">Welcome back! Here's an overview of your content.</p>
     </div>
 
@@ -12,7 +12,7 @@
         <div class="flex items-start justify-between">
           <div>
             <p class="text-surface-400 text-sm mb-1">{{ stat.label }}</p>
-            <p class="text-2xl lg:text-3xl font-display font-bold text-surface-100">{{ stat.value }}</p>
+            <p class="text-2xl lg:text-3xl font-mono font-bold text-surface-100">{{ stat.value }}</p>
           </div>
           <div 
             class="w-10 h-10 lg:w-12 lg:h-12 rounded-xl flex items-center justify-center"
@@ -40,7 +40,7 @@
             <Icon name="Upload" :size="24" class="text-primary-400" />
           </div>
           <div>
-            <h3 class="font-display font-semibold text-surface-100">Upload Video</h3>
+            <h3 class="font-mono font-semibold text-surface-100">Upload Video</h3>
             <p class="text-surface-400 text-sm">Analyze patterns in your content</p>
           </div>
         </div>
@@ -52,7 +52,7 @@
             <Icon name="Target" :size="24" class="text-accent-400" />
           </div>
           <div>
-            <h3 class="font-display font-semibold text-surface-100">Generate Strategy</h3>
+            <h3 class="font-mono font-semibold text-surface-100">Generate Strategy</h3>
             <p class="text-surface-400 text-sm">Get AI-powered recommendations</p>
           </div>
         </div>
@@ -64,7 +64,7 @@
             <Icon name="Send" :size="24" class="text-emerald-400" />
           </div>
           <div>
-            <h3 class="font-display font-semibold text-surface-100">Publish Content</h3>
+            <h3 class="font-mono font-semibold text-surface-100">Publish Content</h3>
             <p class="text-surface-400 text-sm">Share to all platforms</p>
           </div>
         </div>
@@ -76,7 +76,7 @@
       <!-- Recent Videos -->
       <Card>
         <div class="flex items-center justify-between mb-6">
-          <h2 class="text-xl font-display font-semibold text-surface-100">Recent Videos</h2>
+          <h2 class="text-xl font-mono font-semibold text-surface-100">Recent Videos</h2>
           <Button variant="ghost" size="sm" to="/videos">
             View all
             <Icon name="ArrowRight" :size="16" />
@@ -122,7 +122,7 @@
       <!-- Platform Connections -->
       <Card>
         <div class="flex items-center justify-between mb-6">
-          <h2 class="text-xl font-display font-semibold text-surface-100">Connected Platforms</h2>
+          <h2 class="text-xl font-mono font-semibold text-surface-100">Connected Platforms</h2>
           <Button variant="ghost" size="sm" to="/publish">
             Manage
             <Icon name="ArrowRight" :size="16" />
