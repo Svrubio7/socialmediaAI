@@ -1,35 +1,37 @@
 # =============================================================================
-# Social Media AI - Docker Compose (Development)
-# Full local development stack with hot reload support
+# Social Media AI - Docker Compose (Production-like)
+# Configuration for testing production builds locally
 # =============================================================================
 #
 # Usage:
-#   docker-compose up -d          # Start all services
-#   docker-compose logs -f        # View logs
-#   docker-compose down           # Stop all services
-#   docker-compose down -v        # Stop and remove volumes
+#   docker-compose -f docker-compose.prod.yml up -d --build
+#   docker-compose -f docker-compose.prod.yml logs -f
+#   docker-compose -f docker-compose.prod.yml down
 #
+# This configuration mirrors the Render production setup as closely as possible
 # =============================================================================
 
 services:
   # ===========================================================================
-  # nginx - Reverse Proxy
+  # nginx - Reverse Proxy (Production config)
   # ===========================================================================
   nginx:
     image: nginx:alpine
-    container_name: socialmediaai-nginx
+    container_name: socialmediaai-nginx-prod
     ports:
       - "80:80"
+      - "443:443"
     volumes:
-      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
+      frontend:
+        condition: service_healthy
       backend:
         condition: service_healthy
-      frontend:
-        condition: service_started
     networks:
       - socialmediaai-network
-    restart: unless-stopped
+    restart: always
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost/nginx-health"]
       interval: 30s
@@ -38,64 +40,67 @@ services:
       start_period: 10s
 
   # ===========================================================================
-  # Frontend - Nuxt.js (Development with Hot Reload)
+  # Frontend - Nuxt.js (Production Build)
   # ===========================================================================
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      target: deps
-    container_name: socialmediaai-frontend
+      args:
+        - NUXT_PUBLIC_API_URL=${NUXT_PUBLIC_API_URL:-http://localhost/api/v1}
+        - NUXT_PUBLIC_SUPABASE_URL=${NUXT_PUBLIC_SUPABASE_URL}
+        - NUXT_PUBLIC_SUPABASE_ANON_KEY=${NUXT_PUBLIC_SUPABASE_ANON_KEY}
+    container_name: socialmediaai-frontend-prod
     ports:
       - "3000:3000"
-    env_file:
-      - frontend/.env
-    volumes:
-      # Mount source code for hot reload
-      - ./frontend:/app
-      # Prevent overwriting node_modules
-      - /app/node_modules
     environment:
-      - NODE_ENV=development
-      # Override API URL for nginx proxy when using Docker
-      - NUXT_PUBLIC_API_URL=http://localhost/api/v1
-      # NUXT_PUBLIC_SUPABASE_URL and NUXT_PUBLIC_SUPABASE_ANON_KEY come from env_file (frontend/.env)
-    command: npm run dev -- --host 0.0.0.0
+      - NODE_ENV=production
     networks:
       - socialmediaai-network
-    restart: unless-stopped
+    restart: always
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 60s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
 
   # ===========================================================================
-  # Backend - FastAPI (Development with Hot Reload)
+  # Backend - FastAPI (Production Build)
   # ===========================================================================
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      target: runtime
-    container_name: socialmediaai-backend
+    container_name: socialmediaai-backend-prod
     ports:
       - "8000:8000"
-    env_file:
-      - backend/.env
     volumes:
-      # Mount source code for hot reload
-      - ./backend:/app
-      # Temp directory for video processing
       - backend-temp:/app/temp
     environment:
-      - DEBUG=true
-      # Docker network: use postgres/redis container hostnames
+      - DEBUG=false
       - DATABASE_URL=postgresql://socialmediaai:socialmediaai_password@postgres:5432/socialmediaai
       - REDIS_URL=redis://redis:6379
-      # SUPABASE_*, GEMINI_API_KEY, OPENAI_API_KEY, ENCRYPTION_KEY, SECRET_KEY, OAuth: from env_file (backend/.env)
-    command: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - SECRET_KEY=${SECRET_KEY}
+      - INSTAGRAM_CLIENT_ID=${INSTAGRAM_CLIENT_ID:-}
+      - INSTAGRAM_CLIENT_SECRET=${INSTAGRAM_CLIENT_SECRET:-}
+      - TIKTOK_CLIENT_KEY=${TIKTOK_CLIENT_KEY:-}
+      - TIKTOK_CLIENT_SECRET=${TIKTOK_CLIENT_SECRET:-}
+      - YOUTUBE_CLIENT_ID=${YOUTUBE_CLIENT_ID:-}
+      - YOUTUBE_CLIENT_SECRET=${YOUTUBE_CLIENT_SECRET:-}
+      - FACEBOOK_APP_ID=${FACEBOOK_APP_ID:-}
+      - FACEBOOK_APP_SECRET=${FACEBOOK_APP_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -103,33 +108,39 @@ services:
         condition: service_healthy
     networks:
       - socialmediaai-network
-    restart: unless-stopped
+    restart: always
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 3
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
 
   # ===========================================================================
-  # Celery Worker - Background Video Processing
+  # Celery Worker - Background Video Processing (Production)
   # ===========================================================================
   celery-worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      target: runtime
-    container_name: socialmediaai-celery-worker
-    env_file:
-      - backend/.env
+    container_name: socialmediaai-celery-worker-prod
     volumes:
-      - ./backend:/app
       - backend-temp:/app/temp
     environment:
-      - DEBUG=true
+      - DEBUG=false
       - DATABASE_URL=postgresql://socialmediaai:socialmediaai_password@postgres:5432/socialmediaai
       - REDIS_URL=redis://redis:6379
-    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    command: celery -A app.workers.celery_app worker --loglevel=warning --concurrency=2
     depends_on:
       postgres:
         condition: service_healthy
@@ -137,26 +148,26 @@ services:
         condition: service_healthy
     networks:
       - socialmediaai-network
-    restart: unless-stopped
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
 
   # ===========================================================================
-  # Celery Beat - Scheduled Tasks
+  # Celery Beat - Scheduled Tasks (Production)
   # ===========================================================================
   celery-beat:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      target: runtime
-    container_name: socialmediaai-celery-beat
-    env_file:
-      - backend/.env
-    volumes:
-      - ./backend:/app
+    container_name: socialmediaai-celery-beat-prod
     environment:
-      - DEBUG=true
+      - DEBUG=false
       - DATABASE_URL=postgresql://socialmediaai:socialmediaai_password@postgres:5432/socialmediaai
       - REDIS_URL=redis://redis:6379
-    command: celery -A app.workers.celery_app beat --loglevel=info
+    command: celery -A app.workers.celery_app beat --loglevel=warning
     depends_on:
       postgres:
         condition: service_healthy
@@ -164,53 +175,67 @@ services:
         condition: service_healthy
     networks:
       - socialmediaai-network
-    restart: unless-stopped
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
 
   # ===========================================================================
-  # Redis - Cache & Celery Broker
+  # Redis - Cache & Celery Broker (Production settings)
   # ===========================================================================
   redis:
     image: redis:7-alpine
-    container_name: socialmediaai-redis
+    container_name: socialmediaai-redis-prod
     ports:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     networks:
       - socialmediaai-network
-    restart: unless-stopped
+    restart: always
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
 
   # ===========================================================================
-  # PostgreSQL - Local Database
+  # PostgreSQL - Local Database (Production settings)
   # ===========================================================================
   postgres:
     image: postgres:15-alpine
-    container_name: socialmediaai-postgres
+    container_name: socialmediaai-postgres-prod
     ports:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./backend/app/db/migrations/versions:/docker-entrypoint-initdb.d:ro
     environment:
       - POSTGRES_USER=socialmediaai
       - POSTGRES_PASSWORD=socialmediaai_password
       - POSTGRES_DB=socialmediaai
     networks:
       - socialmediaai-network
-    restart: unless-stopped
+    restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U socialmediaai -d socialmediaai"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
 
 # =============================================================================
 # Networks

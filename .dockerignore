@@ -1,0 +1,48 @@
+# =============================================================================
+# Root .dockerignore
+# Exclude files when building from project root
+# =============================================================================
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Documentation
+*.md
+!README.md
+
+# Cursor plans and rules
+.cursor/
+
+# Environment files
+.env
+.env.*
+!*.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+uploads/
+
+# nginx SSL certificates (sensitive)
+nginx/ssl/
+
+# Local data
+postgres_data/
+redis_data/
+
+# Logs
+logs/
+*.log

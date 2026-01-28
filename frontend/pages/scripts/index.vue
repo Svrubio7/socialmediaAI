@@ -76,8 +76,24 @@
     </Modal>
 
     <!-- Scripts List -->
+    <div v-if="scriptsLoading" class="grid md:grid-cols-2 gap-4">
+      <Card v-for="i in 4" :key="i" class="border-l-4 border-l-accent-500">
+        <div class="flex items-start gap-4 mb-4">
+          <Skeleton variant="rounded" width="48px" height="48px" />
+          <div class="flex-1 space-y-2">
+            <Skeleton variant="text" width="80%" />
+            <Skeleton variant="text" width="40%" />
+          </div>
+        </div>
+        <Skeleton variant="text" width="60px" class="mb-4" />
+        <div class="flex gap-2">
+          <Skeleton variant="rounded" width="100px" height="36px" />
+          <Skeleton variant="rounded" width="40px" height="36px" />
+        </div>
+      </Card>
+    </div>
     <EmptyState
-      v-if="scripts.length === 0"
+      v-else-if="scripts.length === 0"
       icon="FileText"
       title="No scripts yet"
       description="Generate your first AI-powered filming and editing script"
@@ -86,11 +102,10 @@
       variant="primary"
       @action="showGenerate = true"
     />
-
     <div v-else class="grid md:grid-cols-2 gap-4">
-      <Card v-for="script in scripts" :key="script.id" variant="hover">
+      <Card v-for="script in scripts" :key="script.id" variant="hover" class="border-l-4 border-l-accent-500">
         <div class="flex items-start gap-4 mb-4">
-          <div class="w-12 h-12 rounded-xl bg-accent-500/10 flex items-center justify-center flex-shrink-0">
+          <div class="w-12 h-12 rounded-xl bg-accent-500/20 flex items-center justify-center flex-shrink-0">
             <Icon name="FileText" :size="24" class="text-accent-400" />
           </div>
           <div class="flex-1 min-w-0">
@@ -124,11 +139,14 @@
 
 <script setup lang="ts">
 definePageMeta({
+  layout: 'app',
   middleware: 'auth',
 })
 
+const api = useApi()
 const showGenerate = ref(false)
 const generating = ref(false)
+const scriptsLoading = ref(true)
 const concept = ref('')
 const selectedPlatform = ref('')
 const duration = ref(60)
@@ -142,12 +160,39 @@ const availablePlatforms = [
 
 const scripts = ref<any[]>([])
 
+async function fetchScripts() {
+  scriptsLoading.value = true
+  try {
+    const res = await api.scripts.list()
+    scripts.value = (res as { items?: any[] })?.items ?? []
+  } catch {
+    scripts.value = []
+  } finally {
+    scriptsLoading.value = false
+  }
+}
+
 const generateScript = async () => {
   generating.value = true
-  await new Promise(resolve => setTimeout(resolve, 2000))
-  generating.value = false
-  showGenerate.value = false
+  try {
+    await api.scripts.generate({
+      concept: concept.value,
+      platform: selectedPlatform.value,
+      duration: duration.value,
+    })
+    concept.value = ''
+    selectedPlatform.value = ''
+    duration.value = 60
+    showGenerate.value = false
+    await fetchScripts()
+  } catch {
+    // toast when available
+  } finally {
+    generating.value = false
+  }
 }
+
+onMounted(fetchScripts)
 
 const formatDate = (date: string) => {
   return new Date(date).toLocaleDateString('en-US', {

@@ -18,7 +18,7 @@
 
     <!-- Overview Stats -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-8">
-      <Card v-for="stat in overviewStats" :key="stat.label">
+      <Card v-for="stat in overviewStats" :key="stat.label" :class="stat.borderClass">
         <div class="flex items-start justify-between">
           <div>
             <p class="text-surface-400 text-sm mb-1">{{ stat.label }}</p>
@@ -162,6 +162,7 @@
 
 <script setup lang="ts">
 definePageMeta({
+  layout: 'app',
   middleware: 'auth',
 })
 
@@ -172,32 +173,36 @@ const overviewStats = [
     label: 'Total Views', 
     value: 0, 
     icon: 'Eye',
-    iconBg: 'bg-primary-500/10',
+    iconBg: 'bg-primary-500/20',
     iconColor: 'text-primary-400',
+    borderClass: 'border-l-4 border-l-primary-500',
     change: 0,
   },
   { 
     label: 'Total Engagement', 
     value: 0, 
     icon: 'Heart',
-    iconBg: 'bg-rose-500/10',
+    iconBg: 'bg-rose-500/20',
     iconColor: 'text-rose-400',
+    borderClass: 'border-l-4 border-l-rose-500',
     change: 0,
   },
   { 
     label: 'Posts Published', 
     value: 0, 
     icon: 'Send',
-    iconBg: 'bg-emerald-500/10',
+    iconBg: 'bg-emerald-500/20',
     iconColor: 'text-emerald-400',
+    borderClass: 'border-l-4 border-l-emerald-500',
     change: 0,
   },
   { 
     label: 'Avg. Engagement', 
     value: 0, 
     icon: 'TrendingUp',
-    iconBg: 'bg-amber-500/10',
+    iconBg: 'bg-amber-500/20',
     iconColor: 'text-amber-400',
+    borderClass: 'border-l-4 border-l-amber-500',
     change: 0,
   },
 ]

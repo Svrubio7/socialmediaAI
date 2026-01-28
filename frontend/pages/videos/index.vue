@@ -37,9 +37,12 @@
       </div>
     </div>
 
-    <!-- Videos Grid or Empty State -->
+    <!-- Loading skeleton -->
+    <div v-if="isLoading" class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <SharedVideoCardSkeleton v-for="i in 6" :key="i" />
+    </div>
     <EmptyState
-      v-if="filteredVideos.length === 0 && !isLoading"
+      v-else-if="filteredVideos.length === 0"
       icon="Video"
       title="No videos yet"
       description="Upload your first video to start analyzing patterns and generating strategies"
@@ -48,7 +51,6 @@
       variant="primary"
       @action="showUpload = true"
     />
-
     <div v-else class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       <VideoCard
         v-for="video in filteredVideos"
@@ -121,20 +123,34 @@
 
 <script setup lang="ts">
 definePageMeta({
+  layout: 'app',
   middleware: 'auth',
 })
 
+const api = useApi()
 const showUpload = ref(false)
 const uploadProgress = ref(0)
 const uploadingFileName = ref('')
 const statusFilter = ref('')
 const searchQuery = ref('')
 const isDragging = ref(false)
-const isLoading = ref(false)
+const isLoading = ref(true)
 const fileInput = ref<HTMLInputElement | null>(null)
-
-// Mock data - replace with actual API calls
 const videos = ref<any[]>([])
+
+async function fetchVideos() {
+  isLoading.value = true
+  try {
+    const res = await api.videos.list({ limit: 100 })
+    videos.value = (res as { items?: any[] })?.items ?? []
+  } catch {
+    videos.value = []
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(fetchVideos)
 
 const filteredVideos = computed(() => {
   return videos.value.filter(video => {

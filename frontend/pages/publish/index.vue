@@ -6,53 +6,24 @@
       <p class="text-surface-400 mt-2">Connect accounts and publish content across platforms</p>
     </div>
 
-    <!-- Connected Accounts -->
-    <Card class="mb-8">
-      <div class="flex items-center justify-between mb-6">
-        <h2 class="text-xl font-mono font-semibold text-surface-100">Connected Accounts</h2>
-      </div>
-      
-      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div 
-          v-for="platform in platforms" 
-          :key="platform.id" 
-          class="p-5 rounded-2xl bg-surface-800/50 border border-surface-700 hover:border-surface-600 transition-colors"
-        >
-          <div class="flex items-center justify-between mb-4">
-            <PlatformIcon :platform="platform.id" size="lg" :variant="platform.connected ? 'filled' : 'outline'" />
-            <StatusBadge :status="platform.connected ? 'connected' : 'disconnected'" :show-dot="false" />
+    <!-- Connected Accounts summary -->
+    <Card class="mb-8 border-l-4 border-l-primary-500">
+      <div class="flex items-center justify-between flex-wrap gap-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-primary-500/20 flex items-center justify-center">
+            <UiIcon name="Link2" :size="20" class="text-primary-400" />
           </div>
-          
-          <h3 class="font-semibold text-surface-100 mb-1">{{ platform.name }}</h3>
-          <p v-if="platform.username" class="text-surface-400 text-sm mb-4 truncate">
-            @{{ platform.username }}
-          </p>
-          <p v-else class="text-surface-500 text-sm mb-4">
-            Not connected
-          </p>
-          
-          <Button
-            v-if="!platform.connected"
-            variant="primary"
-            size="sm"
-            full-width
-            @click="connectAccount(platform.id)"
-          >
-            <Icon name="Link" :size="16" />
-            <span>Connect</span>
-          </Button>
-          <Button
-            v-else
-            variant="ghost"
-            size="sm"
-            full-width
-            class="text-red-400 hover:text-red-300 hover:bg-red-500/10"
-            @click="disconnectAccount(platform.id)"
-          >
-            <Icon name="Unlink" :size="16" />
-            <span>Disconnect</span>
-          </Button>
+          <div>
+            <h2 class="text-lg font-mono font-semibold text-surface-100">Connected Platforms</h2>
+            <p class="text-surface-400 text-sm">
+              {{ connectedCount }} of {{ platforms.length }} platforms connected
+            </p>
+          </div>
         </div>
+        <NuxtLink :to="localePath('/account/connected-platforms')" class="inline-flex items-center gap-2 text-sm font-medium text-primary-400 hover:text-primary-300 transition-colors">
+          <UiIcon name="Settings" :size="16" />
+          Manage in Account
+        </NuxtLink>
       </div>
     </Card>
 
@@ -149,7 +120,7 @@
       </Card>
 
       <!-- Scheduled Posts -->
-      <Card>
+      <Card class="border-l-4 border-l-amber-500">
         <h2 class="text-xl font-mono font-semibold text-surface-100 mb-6">Scheduled Posts</h2>
         
         <EmptyState
@@ -200,8 +171,12 @@
 
 <script setup lang="ts">
 definePageMeta({
+  layout: 'app',
   middleware: 'auth',
 })
+
+const localePath = useLocalePath()
+const api = useApi()
 
 const selectedVideo = ref('')
 const selectedPublishPlatforms = ref<string[]>([])
@@ -219,7 +194,30 @@ const platforms = ref([
 const availableVideos = ref<any[]>([])
 const scheduledPosts = ref<any[]>([])
 
+const connectedCount = computed(() => platforms.value.filter(p => p.connected).length)
 const connectedPlatforms = computed(() => platforms.value.filter(p => p.connected))
+
+async function fetchPlatforms() {
+  try {
+    const res = await api.oauth.accounts() as { accounts?: { platform: string; username?: string }[] }
+    const accounts = res?.accounts ?? []
+    const byPlatform: Record<string, { username?: string }> = {}
+    accounts.forEach((a: { platform: string; username?: string }) => {
+      byPlatform[a.platform?.toLowerCase()] = { username: a.username }
+    })
+    platforms.value = platforms.value.map((p) => ({
+      ...p,
+      connected: !!byPlatform[p.id],
+      username: byPlatform[p.id]?.username ?? '',
+    }))
+  } catch {
+    // keep defaults
+  }
+}
+
+onMounted(() => {
+  fetchPlatforms()
+})
 
 const canPublish = computed(() => {
   return selectedVideo.value && selectedPublishPlatforms.value.length > 0
@@ -235,13 +233,13 @@ const togglePublishPlatform = (platformId: string) => {
 }
 
 const connectAccount = async (platformId: string) => {
-  console.log('Connecting:', platformId)
-  // TODO: Implement OAuth connection
-}
-
-const disconnectAccount = async (platformId: string) => {
-  console.log('Disconnecting:', platformId)
-  // TODO: Implement account disconnection
+  try {
+    const res = await api.oauth.connect(platformId) as { auth_url?: string }
+    if (res?.auth_url) window.location.href = res.auth_url
+    else await fetchPlatforms()
+  } catch {
+    await fetchPlatforms()
+  }
 }
 
 const publishContent = async () => {

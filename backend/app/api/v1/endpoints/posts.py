@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
 from datetime import datetime
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.deps import get_db, get_current_user
 from app.models.user import User
@@ -66,6 +66,7 @@ class PostResponse(BaseModel):
     """Post response schema."""
     id: str
     video_id: str
+    video_title: Optional[str] = None
     platform: str
     platform_post_id: Optional[str] = None
     caption: Optional[str] = None
@@ -262,7 +263,7 @@ async def list_posts(
     """
     List published and scheduled posts.
     """
-    query = db.query(Post).join(Video).filter(Video.user_id == current_user.id)
+    query = db.query(Post).join(Video).options(joinedload(Post.video)).filter(Video.user_id == current_user.id)
     
     if status_filter:
         try:
@@ -282,6 +283,7 @@ async def list_posts(
             PostResponse(
                 id=str(p.id),
                 video_id=str(p.video_id),
+                video_title=getattr(p.video, "filename", None) if p.video else None,
                 platform=p.platform,
                 platform_post_id=p.platform_post_id,
                 caption=p.caption,
@@ -306,11 +308,15 @@ async def list_scheduled_posts(
     """
     List scheduled posts.
     """
-    query = db.query(Post).join(Video).filter(
-        Video.user_id == current_user.id,
-        Post.status == PostStatusEnum.SCHEDULED,
+    query = (
+        db.query(Post)
+        .join(Video)
+        .options(joinedload(Post.video))
+        .filter(
+            Video.user_id == current_user.id,
+            Post.status == PostStatusEnum.SCHEDULED,
+        )
     )
-    
     total = query.count()
     posts = query.order_by(Post.scheduled_at.asc()).all()
     
@@ -319,6 +325,7 @@ async def list_scheduled_posts(
             PostResponse(
                 id=str(p.id),
                 video_id=str(p.video_id),
+                video_title=getattr(p.video, "filename", None) if p.video else None,
                 platform=p.platform,
                 platform_post_id=p.platform_post_id,
                 caption=p.caption,

@@ -11,6 +11,7 @@ from app.models.script import Script
 from app.models.social_account import SocialAccount
 from app.models.post import Post
 from app.models.analytics import Analytics
+from app.models.user_asset import UserAsset
 
 __all__ = [
     "Base",
@@ -24,4 +25,5 @@ __all__ = [
     "SocialAccount",
     "Post",
     "Analytics",
+    "UserAsset",
 ]

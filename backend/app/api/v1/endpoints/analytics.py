@@ -44,6 +44,9 @@ class VideoAnalyticsResponse(BaseModel):
 
 class DashboardResponse(BaseModel):
     """Dashboard analytics response schema."""
+    video_count: int = 0
+    pattern_count: int = 0
+    post_count: int = 0
     total_views: int = 0
     total_engagement: int = 0
     average_engagement_rate: float = 0.0
@@ -177,6 +180,21 @@ async def get_dashboard_analytics(
     
     analytics_list = query.all()
     
+    # Counts for dashboard stat cards
+    video_count = db.query(Video).filter(Video.user_id == current_user.id).count()
+    pattern_count = (
+        db.query(Pattern.id)
+        .join(Video, Pattern.video_id == Video.id)
+        .filter(Video.user_id == current_user.id)
+        .count()
+    )
+    post_count = (
+        db.query(Post.id)
+        .join(Video, Post.video_id == Video.id)
+        .filter(Video.user_id == current_user.id)
+        .count()
+    )
+    
     # Aggregate totals
     total_views = sum(a.views for a in analytics_list)
     total_engagement = sum(a.likes + a.comments + a.shares for a in analytics_list)
@@ -233,6 +251,9 @@ async def get_dashboard_analytics(
         })
     
     return DashboardResponse(
+        video_count=video_count,
+        pattern_count=pattern_count,
+        post_count=post_count,
         total_views=total_views,
         total_engagement=total_engagement,
         average_engagement_rate=avg_engagement,

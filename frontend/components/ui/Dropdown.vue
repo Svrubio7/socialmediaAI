@@ -50,6 +50,19 @@ const close = () => {
 
 onClickOutside(dropdownRef, close)
 
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && isOpen.value) {
+    close()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', onKeydown)
+})
+onUnmounted(() => {
+  document.removeEventListener('keydown', onKeydown)
+})
+
 const alignClasses = computed(() => {
   const aligns = {
     left: 'left-0',

@@ -139,6 +139,12 @@ export const useApi = () => {
     retry: (postId: string) => post(`/posts/${postId}/retry`),
   }
 
+  // Chat endpoint (Strategies conversational UI)
+  const chat = {
+    send: (messages: { role: string; content: string }[]) =>
+      post<{ message: string; cards: { type: string; payload: Record<string, unknown> }[] }>('/chat', { messages }),
+  }
+
   // Analytics endpoints
   const analytics = {
     video: (videoId: string) => get<any>(`/analytics/videos/${videoId}`),
@@ -177,6 +183,8 @@ export const useApi = () => {
     scripts,
     oauth,
     posts,
+    chat,
+    materials,
     analytics,
   }
 }
