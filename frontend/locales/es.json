@@ -1,0 +1,160 @@
+{
+  "nav": {
+    "home": "Inicio",
+    "about": "Nosotros",
+    "contact": "Contacto",
+    "pricing": "Precios",
+    "goToApp": "Ir a la App",
+    "login": "Iniciar sesión",
+    "getStarted": "Comenzar"
+  },
+  "hero": {
+    "badge": "Plataforma de Marketing con IA para PYMEs",
+    "title1": "Eleva Tu",
+    "title2": "Marketing Empresarial",
+    "title3": "con IA",
+    "subtitle": "Transforma cómo tu empresa crea y publica contenido en redes sociales. Analiza patrones de video, genera estrategias ganadoras y alcanza a tu audiencia en todas las plataformas.",
+    "cta1": "¡Pruébalo!",
+    "cta2": "Ver nuestra demo"
+  },
+  "stats": {
+    "faster": "Creación de Contenido Más Rápida",
+    "platforms": "Plataformas Soportadas",
+    "timeSaved": "Tiempo Ahorrado",
+    "analysis": "Análisis con IA"
+  },
+  "features": {
+    "badge": "Características",
+    "title": "Todo lo que tu Negocio Necesita para",
+    "titleHighlight": "Dominar",
+    "titleEnd": "las Redes Sociales",
+    "subtitle": "Desde análisis de patrones con IA hasta publicación automatizada, ElevoAI proporciona todas las herramientas que tu empresa necesita para crear contenido atractivo de manera consistente.",
+    "pattern": {
+      "title": "Análisis de Patrones",
+      "description": "La IA analiza tus videos para identificar qué hace exitoso el contenido—ganchos, ritmo, cortes, transiciones y más."
+    },
+    "strategy": {
+      "title": "Generación de Estrategias",
+      "description": "Obtén estrategias de marketing generadas por IA adaptadas a los objetivos de tu negocio y plataformas objetivo."
+    },
+    "script": {
+      "title": "Creación de Guiones",
+      "description": "Recibe guiones detallados de filmación y edición con tiempos, instrucciones visuales y patrones de éxito comprobados."
+    },
+    "editing": {
+      "title": "Edición Automática de Video",
+      "description": "Aplica automáticamente patrones para crear variaciones optimizadas de video para cada plataforma."
+    },
+    "publishing": {
+      "title": "Publicación Multi-Plataforma",
+      "description": "Publica en Instagram, TikTok, YouTube y Facebook con un solo clic."
+    },
+    "analytics": {
+      "title": "Análisis de Rendimiento",
+      "description": "Rastrea el rendimiento en todas las plataformas y observa cómo mejoran tus métricas de engagement."
+    }
+  },
+  "howItWorks": {
+    "badge": "Cómo Funciona",
+    "title": "Tres Simples Pasos para",
+    "titleHighlight": "Mejor Engagement",
+    "subtitle": "ElevoAI hace que la optimización de contenido sea fácil para tu negocio. Sube, analiza y publica en minutos.",
+    "step1": {
+      "title": "Sube Tu Contenido",
+      "description": "Simplemente arrastra y suelta tus videos o conecta tus cuentas de redes sociales existentes para importar contenido.",
+      "feature1": "Soporte para todos los formatos principales",
+      "feature2": "Carga por lotes de múltiples videos",
+      "feature3": "Importar desde cuentas sociales"
+    },
+    "step2": {
+      "title": "Análisis y Estrategia con IA",
+      "description": "Nuestra IA analiza los patrones de tu contenido, identifica lo que funciona y genera estrategias personalizadas para tu negocio.",
+      "feature1": "Reconocimiento de patrones a 5fps",
+      "feature2": "Generación automatizada de guiones",
+      "feature3": "Optimización específica por plataforma"
+    },
+    "step3": {
+      "title": "Publica y Rastrea",
+      "description": "Programa y publica contenido optimizado en todas las plataformas, luego rastrea el rendimiento en tiempo real.",
+      "feature1": "Publicación multi-plataforma con un clic",
+      "feature2": "Programación inteligente",
+      "feature3": "Panel de análisis en tiempo real"
+    }
+  },
+  "faq": {
+    "badge": "FAQ",
+    "title": "Preguntas Frecuentes",
+    "subtitle": "Todo lo que necesitas saber sobre ElevoAI",
+    "q1": "¿Cómo analiza ElevoAI mis videos?",
+    "a1": "ElevoAI usa Google Gemini 2.0 Flash para analizar tus videos a 5 fotogramas por segundo (intervalos de 0.2s). Examina patrones visuales como tipos de escena, movimiento de cámara, superposiciones de texto, transiciones y ritmo para identificar qué hace exitoso el contenido.",
+    "q2": "¿Qué plataformas de redes sociales son compatibles?",
+    "a2": "ElevoAI actualmente soporta Instagram (Reels), TikTok, YouTube (Shorts y videos regulares) y Facebook (Reels y publicaciones). Nos conectamos a través de integraciones OAuth oficiales para garantizar una publicación segura.",
+    "q3": "¿Puede ElevoAI editar mis videos automáticamente?",
+    "a3": "¡Sí! Basándose en los patrones y guiones generados, ElevoAI puede crear automáticamente variaciones optimizadas de tus videos para diferentes plataformas, ajustando duración, relación de aspecto, ritmo y agregando superposiciones de texto.",
+    "q4": "¿Es adecuado para pequeñas empresas?",
+    "a4": "¡Absolutamente! ElevoAI está diseñado específicamente para PYMEs que quieren crear contenido profesional para redes sociales sin contratar un equipo de marketing dedicado. Nuestra IA maneja el análisis y optimización complejos.",
+    "q5": "¿Mis datos están seguros?",
+    "a5": "Sí. Usamos encriptación AES-256 para todos los tokens OAuth, y tus videos se almacenan de forma segura. Nunca compartimos tu contenido o datos con terceros.",
+    "q6": "¿Necesito conocimientos técnicos para usar ElevoAI?",
+    "a6": "¡Para nada! ElevoAI está diseñado para ser intuitivo y fácil de usar. Simplemente sube tus videos, y la IA se encarga del análisis y optimización complejos por ti."
+  },
+  "cta": {
+    "title": "¿Listo para Transformar Tu",
+    "titleHighlight": "Marketing Empresarial?",
+    "subtitle": "Únete a miles de empresas que usan IA para crear mejor contenido, más rápido. Comienza tu prueba gratuita hoy—sin tarjeta de crédito.",
+    "button1": "Comenzar Gratis",
+    "button2": "Hablar con Ventas",
+    "badge1": "Cumple SOC 2",
+    "badge2": "99.9% Uptime",
+    "badge3": "Soporte 24/7"
+  },
+  "footer": {
+    "description": "Eleva la presencia en redes sociales de tu empresa con análisis de video impulsado por IA, generación de estrategias y publicación multi-plataforma.",
+    "product": "Producto",
+    "features": "Características",
+    "pricing": "Precios",
+    "changelog": "Changelog",
+    "resources": "Recursos",
+    "documentation": "Documentación",
+    "api": "Referencia API",
+    "blog": "Blog",
+    "company": "Empresa",
+    "about": "Nosotros",
+    "contact": "Contacto",
+    "careers": "Carreras",
+    "copyright": "ElevoAI. Todos los derechos reservados.",
+    "privacy": "Política de Privacidad",
+    "terms": "Términos de Servicio"
+  },
+  "about": {
+    "badge": "Nosotros",
+    "title": "Empoderando Empresas con",
+    "titleHighlight": "Marketing Impulsado por IA",
+    "subtitle": "Estamos en una misión para democratizar el marketing en redes sociales para pequeñas y medianas empresas.",
+    "story": {
+      "title": "Nuestra Historia",
+      "p1": "ElevoAI fue fundada con una creencia simple: cada empresa merece acceso a herramientas de marketing poderosas, independientemente de su tamaño o presupuesto.",
+      "p2": "Vimos cómo las grandes corporaciones tenían equipos enteros dedicados a analizar el rendimiento del contenido y optimizar sus estrategias de redes sociales. Mientras tanto, las pequeñas empresas tenían que resolverlo por su cuenta.",
+      "p3": "Por eso construimos ElevoAI—para nivelar el campo de juego. Nuestra plataforma impulsada por IA da a las PYMEs las mismas capacidades analíticas que antes estaban reservadas para empresas con enormes presupuestos de marketing."
+    },
+    "mission": {
+      "title": "Nuestra Misión",
+      "description": "Empoderar a cada empresa para crear contenido atractivo y efectivo en redes sociales a través del poder de la inteligencia artificial."
+    },
+    "values": {
+      "title": "Nuestros Valores",
+      "v1": {
+        "title": "Simplicidad",
+        "description": "La tecnología compleja debe ser fácil de usar. Ocultamos la complejidad para que puedas enfocarte en tu negocio."
+      },
+      "v2": {
+        "title": "Innovación",
+        "description": "Continuamente empujamos los límites de lo posible con IA para entregar mejores resultados para tu negocio."
+      },
+      "v3": {
+        "title": "Confianza",
+        "description": "Tus datos son tuyos. Mantenemos los más altos estándares de seguridad y nunca comprometemos la privacidad."
+      }
+    }
+  }
+}

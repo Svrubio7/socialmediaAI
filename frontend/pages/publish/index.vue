@@ -1,139 +1,199 @@
 <template>
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div class="container-wide py-8 lg:py-12">
     <!-- Header -->
     <div class="mb-8">
-      <h1 class="text-3xl font-display font-bold">Publish</h1>
-      <p class="text-surface-400 mt-1">Connect accounts and publish content across platforms</p>
+      <h1 class="text-3xl lg:text-4xl font-display font-bold text-surface-100">Publish</h1>
+      <p class="text-surface-400 mt-2">Connect accounts and publish content across platforms</p>
     </div>
 
     <!-- Connected Accounts -->
-    <div class="card mb-8">
-      <h2 class="text-xl font-display font-semibold mb-6">Connected Accounts</h2>
+    <Card class="mb-8">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-display font-semibold text-surface-100">Connected Accounts</h2>
+      </div>
       
       <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div v-for="platform in platforms" :key="platform.name" class="p-4 rounded-xl bg-surface-800/50 border border-surface-700">
+        <div 
+          v-for="platform in platforms" 
+          :key="platform.id" 
+          class="p-5 rounded-2xl bg-surface-800/50 border border-surface-700 hover:border-surface-600 transition-colors"
+        >
           <div class="flex items-center justify-between mb-4">
-            <span class="text-3xl">{{ platform.icon }}</span>
-            <span 
-              class="badge"
-              :class="platform.connected ? 'badge-success' : 'badge-warning'"
-            >
-              {{ platform.connected ? 'Connected' : 'Not connected' }}
-            </span>
+            <PlatformIcon :platform="platform.id" size="lg" :variant="platform.connected ? 'filled' : 'outline'" />
+            <StatusBadge :status="platform.connected ? 'connected' : 'disconnected'" :show-dot="false" />
           </div>
-          <h3 class="font-medium mb-1">{{ platform.name }}</h3>
-          <p v-if="platform.username" class="text-surface-400 text-sm mb-3">
+          
+          <h3 class="font-semibold text-surface-100 mb-1">{{ platform.name }}</h3>
+          <p v-if="platform.username" class="text-surface-400 text-sm mb-4 truncate">
             @{{ platform.username }}
           </p>
-          <button
+          <p v-else class="text-surface-500 text-sm mb-4">
+            Not connected
+          </p>
+          
+          <Button
             v-if="!platform.connected"
+            variant="primary"
+            size="sm"
+            full-width
             @click="connectAccount(platform.id)"
-            class="btn-primary w-full text-sm"
           >
-            Connect
-          </button>
-          <button
+            <Icon name="Link" :size="16" />
+            <span>Connect</span>
+          </Button>
+          <Button
             v-else
+            variant="ghost"
+            size="sm"
+            full-width
+            class="text-red-400 hover:text-red-300 hover:bg-red-500/10"
             @click="disconnectAccount(platform.id)"
-            class="btn-ghost w-full text-sm text-red-400 hover:text-red-300"
           >
-            Disconnect
-          </button>
+            <Icon name="Unlink" :size="16" />
+            <span>Disconnect</span>
+          </Button>
         </div>
       </div>
-    </div>
+    </Card>
 
     <!-- Publish Content -->
-    <div class="grid lg:grid-cols-2 gap-8">
+    <div class="grid lg:grid-cols-2 gap-6 lg:gap-8">
       <!-- Publish Form -->
-      <div class="card">
-        <h2 class="text-xl font-display font-semibold mb-6">Publish Content</h2>
+      <Card>
+        <h2 class="text-xl font-display font-semibold text-surface-100 mb-6">Publish Content</h2>
         
-        <form @submit.prevent="publishContent" class="space-y-4">
+        <form @submit.prevent="publishContent" class="space-y-5">
+          <!-- Video Selection -->
           <div>
             <label class="label">Select Video</label>
-            <select v-model="selectedVideo" class="input">
-              <option value="">Select a video...</option>
-              <!-- Videos will be populated here -->
-            </select>
+            <div class="relative">
+              <select v-model="selectedVideo" class="input pr-10 appearance-none cursor-pointer">
+                <option value="">Select a video...</option>
+                <option v-for="video in availableVideos" :key="video.id" :value="video.id">
+                  {{ video.filename }}
+                </option>
+              </select>
+              <Icon name="ChevronDown" :size="16" class="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 pointer-events-none" />
+            </div>
           </div>
 
+          <!-- Platform Selection -->
           <div>
             <label class="label">Platforms</label>
             <div class="flex flex-wrap gap-2">
               <button
-                v-for="platform in platforms.filter(p => p.connected)"
+                v-for="platform in connectedPlatforms"
                 :key="platform.id"
                 type="button"
-                class="px-3 py-1 rounded-full text-sm transition-colors"
+                class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200"
                 :class="selectedPublishPlatforms.includes(platform.id) 
-                  ? 'bg-primary-500 text-white' 
-                  : 'bg-surface-800 text-surface-300 hover:bg-surface-700'"
+                  ? 'bg-primary-500/20 text-primary-300 border border-primary-500/30' 
+                  : 'bg-surface-800 text-surface-400 border border-surface-700 hover:border-surface-600'"
                 @click="togglePublishPlatform(platform.id)"
               >
-                {{ platform.icon }} {{ platform.name }}
+                <PlatformIcon :platform="platform.id" size="sm" variant="outline" />
+                <span>{{ platform.name }}</span>
+                <Icon 
+                  :name="selectedPublishPlatforms.includes(platform.id) ? 'Check' : 'Plus'" 
+                  :size="14" 
+                />
               </button>
             </div>
-            <p v-if="platforms.filter(p => p.connected).length === 0" class="text-surface-500 text-sm mt-2">
+            <p v-if="connectedPlatforms.length === 0" class="text-surface-500 text-sm mt-2">
               Connect at least one account to publish
             </p>
           </div>
 
-          <div>
-            <label for="caption" class="label">Caption</label>
-            <textarea
-              id="caption"
-              v-model="caption"
-              class="input min-h-[100px]"
-              placeholder="Write your caption..."
-            />
-          </div>
+          <!-- Caption -->
+          <Input
+            v-model="caption"
+            label="Caption"
+            type="textarea"
+            placeholder="Write your caption..."
+            :rows="4"
+          />
 
-          <div>
-            <label for="hashtags" class="label">Hashtags</label>
-            <input
-              id="hashtags"
-              v-model="hashtags"
-              type="text"
-              class="input"
-              placeholder="#viral #fyp #trending"
-            />
-          </div>
+          <!-- Hashtags -->
+          <Input
+            v-model="hashtags"
+            label="Hashtags"
+            placeholder="#viral #fyp #trending"
+          >
+            <template #icon-left>
+              <Icon name="Hash" :size="18" />
+            </template>
+          </Input>
 
-          <div class="flex gap-3">
-            <button type="submit" class="btn-primary flex-1" :disabled="!canPublish">
-              Publish Now
-            </button>
-            <button type="button" @click="showSchedule = true" class="btn-secondary" :disabled="!canPublish">
-              Schedule
-            </button>
+          <!-- Actions -->
+          <div class="flex gap-3 pt-2">
+            <Button 
+              type="submit" 
+              variant="primary" 
+              class="flex-1"
+              :disabled="!canPublish"
+            >
+              <Icon name="Send" :size="18" />
+              <span>Publish Now</span>
+            </Button>
+            <Button 
+              type="button" 
+              variant="secondary"
+              :disabled="!canPublish"
+              @click="showSchedule = true"
+            >
+              <Icon name="Calendar" :size="18" />
+              <span>Schedule</span>
+            </Button>
           </div>
         </form>
-      </div>
+      </Card>
 
       <!-- Scheduled Posts -->
-      <div class="card">
-        <h2 class="text-xl font-display font-semibold mb-6">Scheduled Posts</h2>
+      <Card>
+        <h2 class="text-xl font-display font-semibold text-surface-100 mb-6">Scheduled Posts</h2>
         
-        <div v-if="scheduledPosts.length === 0" class="text-center py-8 text-surface-500">
-          <p>No scheduled posts</p>
-        </div>
+        <EmptyState
+          v-if="scheduledPosts.length === 0"
+          icon="Calendar"
+          title="No scheduled posts"
+          description="Schedule content to be published automatically at the perfect time"
+          variant="default"
+        />
 
         <div v-else class="space-y-4">
-          <div v-for="post in scheduledPosts" :key="post.id" class="p-4 rounded-lg bg-surface-800/50">
-            <div class="flex items-center justify-between mb-2">
-              <span class="font-medium">{{ post.video_title }}</span>
-              <span class="badge badge-primary">{{ post.platform }}</span>
+          <div 
+            v-for="post in scheduledPosts" 
+            :key="post.id" 
+            class="p-4 rounded-xl bg-surface-800/50 border border-surface-700"
+          >
+            <div class="flex items-start justify-between mb-3">
+              <div class="flex-1 min-w-0">
+                <p class="font-medium text-surface-100 truncate">{{ post.video_title }}</p>
+                <div class="flex items-center gap-2 mt-1">
+                  <PlatformIcon :platform="post.platform" size="sm" variant="outline" />
+                  <span class="text-surface-400 text-sm">{{ post.platform }}</span>
+                </div>
+              </div>
+              <Badge variant="accent">Scheduled</Badge>
             </div>
-            <p class="text-surface-400 text-sm mb-2">
-              Scheduled for {{ formatDateTime(post.scheduled_at) }}
-            </p>
-            <button @click="cancelScheduled(post.id)" class="text-red-400 hover:text-red-300 text-sm">
-              Cancel
-            </button>
+            
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2 text-sm text-surface-400">
+                <Icon name="Clock" :size="14" />
+                <span>{{ formatDateTime(post.scheduled_at) }}</span>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                class="text-red-400 hover:text-red-300"
+                @click="cancelScheduled(post.id)"
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   </div>
 </template>
@@ -150,13 +210,16 @@ const hashtags = ref('')
 const showSchedule = ref(false)
 
 const platforms = ref([
-  { id: 'instagram', name: 'Instagram', icon: '📸', connected: false, username: '' },
-  { id: 'tiktok', name: 'TikTok', icon: '🎵', connected: false, username: '' },
-  { id: 'youtube', name: 'YouTube', icon: '▶️', connected: false, username: '' },
-  { id: 'facebook', name: 'Facebook', icon: '📘', connected: false, username: '' },
+  { id: 'instagram' as const, name: 'Instagram', connected: false, username: '' },
+  { id: 'tiktok' as const, name: 'TikTok', connected: false, username: '' },
+  { id: 'youtube' as const, name: 'YouTube', connected: false, username: '' },
+  { id: 'facebook' as const, name: 'Facebook', connected: false, username: '' },
 ])
 
+const availableVideos = ref<any[]>([])
 const scheduledPosts = ref<any[]>([])
+
+const connectedPlatforms = computed(() => platforms.value.filter(p => p.connected))
 
 const canPublish = computed(() => {
   return selectedVideo.value && selectedPublishPlatforms.value.length > 0
@@ -172,26 +235,31 @@ const togglePublishPlatform = (platformId: string) => {
 }
 
 const connectAccount = async (platformId: string) => {
-  // TODO: Implement OAuth connection
   console.log('Connecting:', platformId)
+  // TODO: Implement OAuth connection
 }
 
 const disconnectAccount = async (platformId: string) => {
-  // TODO: Implement account disconnection
   console.log('Disconnecting:', platformId)
+  // TODO: Implement account disconnection
 }
 
 const publishContent = async () => {
-  // TODO: Implement publishing
   console.log('Publishing to:', selectedPublishPlatforms.value)
+  // TODO: Implement publishing
 }
 
 const cancelScheduled = async (postId: string) => {
-  // TODO: Implement cancel scheduled
   console.log('Canceling:', postId)
+  // TODO: Implement cancel scheduled
 }
 
 const formatDateTime = (date: string) => {
-  return new Date(date).toLocaleString()
+  return new Date(date).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 </script>

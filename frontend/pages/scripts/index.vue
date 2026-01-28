@@ -1,110 +1,123 @@
 <template>
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <div class="container-wide py-8 lg:py-12">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-8">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
       <div>
-        <h1 class="text-3xl font-display font-bold">Scripts</h1>
-        <p class="text-surface-400 mt-1">AI-generated filming and editing scripts</p>
+        <h1 class="text-3xl lg:text-4xl font-display font-bold text-surface-100">Scripts</h1>
+        <p class="text-surface-400 mt-2">AI-generated filming and editing scripts</p>
       </div>
-      <button @click="showGenerate = true" class="btn-primary">
-        Generate Script
-      </button>
+      <Button variant="primary" @click="showGenerate = true">
+        <Icon name="FileText" :size="18" />
+        <span>Generate Script</span>
+      </Button>
     </div>
 
     <!-- Generate Modal -->
-    <div v-if="showGenerate" class="fixed inset-0 bg-surface-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div class="card max-w-lg w-full">
-        <div class="flex items-center justify-between mb-6">
-          <h2 class="text-xl font-display font-semibold">Generate Script</h2>
-          <button @click="showGenerate = false" class="text-surface-400 hover:text-surface-100">
-            ✕
-          </button>
+    <Modal v-model="showGenerate" title="Generate Script" size="lg">
+      <form @submit.prevent="generateScript" class="space-y-5">
+        <!-- Video Concept -->
+        <Input
+          v-model="concept"
+          label="Video Concept"
+          type="textarea"
+          placeholder="e.g., 5 Tips for Better Sleep, Morning Routine Hacks..."
+          :rows="3"
+          required
+        />
+
+        <!-- Platform Selection -->
+        <div>
+          <label class="label">Target Platform</label>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="platform in availablePlatforms"
+              :key="platform.id"
+              type="button"
+              class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200"
+              :class="selectedPlatform === platform.id 
+                ? 'bg-primary-500/20 text-primary-300 border border-primary-500/30' 
+                : 'bg-surface-800 text-surface-400 border border-surface-700 hover:border-surface-600'"
+              @click="selectedPlatform = platform.id"
+            >
+              <PlatformIcon :platform="platform.platformId" size="sm" variant="outline" />
+              <span>{{ platform.name }}</span>
+            </button>
+          </div>
         </div>
 
-        <form @submit.prevent="generateScript" class="space-y-4">
-          <div>
-            <label for="concept" class="label">Video Concept</label>
-            <textarea
-              id="concept"
-              v-model="concept"
-              class="input min-h-[100px]"
-              placeholder="e.g., 5 Tips for Better Sleep, Morning Routine Hacks..."
-              required
-            />
-          </div>
+        <!-- Duration -->
+        <Input
+          v-model.number="duration"
+          label="Target Duration (seconds)"
+          type="number"
+          min="15"
+          max="180"
+          required
+        >
+          <template #icon-left>
+            <Icon name="Clock" :size="18" />
+          </template>
+        </Input>
+      </form>
 
-          <div>
-            <label class="label">Target Platform</label>
-            <div class="flex flex-wrap gap-2">
-              <button
-                v-for="platform in availablePlatforms"
-                :key="platform.value"
-                type="button"
-                class="px-3 py-1 rounded-full text-sm transition-colors"
-                :class="selectedPlatform === platform.value 
-                  ? 'bg-primary-500 text-white' 
-                  : 'bg-surface-800 text-surface-300 hover:bg-surface-700'"
-                @click="selectedPlatform = platform.value"
-              >
-                {{ platform.icon }} {{ platform.label }}
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label for="duration" class="label">Target Duration (seconds)</label>
-            <input
-              id="duration"
-              v-model.number="duration"
-              type="number"
-              class="input"
-              min="15"
-              max="180"
-              required
-            />
-          </div>
-
-          <div class="flex justify-end gap-3 mt-6">
-            <button type="button" @click="showGenerate = false" class="btn-secondary">
-              Cancel
-            </button>
-            <button type="submit" class="btn-primary" :disabled="generating || !concept || !selectedPlatform">
-              {{ generating ? 'Generating...' : 'Generate' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <Button variant="ghost" @click="showGenerate = false">Cancel</Button>
+          <Button 
+            variant="primary" 
+            :disabled="generating || !concept || !selectedPlatform"
+            :loading="generating"
+            @click="generateScript"
+          >
+            Generate Script
+          </Button>
+        </div>
+      </template>
+    </Modal>
 
     <!-- Scripts List -->
-    <div v-if="scripts.length === 0" class="card text-center py-16">
-      <div class="text-6xl mb-4">📝</div>
-      <h3 class="text-xl font-display font-semibold mb-2">No scripts yet</h3>
-      <p class="text-surface-400 mb-6">Generate your first script with AI assistance</p>
-      <button @click="showGenerate = true" class="btn-primary">
-        Generate Script
-      </button>
-    </div>
+    <EmptyState
+      v-if="scripts.length === 0"
+      icon="FileText"
+      title="No scripts yet"
+      description="Generate your first AI-powered filming and editing script"
+      action-label="Generate Script"
+      action-icon="FileText"
+      variant="primary"
+      @action="showGenerate = true"
+    />
 
-    <div v-else class="space-y-6">
-      <div v-for="script in scripts" :key="script.id" class="card">
-        <div class="flex items-start justify-between mb-4">
-          <div>
-            <h3 class="text-lg font-display font-semibold">{{ script.concept }}</h3>
-            <p class="text-surface-400 text-sm">
-              {{ script.platform }} • {{ script.target_duration }}s • {{ formatDate(script.created_at) }}
-            </p>
+    <div v-else class="grid md:grid-cols-2 gap-4">
+      <Card v-for="script in scripts" :key="script.id" variant="hover">
+        <div class="flex items-start gap-4 mb-4">
+          <div class="w-12 h-12 rounded-xl bg-accent-500/10 flex items-center justify-center flex-shrink-0">
+            <Icon name="FileText" :size="24" class="text-accent-400" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <h3 class="font-semibold text-surface-100 truncate">{{ script.concept }}</h3>
+            <div class="flex items-center gap-2 mt-1 text-sm text-surface-400">
+              <PlatformIcon :platform="script.platform" size="sm" variant="outline" />
+              <span class="capitalize">{{ script.platform }}</span>
+              <span class="text-surface-600">•</span>
+              <span>{{ script.target_duration }}s</span>
+            </div>
           </div>
         </div>
-        <div class="flex gap-3">
-          <NuxtLink :to="`/scripts/${script.id}`" class="btn-secondary text-sm">
-            View Script
-          </NuxtLink>
-          <button class="btn-ghost text-sm">
-            Export
-          </button>
+        
+        <p class="text-surface-500 text-sm mb-4">
+          Created {{ formatDate(script.created_at) }}
+        </p>
+        
+        <div class="flex gap-2">
+          <Button variant="secondary" size="sm" :to="`/scripts/${script.id}`" class="flex-1">
+            <Icon name="Eye" :size="16" />
+            <span>View Script</span>
+          </Button>
+          <Button variant="ghost" size="sm">
+            <Icon name="Download" :size="16" />
+          </Button>
         </div>
-      </div>
+      </Card>
     </div>
   </div>
 </template>
@@ -121,23 +134,26 @@ const selectedPlatform = ref('')
 const duration = ref(60)
 
 const availablePlatforms = [
-  { value: 'tiktok', label: 'TikTok', icon: '🎵' },
-  { value: 'instagram', label: 'Instagram', icon: '📸' },
-  { value: 'youtube_shorts', label: 'YouTube Shorts', icon: '▶️' },
-  { value: 'facebook', label: 'Facebook', icon: '📘' },
+  { id: 'tiktok', platformId: 'tiktok' as const, name: 'TikTok' },
+  { id: 'instagram', platformId: 'instagram' as const, name: 'Instagram Reels' },
+  { id: 'youtube_shorts', platformId: 'youtube' as const, name: 'YouTube Shorts' },
+  { id: 'facebook', platformId: 'facebook' as const, name: 'Facebook Reels' },
 ]
 
 const scripts = ref<any[]>([])
 
 const generateScript = async () => {
   generating.value = true
-  // TODO: Implement script generation
   await new Promise(resolve => setTimeout(resolve, 2000))
   generating.value = false
   showGenerate.value = false
 }
 
 const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString()
+  return new Date(date).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
 }
 </script>

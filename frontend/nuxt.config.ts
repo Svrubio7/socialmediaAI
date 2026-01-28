@@ -7,7 +7,26 @@ export default defineNuxtConfig({
     '@nuxtjs/supabase',
     '@pinia/nuxt',
     '@vueuse/nuxt',
+    '@nuxtjs/i18n',
   ],
+
+  i18n: {
+    locales: [
+      { code: 'en', name: 'English', file: 'en.json' },
+      { code: 'es', name: 'Español', file: 'es.json' },
+      { code: 'fr', name: 'Français', file: 'fr.json' },
+      { code: 'de', name: 'Deutsch', file: 'de.json' },
+    ],
+    defaultLocale: 'en',
+    lazy: true,
+    langDir: 'locales',
+    strategy: 'prefix_except_default',
+    detectBrowserLanguage: {
+      useCookie: true,
+      cookieKey: 'i18n_redirected',
+      redirectOn: 'root',
+    },
+  },
 
   runtimeConfig: {
     public: {
@@ -23,23 +42,25 @@ export default defineNuxtConfig({
     redirectOptions: {
       login: '/auth/login',
       callback: '/auth/callback',
-      exclude: ['/', '/auth/*'],
+      exclude: ['/', '/about', '/contact', '/auth/*'],
     },
   },
 
   app: {
+    pageTransition: { name: 'page', mode: 'out-in' },
+    layoutTransition: { name: 'layout', mode: 'out-in' },
     head: {
-      title: 'Social Media AI',
+      title: 'ElevoAI',
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-        { name: 'description', content: 'AI-powered social media marketing hub' },
+        { name: 'description', content: 'ElevoAI - Elevate your business social media with AI-powered video analysis, strategy generation, and multi-platform publishing' },
       ],
       link: [
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
-        { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Space+Grotesk:wght@300..700&display=swap' },
+        { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap' },
       ],
     },
   },
@@ -48,7 +69,7 @@ export default defineNuxtConfig({
 
   typescript: {
     strict: true,
-    typeCheck: false, // Disabled due to vue-tsc config issues
+    typeCheck: false,
   },
 
   compatibilityDate: '2024-11-01',
