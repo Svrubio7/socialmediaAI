@@ -5,7 +5,7 @@ SQLAlchemy models for the database.
 from app.models.base import Base
 from app.models.user import User
 from app.models.video import Video
-from app.models.pattern import Pattern
+from app.models.pattern import Pattern, VideoTemplate, TemplateSegment
 from app.models.strategy import Strategy
 from app.models.script import Script
 from app.models.social_account import SocialAccount
@@ -17,6 +17,8 @@ __all__ = [
     "User",
     "Video",
     "Pattern",
+    "VideoTemplate",
+    "TemplateSegment",
     "Strategy",
     "Script",
     "SocialAccount",

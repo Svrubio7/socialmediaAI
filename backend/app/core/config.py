@@ -50,6 +50,18 @@ class Settings(BaseSettings):
     # AI APIs
     GEMINI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
+    
+    # Gemini Model Configuration
+    GEMINI_MODEL: str = "gemini-2.0-flash"  # Upgraded from gemini-1.5-pro
+    GEMINI_VISION_MODEL: str = "gemini-2.0-flash"  # For video/image analysis
+    
+    # Video Analysis Settings
+    FRAME_EXTRACTION_FPS: float = 5.0  # 5 fps = 0.2s intervals
+    FRAME_EXTRACTION_INTERVAL_MS: int = 200  # 200ms between frames
+    AUDIO_SAMPLE_RATE: int = 16000  # 16kHz for audio analysis
+    MAX_VIDEO_DURATION_SECONDS: int = 300  # 5 minutes max for analysis
+    MAX_FRAMES_PER_ANALYSIS: int = 1500  # 5 minutes * 5fps = 1500 frames
+    TEMP_PROCESSING_DIR: str = "temp/processing"
 
     # OAuth - Instagram
     INSTAGRAM_CLIENT_ID: str = ""

@@ -53,6 +53,7 @@ class Video(Base, TimestampMixin):
     # Relationships
     user = relationship("User", back_populates="videos")
     patterns = relationship("Pattern", back_populates="video", cascade="all, delete-orphan")
+    templates = relationship("VideoTemplate", back_populates="video", cascade="all, delete-orphan")
     posts = relationship("Post", back_populates="video", cascade="all, delete-orphan")
     
     def __repr__(self):
