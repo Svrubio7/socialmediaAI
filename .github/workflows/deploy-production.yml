@@ -1,0 +1,235 @@
+# =============================================================================
+# Production Deployment Workflow
+# Deploys to production environment on push to main branch
+# =============================================================================
+
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Allow manual triggers
+    inputs:
+      skip_approval:
+        description: 'Skip manual approval (use with caution)'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
+
+jobs:
+  # ===========================================================================
+  # Run CI checks first
+  # ===========================================================================
+  ci-check:
+    name: CI Check
+    uses: ./.github/workflows/ci.yml
+
+  # ===========================================================================
+  # Manual approval gate
+  # ===========================================================================
+  approval:
+    name: Approval Gate
+    runs-on: ubuntu-latest
+    needs: ci-check
+    environment:
+      name: production-approval
+
+    steps:
+      - name: Approval checkpoint
+        run: |
+          echo "## Production Deployment Approved" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Deployment to production has been approved." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Approved by: @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+
+  # ===========================================================================
+  # Deploy to Render Production
+  # ===========================================================================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: approval
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create deployment record
+        run: |
+          echo "Deploying commit ${{ github.sha }} to production"
+          echo "Deployment timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+      - name: Deploy Backend to Render
+        if: vars.RENDER_BACKEND_HOOK_URL != ''
+        run: |
+          curl -X POST "${{ vars.RENDER_BACKEND_HOOK_URL }}" \
+            -H "Accept: application/json" \
+            -d ''
+
+      - name: Deploy Frontend to Render
+        if: vars.RENDER_FRONTEND_HOOK_URL != ''
+        run: |
+          curl -X POST "${{ vars.RENDER_FRONTEND_HOOK_URL }}" \
+            -H "Accept: application/json" \
+            -d ''
+
+      - name: Deploy Worker to Render
+        if: vars.RENDER_WORKER_HOOK_URL != ''
+        run: |
+          curl -X POST "${{ vars.RENDER_WORKER_HOOK_URL }}" \
+            -H "Accept: application/json" \
+            -d ''
+
+      - name: Deploy Beat to Render
+        if: vars.RENDER_BEAT_HOOK_URL != ''
+        run: |
+          curl -X POST "${{ vars.RENDER_BEAT_HOOK_URL }}" \
+            -H "Accept: application/json" \
+            -d ''
+
+      - name: Wait for deployments to start
+        run: |
+          echo "Waiting 60 seconds for deployments to start..."
+          sleep 60
+
+  # ===========================================================================
+  # Post-deployment verification
+  # ===========================================================================
+  verify-deployment:
+    name: Verify Deployment
+    runs-on: ubuntu-latest
+    needs: deploy-production
+
+    steps:
+      - name: Wait for deployment to complete
+        run: |
+          echo "Waiting 180 seconds for deployment to complete..."
+          sleep 180
+
+      - name: Health check - Backend
+        if: vars.PRODUCTION_BACKEND_URL != ''
+        run: |
+          max_attempts=15
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts"
+            response=$(curl -s -o /dev/null -w "%{http_code}" "${{ vars.PRODUCTION_BACKEND_URL }}/health" || echo "000")
+            if [ "$response" == "200" ]; then
+              echo "Backend health check passed!"
+              break
+            fi
+            echo "Health check returned: $response"
+            sleep 20
+            attempt=$((attempt + 1))
+          done
+          if [ $attempt -gt $max_attempts ]; then
+            echo "::error::Backend health check failed after $max_attempts attempts"
+            exit 1
+          fi
+
+      - name: Health check - Frontend
+        if: vars.PRODUCTION_FRONTEND_URL != ''
+        run: |
+          max_attempts=15
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts"
+            response=$(curl -s -o /dev/null -w "%{http_code}" "${{ vars.PRODUCTION_FRONTEND_URL }}" || echo "000")
+            if [ "$response" == "200" ]; then
+              echo "Frontend health check passed!"
+              break
+            fi
+            echo "Health check returned: $response"
+            sleep 20
+            attempt=$((attempt + 1))
+          done
+          if [ $attempt -gt $max_attempts ]; then
+            echo "::error::Frontend health check failed after $max_attempts attempts"
+            exit 1
+          fi
+
+      - name: API endpoint verification
+        if: vars.PRODUCTION_BACKEND_URL != ''
+        run: |
+          # Verify API docs are accessible
+          response=$(curl -s -o /dev/null -w "%{http_code}" "${{ vars.PRODUCTION_BACKEND_URL }}/docs" || echo "000")
+          if [ "$response" != "200" ]; then
+            echo "::warning::API docs returned status $response"
+          else
+            echo "API docs accessible"
+          fi
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "## Production Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployment Details" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp:** $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Verification Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend Health | ${{ job.status == 'success' && 'Passed' || 'Check logs' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend Health | ${{ job.status == 'success' && 'Passed' || 'Check logs' }} |" >> $GITHUB_STEP_SUMMARY
+
+  # ===========================================================================
+  # Notify on failure
+  # ===========================================================================
+  notify-failure:
+    name: Notify Failure
+    runs-on: ubuntu-latest
+    needs: [deploy-production, verify-deployment]
+    if: failure()
+
+    steps:
+      - name: Create failure issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `Production deployment failed - ${new Date().toISOString().split('T')[0]}`;
+            const body = `
+            ## Production Deployment Failed
+            
+            **Commit:** \`${{ github.sha }}\`
+            **Branch:** \`${{ github.ref_name }}\`
+            **Triggered by:** @${{ github.actor }}
+            **Workflow run:** [Link](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            
+            Please investigate and take action.
+            
+            cc: @${{ github.repository_owner }}
+            `;
+            
+            // Only create issue if one doesn't exist for this commit
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'deployment-failure'
+            });
+            
+            const existingIssue = issues.data.find(i => i.body && i.body.includes('${{ github.sha }}'));
+            
+            if (!existingIssue) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['deployment-failure', 'urgent']
+              });
+            }
