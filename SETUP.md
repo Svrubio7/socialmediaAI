@@ -10,7 +10,7 @@ There are two setup methods:
 
 ## Docker Setup (Recommended)
 
-Docker is the easiest way to get the full stack running locally. The stack uses **Supabase as the only database** (no local Postgres container). Frontend and backend run as **separate containers**.
+Docker is the easiest way to get the full stack running locally. The stack uses **Supabase as the only database** (no local Postgres container, no nginx). Use **http://localhost:3000** (frontend) and **http://localhost:8000** (backend) directly.
 
 ### Prerequisites
 
@@ -23,11 +23,11 @@ Docker is the easiest way to get the full stack running locally. The stack uses 
 **Backend** (`backend/.env`): Copy from `backend/env.example`. Set at least:
 
 - **DATABASE_URL** – Supabase Postgres connection string (Supabase Dashboard → Project Settings → Database → Connection string, URI)
-- **REDIS_URL** – `redis://redis:6379` is set by Docker; for local runs use `redis://localhost:6379` if Redis runs on host
+- **REDIS_URL** – When using Docker Compose use `redis://redis:6379` (set in compose); for local runs use `redis://localhost:6379` if Redis runs on host
 - **SUPABASE_URL**, **SUPABASE_KEY**, **SUPABASE_JWT_SECRET** – from Supabase Dashboard → Settings → API
 - **GEMINI_API_KEY**, **OPENAI_API_KEY**, **ENCRYPTION_KEY**, **SECRET_KEY** – as in the table below
 
-**Frontend** (`frontend/.env`): Copy from `frontend/env.example`. Set:
+**Frontend** (`frontend/.env`): Copy from `frontend/env.example`. Set `NUXT_PUBLIC_API_URL=http://localhost:8000/api/v1` and:
 
 | Variable | Required | How to Get |
 |----------|----------|------------|
@@ -59,11 +59,10 @@ docker-compose exec backend alembic upgrade head
 
 | Service | URL |
 |---------|-----|
-| Application (via nginx) | http://localhost |
-| Frontend (direct) | http://localhost:3000 |
-| Backend API (direct) | http://localhost:8000 |
-| API Documentation | http://localhost/docs |
-| Health Check | http://localhost/health |
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:8000 |
+| API Documentation | http://localhost:8000/docs |
+| Health Check | http://localhost:8000/health |
 
 ### Docker Commands Reference
 
@@ -95,6 +94,10 @@ docker-compose exec frontend sh
 # Run a command in container
 docker-compose exec backend python -c "print('hello')"
 ```
+
+### Development without Docker
+
+Run backend, frontend, and Redis directly: backend (`uvicorn app.main:app --reload`), frontend (`npm run dev`), and Redis (e.g. `docker run -p 6379:6379 redis` or [Upstash](https://upstash.com)). Set `DATABASE_URL` and `REDIS_URL` in `backend/.env`, `NUXT_PUBLIC_API_URL=http://localhost:8000/api/v1` in `frontend/.env`. No code changes required.
 
 ### Testing Production Build Locally
 
@@ -329,11 +332,11 @@ After the first deploy, set **NUXT_PUBLIC_API_URL** on the frontend to your back
 
 ### 3. Migrations
 
-Run migrations against Supabase once (e.g. from your machine or a one-off Render job):
+Migrations run automatically on each backend deploy via Render’s **release command** (`alembic upgrade head`). You can also run them once manually against production Supabase:
 
 ```bash
 cd backend
-# With DATABASE_URL pointing to Supabase
+# With DATABASE_URL pointing to Supabase (e.g. from Render env or local .env)
 alembic upgrade head
 ```
 

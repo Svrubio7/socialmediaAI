@@ -1,44 +1,16 @@
 # =============================================================================
 # Social Media AI - Docker Compose (Production-like)
-# Configuration for testing production builds locally
+# Supabase-only; no Postgres container. Use backend/.env for DATABASE_URL.
+# Mirrors Render: frontend, backend, worker, beat, Redis. No nginx.
 # =============================================================================
 #
 # Usage:
 #   docker-compose -f docker-compose.prod.yml up -d --build
 #   docker-compose -f docker-compose.prod.yml logs -f
 #   docker-compose -f docker-compose.prod.yml down
-#
-# This configuration mirrors the Render production setup as closely as possible
 # =============================================================================
 
 services:
-  # ===========================================================================
-  # nginx - Reverse Proxy (Production config)
-  # ===========================================================================
-  nginx:
-    image: nginx:alpine
-    container_name: socialmediaai-nginx-prod
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-    depends_on:
-      frontend:
-        condition: service_healthy
-      backend:
-        condition: service_healthy
-    networks:
-      - socialmediaai-network
-    restart: always
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost/nginx-health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
   # ===========================================================================
   # Frontend - Nuxt.js (Production Build)
   # ===========================================================================
@@ -47,7 +19,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - NUXT_PUBLIC_API_URL=${NUXT_PUBLIC_API_URL:-http://localhost/api/v1}
+        - NUXT_PUBLIC_API_URL=${NUXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
         - NUXT_PUBLIC_SUPABASE_URL=${NUXT_PUBLIC_SUPABASE_URL}
         - NUXT_PUBLIC_SUPABASE_ANON_KEY=${NUXT_PUBLIC_SUPABASE_ANON_KEY}
     container_name: socialmediaai-frontend-prod
@@ -80,11 +52,13 @@ services:
     container_name: socialmediaai-backend-prod
     ports:
       - "8000:8000"
+    env_file:
+      - backend/.env
     volumes:
       - backend-temp:/app/temp
     environment:
       - DEBUG=false
-      - DATABASE_URL=postgresql://socialmediaai:socialmediaai_password@postgres:5432/socialmediaai
+      - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=redis://redis:6379
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
@@ -102,8 +76,6 @@ services:
       - FACEBOOK_APP_ID=${FACEBOOK_APP_ID:-}
       - FACEBOOK_APP_SECRET=${FACEBOOK_APP_SECRET:-}
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -129,11 +101,13 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: socialmediaai-celery-worker-prod
+    env_file:
+      - backend/.env
     volumes:
       - backend-temp:/app/temp
     environment:
       - DEBUG=false
-      - DATABASE_URL=postgresql://socialmediaai:socialmediaai_password@postgres:5432/socialmediaai
+      - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=redis://redis:6379
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
@@ -142,8 +116,6 @@ services:
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
     command: celery -A app.workers.celery_app worker --loglevel=warning --concurrency=2
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -163,14 +135,14 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: socialmediaai-celery-beat-prod
+    env_file:
+      - backend/.env
     environment:
       - DEBUG=false
-      - DATABASE_URL=postgresql://socialmediaai:socialmediaai_password@postgres:5432/socialmediaai
+      - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=redis://redis:6379
     command: celery -A app.workers.celery_app beat --loglevel=warning
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
@@ -208,35 +180,6 @@ services:
           cpus: '0.5'
           memory: 512M
 
-  # ===========================================================================
-  # PostgreSQL - Local Database (Production settings)
-  # ===========================================================================
-  postgres:
-    image: postgres:15-alpine
-    container_name: socialmediaai-postgres-prod
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_USER=socialmediaai
-      - POSTGRES_PASSWORD=socialmediaai_password
-      - POSTGRES_DB=socialmediaai
-    networks:
-      - socialmediaai-network
-    restart: always
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U socialmediaai -d socialmediaai"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-
 # =============================================================================
 # Networks
 # =============================================================================
@@ -248,8 +191,6 @@ networks:
 # Volumes
 # =============================================================================
 volumes:
-  postgres-data:
-    driver: local
   redis-data:
     driver: local
   backend-temp:

@@ -1,44 +1,10 @@
 # =============================================================================
-# Social Media AI - Docker Compose (Development)
-# Full local development stack with hot reload support.
-#
-# Database: Supabase only. Set DATABASE_URL in backend/.env to your Supabase
-# Postgres connection string (Project Settings → Database → Connection string).
-# No local Postgres container; frontend and backend run as separate containers.
-#
-# Usage:
-#   docker-compose up -d          # Start all services
-#   docker-compose logs -f        # View logs
-#   docker-compose down           # Stop all services
-#   docker-compose down -v        # Stop and remove volumes
+# Social Media AI - Docker Compose (Development only)
+# Database = Supabase (set in backend/.env). Production = Render.
+# Full local development stack with hot reload. No nginx; use :3000 and :8000.
 # =============================================================================
 
 services:
-  # ===========================================================================
-  # nginx - Reverse Proxy
-  # ===========================================================================
-  nginx:
-    image: nginx:alpine
-    container_name: socialmediaai-nginx
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      backend:
-        condition: service_healthy
-      frontend:
-        condition: service_started
-    networks:
-      - socialmediaai-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost/nginx-health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
   # ===========================================================================
   # Frontend - Nuxt.js (Development with Hot Reload)
   # ===========================================================================
@@ -59,8 +25,8 @@ services:
       - /app/node_modules
     environment:
       - NODE_ENV=development
-      # Override API URL for nginx proxy when using Docker
-      - NUXT_PUBLIC_API_URL=http://localhost/api/v1
+      # Talk to backend directly (no nginx in dev)
+      - NUXT_PUBLIC_API_URL=http://localhost:8000/api/v1
       # NUXT_PUBLIC_SUPABASE_URL and NUXT_PUBLIC_SUPABASE_ANON_KEY come from env_file (frontend/.env)
     command: npm run dev -- --host 0.0.0.0
     networks:

@@ -32,11 +32,10 @@ AI-powered social media marketing hub for video pattern analysis, strategy gener
 - **FFmpeg** - Video processing
 
 ### Infrastructure
-- **Docker** - Containerization for local development
-- **nginx** - Reverse proxy
-- **Render** - Cloud hosting
-- **Supabase** - Database, Auth, Storage
-- **GitHub Actions** - CI/CD pipelines
+- **Docker** – Local development (frontend, backend, Redis, Celery; no nginx)
+- **Render** – Production hosting
+- **Supabase** – Database and Auth only (no local Postgres)
+- **GitHub Actions** – CI/CD pipelines
 
 ## Project Structure
 
@@ -64,9 +63,6 @@ socialmediaAI/
 │   │   └── workers/         # Celery tasks
 │   ├── requirements.txt
 │   └── Dockerfile           # Backend container
-├── nginx/                    # nginx configuration
-│   ├── nginx.conf           # Production config
-│   └── nginx.dev.conf       # Development config
 ├── .github/workflows/        # CI/CD pipelines
 │   ├── ci.yml               # Continuous integration
 │   ├── deploy-staging.yml   # Staging deployment
@@ -80,9 +76,12 @@ socialmediaAI/
 
 ## Getting Started
 
+**Database**: Supabase only (no local Postgres). **Production**: Render.  
+For full setup (development vs production), see **[SETUP.md](SETUP.md)**.
+
 There are two ways to run this project locally:
-1. **Docker (Recommended)** - Uses containers for all services
-2. **Manual Setup** - Install each service individually
+1. **Docker (Recommended)** – Frontend, backend, Redis, Celery; no nginx; use :3000 and :8000
+2. **Manual Setup** – Install each service individually
 
 ---
 
@@ -91,16 +90,11 @@ There are two ways to run this project locally:
 ### Prerequisites
 - Docker Desktop (includes Docker Compose)
 - Git
+- Supabase project (for database and auth)
 
 ### Quick Start
 
-1. **Clone and configure:**
-   ```bash
-   git clone <repository-url>
-   cd socialmediaAI
-   cp .env.docker.example .env.docker
-   # Edit .env.docker with your API keys (Supabase, Gemini, OpenAI)
-   ```
+1. **Clone and configure:** See [SETUP.md](SETUP.md) for env files (`backend/.env`, `frontend/.env`). Set `DATABASE_URL` (Supabase), `REDIS_URL`, Supabase keys, and `NUXT_PUBLIC_API_URL=http://localhost:8000/api/v1`.
 
 2. **Start all services:**
    ```bash
@@ -113,10 +107,8 @@ There are two ways to run this project locally:
    ```
 
 4. **Access the application:**
-   - Application: http://localhost (via nginx)
-   - Frontend direct: http://localhost:3000
-   - Backend direct: http://localhost:8000
-   - API Docs: http://localhost/docs
+   - Frontend: http://localhost:3000
+   - Backend / API Docs: http://localhost:8000 and http://localhost:8000/docs
 
 ### Docker Commands
 
@@ -306,11 +298,8 @@ This project is configured for deployment on Render using the `render.yaml` blue
 
 1. Connect your GitHub repo to Render
 2. Render will auto-detect the `render.yaml` configuration
-3. Set environment variables in Render dashboard:
-   - All variables from `.env.docker.example`
-   - Database URL (auto-configured by Render)
-   - Redis URL (auto-configured by Render)
-4. Deploy!
+3. Set environment variables in Render Dashboard (see [SETUP.md](SETUP.md)): **DATABASE_URL** (Supabase), **NUXT_PUBLIC_API_URL**, **REDIS_URL** (from Render Redis), **SUPABASE_***, and other secrets. No Render database; Supabase only.
+4. Deploy! Migrations run automatically via the backend release command.
 
 ### Services Deployed
 
@@ -321,7 +310,6 @@ This project is configured for deployment on Render using the `render.yaml` blue
 | social-media-ai-worker | Worker | Celery video processing |
 | social-media-ai-beat | Worker | Celery scheduled tasks |
 | social-media-ai-redis | Redis | Cache and task queue |
-| social-media-ai-db | PostgreSQL | Database |
 
 ## License
 

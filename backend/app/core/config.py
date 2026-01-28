@@ -29,12 +29,13 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ENCRYPTION_KEY: str = "your-32-byte-encryption-key-here"  # Must be 32 bytes for AES-256
 
-    # CORS
-    CORS_ORIGINS: List[str] = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://social-media-ai-frontend.onrender.com",
-    ]
+    # CORS: comma-separated env (e.g. CORS_ORIGINS=https://app.example.com,...) or default list
+    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,https://social-media-ai-frontend.onrender.com"
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """Parse CORS_ORIGINS string into list (stripped, non-empty)."""
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
     # Database
     DATABASE_URL: str = "postgresql://user:password@localhost:5432/socialmediaai"

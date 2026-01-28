@@ -1,10 +1,13 @@
 # Render Blueprint Configuration
 # https://render.com/docs/blueprint-spec
 #
-# Database: Supabase only. Set DATABASE_URL in each service's Environment to your
-# Supabase Postgres connection string (Supabase Dashboard → Project Settings → Database).
-# Frontend and backend are separate web services; set NUXT_PUBLIC_API_URL on the
-# frontend to your backend URL + /api/v1 (e.g. https://social-media-ai-backend.onrender.com/api/v1).
+# Production. Set in Render Dashboard:
+#   DATABASE_URL (Supabase Postgres connection string)
+#   NUXT_PUBLIC_API_URL (frontend → backend URL + /api/v1)
+#   REDIS_URL (from Render Redis; auto-set by Blueprint)
+#   SUPABASE_URL, SUPABASE_KEY, SUPABASE_JWT_SECRET
+#   GEMINI_API_KEY, OPENAI_API_KEY, ENCRYPTION_KEY, SECRET_KEY, OAuth credentials
+# No Render database; Supabase only.
 
 services:
   # Frontend - Nuxt.js (separate container/service)
@@ -34,6 +37,7 @@ services:
     region: oregon
     plan: starter
     buildCommand: cd backend && pip install -r requirements.txt
+    releaseCommand: cd backend && alembic upgrade head
     startCommand: cd backend && gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:$PORT
     envVars:
       # Supabase Postgres connection string (Project Settings → Database)

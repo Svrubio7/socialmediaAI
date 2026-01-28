@@ -8,6 +8,8 @@ The core value proposition centers on transforming raw video content into optimi
 
 The MVP goal is to deliver a fully functional platform that enables users to upload videos, receive AI-generated strategies and scripts, create optimized video variations, schedule and publish content across multiple platforms, and track performance analytics—all within a unified, intuitive interface.
 
+**Current implementation state**: Infrastructure is Supabase-only (no Postgres containers; development uses Docker without nginx at :3000/:8000; production is Render-only with release-command migrations). The app includes a dedicated app layout (logo-only header), dashboard with real stats and a Posting Schedule card, Strategies page as an LLM-powered chatbot with result cards (schedule changes, scripts, strategy docs), account area (Profile, Preferences, My Materials, Connected Platforms), Schedule page, Strategy and Script detail/export, toasts, timezone in preferences, empty/loading states, breadcrumbs/back links, and Escape-to-close for modals/dropdowns. See Appendix for executed plans.
+
 ## 2. Mission
 
 **Mission Statement**: Empower content creators and marketers to maximize their social media impact through AI-driven content optimization, pattern recognition, and automated publishing workflows.
@@ -69,15 +71,31 @@ The MVP goal is to deliver a fully functional platform that enables users to upl
 - ✅ Performance analytics and pattern scoring updates
 - ✅ Template system for caching LLM responses
 - ✅ Dashboard UI for managing content, strategies, and analytics
+- ✅ App layout (logo-only header, no website nav) for authenticated routes
+- ✅ Strategies page as LLM-powered chatbot with result cards (schedule changes, scripts, strategy docs)
+- ✅ Chat backend with tool/function calling (schedule, scripts, strategies, videos, materials, connected platforms)
+- ✅ Account area: Profile, Preferences, My Materials, Connected Platforms (dropdown in app header)
+- ✅ Schedule page (full schedule view; per-platform filter; edit/cancel)
+- ✅ Dashboard Posting Schedule card (expandable; link to Schedule page)
+- ✅ My Materials backend and frontend (user assets: upload, list, delete)
+- ✅ Strategy detail page and Script detail/export
+- ✅ Toasts (useToast + component) for success/error feedback
+- ✅ Timezone in preferences; schedule display/creation in user timezone
+- ✅ Empty states and loading states (skeletons/spinners) for lists and modals
+- ✅ Breadcrumbs or back links on account and schedule pages
+- ✅ Escape to close modals and dropdowns
+- ✅ Publish page: connection summary + link to Account > Connected Platforms
 
 #### Technical Infrastructure
 - ✅ Nuxt.js frontend with SSR/SSG support
 - ✅ FastAPI backend with RESTful API
-- ✅ PostgreSQL database (Supabase) with migrations
-- ✅ Redis cache for session management and Celery task queue
+- ✅ PostgreSQL database (Supabase only; no local Postgres containers) with migrations
+- ✅ Redis cache for session management and Celery task queue (Render Redis in production)
 - ✅ Celery workers for asynchronous video processing
-- ✅ Render deployment configuration for all services
+- ✅ Render deployment configuration (frontend, backend, worker, beat, Redis; no Render DB)
 - ✅ Health check endpoints for monitoring
+- ✅ Development: Docker Compose without nginx (frontend :3000, backend :8000); DATABASE_URL from backend/.env (Supabase)
+- ✅ Production: Render only; CORS from env (comma-separated); backend release command for migrations
 
 #### Integration
 - ✅ Supabase Auth integration
@@ -164,17 +182,21 @@ The MVP goal is to deliver a fully functional platform that enables users to upl
 
 ### High-Level Architecture
 
-The platform follows a microservices-oriented architecture with clear separation between frontend, backend API, and background workers:
+The platform follows a microservices-oriented architecture with clear separation between frontend, backend API, and background workers.
+
+**Development**: Docker Compose without nginx—frontend at `http://localhost:3000`, backend at `http://localhost:8000`. Five services: frontend, backend, redis, celery-worker, celery-beat. Database and auth: Supabase only (DATABASE_URL and Supabase keys in `backend/.env`).
+
+**Production**: Render only. Same logical services (frontend web, backend web, worker, beat, Redis). Supabase for database and auth; Render Redis for cache and Celery broker. Migrations run via backend release command (`alembic upgrade head`). CORS origins configurable via comma-separated env.
 
 ```
 ┌─────────────────┐
-│  Nuxt.js Frontend│  (Render Web Service)
+│  Nuxt.js Frontend│  (Render Web Service / local :3000)
 │  (SSR/SSG)      │
 └────────┬─────────┘
          │ HTTP/REST
          ▼
 ┌─────────────────┐
-│  FastAPI Backend│  (Render Web Service)
+│  FastAPI Backend│  (Render Web Service / local :8000)
 │  (REST API)     │
 └────────┬─────────┘
          │
@@ -586,7 +608,81 @@ backend/
 3. Pattern scores updated → Future recommendations improved
 4. New content uses updated patterns → Cycle repeats
 
-#### 7.10 Template System
+#### 7.10 Chat / LLM with Tools (Strategies)
+
+**Purpose**: Provide a conversational interface for strategy, schedule, and script actions via an LLM with tool/function calling.
+
+**Operations**:
+- Accept chat messages and optional session ID; call LLM (OpenAI or configurable provider) with tool definitions matching platform capabilities
+- Execute tools: list/create/reschedule/cancel schedule, list/create/update/export scripts, list/create/update/export strategies, list videos/patterns, list/upload/delete materials, list connected platforms / get OAuth connect URL
+- Return assistant message and structured card payloads (schedule changes, generated scripts, strategy docs) for the frontend to render in a result-cards panel
+
+**Key Features**:
+- Two-column Strategies UI: chat (left), result cards (right) that update when tools run
+- Tool results drive cards (e.g. "Post moved to Friday 6 PM", "Script created", "Strategy refined")
+- Streaming or single JSON response with `message` and `cards[]` or tool_results
+- All tool executions scoped to current user (Supabase/JWT)
+
+**Technical Details**:
+- Endpoint: `POST /chat` or `POST /strategies/chat` with `messages[]`, optional `session_id`
+- Tool definitions mirror MCP-style contract: schedule, scripts, strategies, videos, materials, connected_platforms
+- Backend implements tools as internal service calls (or via MCP client); no separate MCP process required for in-app chat
+
+#### 7.11 My Materials (User Assets)
+
+**Purpose**: Let users upload and manage brand assets (logos, images) for use in content.
+
+**Operations**:
+- List materials by user; filter by type (logo, image, watermark)
+- Upload file with type; store in Supabase Storage (e.g. `materials/{user_id}/`)
+- Get material by ID; delete material
+
+**Key Features**:
+- Materials page under Account (or dedicated route); list grid, upload area, delete
+- RLS for user_id; storage path and metadata (JSONB) per asset
+
+**Technical Details**:
+- Table: `user_assets` or `materials` (id, user_id, type, filename, storage_path, url/metadata, created_at, updated_at)
+- Endpoints: `GET /materials`, `POST /materials/upload`, `GET /materials/{id}`, `DELETE /materials/{id}`
+
+#### 7.12 Schedule Page & Dashboard Schedule Card
+
+**Purpose**: Full view of scheduled posts and a compact dashboard card for upcoming schedule.
+
+**Operations**:
+- Schedule page: list or calendar view of scheduled posts; filter by platform; edit time, cancel
+- Dashboard: expandable "Posting Schedule" card with next N posts; "Open full schedule" → `/schedule`
+
+**Key Features**:
+- Data from `GET /posts/scheduled`; display date/time in user timezone (from preferences)
+- Per-platform tabs or filters on Schedule page; add new scheduled post links to Publish flow
+
+#### 7.13 Account Area (Profile, Preferences, Connected Platforms)
+
+**Purpose**: Central place for user profile, app preferences, materials, and connected social accounts.
+
+**Operations**:
+- App header dropdown: Profile, Preferences, My Materials, Connected Platforms, Sign out
+- Profile: display/edit name, email, avatar (Supabase user)
+- Preferences: language, timezone for scheduling, notifications
+- Connected Platforms: list Instagram, TikTok, YouTube, Facebook with connect/disconnect; moved from dashboard/publish; Publish page shows summary + "Manage in Account"
+
+**Key Features**:
+- All account pages use app layout and auth middleware
+- Timezone stored and used for schedule display and creation
+
+#### 7.14 Toasts, Empty/Loading States, UX Polish
+
+**Purpose**: Non-blocking feedback and consistent list/modal UX.
+
+**Operations**:
+- Toasts: success/error (and optional info) via `useToast()` and toast container; auto-dismiss; used for chat tool results, publish, schedule, preferences save, connect/disconnect
+- Empty states: every list (Videos, Scripts, Schedule, Materials, etc.) uses EmptyState with icon, title, description, primary action
+- Loading: skeleton or spinner for lists; loading state on modals during submit
+- Breadcrumbs or "Back to Dashboard" / "Back to Schedule" on account and schedule pages
+- Escape key closes topmost modal or dropdown
+
+#### 7.15 Template System
 
 **Purpose**: Cache common LLM responses to reduce API costs and improve response times.
 
@@ -729,15 +825,21 @@ backend/
 
 ### Deployment & Infrastructure
 
-**Platform**: Render
+**Platform**: Render (production only; no Render-managed PostgreSQL—Supabase only)
 - **Rationale**: Simple configuration, managed services, Git-based deployment
-- **Services**: Web services (frontend/backend), background workers, PostgreSQL, Redis
+- **Services**: Web services (frontend, backend), background workers (Celery worker, Celery beat), Redis. No Render database; DATABASE_URL is Supabase connection string.
+
+**Development**:
+- Docker Compose: frontend, backend, redis, celery-worker, celery-beat (no nginx, no postgres container)
+- Access: `http://localhost:3000` (frontend), `http://localhost:8000` (backend)
+- Env: `backend/.env` (DATABASE_URL Supabase, REDIS_URL e.g. `redis://redis:6379`), `frontend/.env` (NUXT_PUBLIC_API_URL=`http://localhost:8000/api/v1`)
+- See SETUP.md for full instructions; migrations: `docker-compose exec backend alembic upgrade head`
 
 **Configuration**:
-- `render.yaml` for infrastructure as code
-- Environment variables via Render dashboard
-- Auto-deploy from Git (GitHub/GitLab/Bitbucket)
-- Health checks and auto-restart
+- `render.yaml` for infrastructure as code; backend has `releaseCommand: cd backend && alembic upgrade head`
+- Environment variables via Render dashboard (DATABASE_URL, NUXT_PUBLIC_API_URL, REDIS_URL from Render Redis, SUPABASE_*, secrets)
+- CORS: backend reads `CORS_ORIGINS` from env (comma-separated) so production frontend URL(s) can be set in Render
+- Auto-deploy from Git; health checks and auto-restart
 
 **Monitoring** (Basic):
 - Render built-in logs
@@ -786,20 +888,16 @@ backend/
 
 **Environment Variables**:
 
-**Frontend** (`.env.production`):
-```env
-NUXT_PUBLIC_API_URL=https://social-media-ai-backend.onrender.com
-NUXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NUXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-NODE_ENV=production
-```
+**Frontend** (development vs production):
+- **Development**: `NUXT_PUBLIC_API_URL=http://localhost:8000/api/v1`; Supabase URL/anon key in `.env`
+- **Production (Render)**: Set in Render Dashboard: `NUXT_PUBLIC_API_URL` = backend URL + `/api/v1` (e.g. `https://social-media-ai-backend.onrender.com/api/v1`), plus Supabase URL/anon key
 
 **Backend** (`.env`):
 ```env
-# Database
-DATABASE_URL=postgresql://user:pass@host:5432/dbname
+# Database (Supabase only; no local Postgres)
+DATABASE_URL=postgresql://postgres.[ref]:[password]@...pooler.supabase.com:6543/postgres
 
-# Redis
+# Redis (dev: redis://localhost:6379 or redis://redis:6379 in Docker; prod: Render Redis URL)
 REDIS_URL=redis://red-xxx:6379
 
 # Supabase
@@ -830,10 +928,11 @@ PORT=8000  # Auto-set by Render
 ```
 
 **Configuration Best Practices**:
-- All sensitive values stored as environment variables
+- All sensitive values stored as environment variables; never commit real secrets
 - Never commit `.env` files to Git
-- Use Render's secret management for production
-- Separate development/staging/production configurations
+- Use Render's secret management for production (DATABASE_URL, SUPABASE_*, REDIS_URL, API keys)
+- Development uses `backend/.env` and `frontend/.env`; production env is set in Render Dashboard only
+- CORS: set `CORS_ORIGINS` in production as comma-separated list (e.g. `https://social-media-ai-frontend.onrender.com`)
 - Validate required environment variables on startup
 
 ### Security Scope
@@ -1088,6 +1187,24 @@ Generate a marketing strategy.
 **GET** `/strategies/{strategy_id}`
 
 Get strategy details.
+
+#### Chat (Strategies / LLM with tools)
+
+**POST** `/chat` or `/strategies/chat`
+
+Send messages and receive LLM response with optional tool results (schedule changes, scripts, strategy docs). Tool results can be returned as structured card payloads for the frontend.
+
+**Request Body**:
+```json
+{
+  "messages": [
+    { "role": "user", "content": "Schedule my latest video for Friday 6 PM on Instagram" }
+  ],
+  "session_id": "optional-uuid"
+}
+```
+
+**Response**: Streaming (SSE) or JSON with `message` and `cards[]` (or `tool_results`) for result cards (schedule updates, script created, strategy refined, etc.). All tool executions are scoped to the authenticated user.
 
 #### Scripts
 
@@ -1510,7 +1627,18 @@ The MVP is considered successful when users can complete the core workflow end-t
 
 **Timeline**: 2 weeks
 
-**Total MVP Timeline**: ~17 weeks (~4 months)
+### Phase 6: Infrastructure & App UX (Executed)
+
+**Goal**: Supabase-only infra, dev/prod split, Render-ready; app layout, chatbot strategies, account/schedule/materials, UX polish.
+
+**Deliverables** (executed per plans):
+- ✅ Infrastructure: Docker without nginx (dev :3000/:8000); docker-compose.prod without postgres; CORS from env; Render release command for migrations; SETUP/README/env examples aligned
+- ✅ App layout (logo-only header) for authenticated routes; dashboard revamp (real stats, Schedule card)
+- ✅ Strategies page as chatbot + result cards; chat backend with LLM + tools (schedule, scripts, strategies, videos, materials, connected platforms)
+- ✅ Account dropdown and pages: Profile, Preferences, My Materials, Connected Platforms
+- ✅ Schedule page; Strategy and Script detail/export; Toasts; timezone in preferences; empty/loading states; breadcrumbs/back links; Escape to close; Publish connection summary
+
+**Total MVP Timeline**: ~17 weeks (~4 months) plus executed Phase 6
 
 ## 13. Future Considerations
 
@@ -1672,10 +1800,17 @@ The MVP is considered successful when users can complete the core workflow end-t
 ### Related Documents
 
 - Architecture Plan: `.cursor/plans/social_media_ai_saas_architecture_f3707f3c.plan.md`
+- **Executed plans** (reference for current implementation):
+  - **Infrastructure (Supabase-only, dev/prod, Render)**: `.cursor/plans/infra_supabase_dev_prod_render_7adb4aba.plan.md` — Docker without nginx, no Postgres containers, CORS from env, release command, SETUP/README/env examples
+  - **Complete app features and UX**: `.cursor/plans/complete_app_features_and_ux_f64c9818.plan.md` — Strategies chatbot + result cards, MCP/tools, account/schedule/materials, toasts, timezone, empty/loading states, breadcrumbs, Escape to close, Publish connection summary
+  - **App dashboard frontend revamp**: `.cursor/plans/app_dashboard_frontend_revamp_45ac4bb7.plan.md` — App layout, dashboard stat cards and real data, Schedule card
+  - **Frontend professional revamp**: `.cursor/plans/frontend_professional_revamp_ef892aae.plan.md` — UI components, landing sections, icons (lucide), Tailwind, rebrand (ElevoAI if applied)
+  - **Docker infrastructure**: `.cursor/plans/docker_infrastructure_setup_06842005.plan.md` — Dockerfiles, compose, CI/CD (superseded in part by Supabase-only infra plan)
 - Render Documentation: https://render.com/docs
 - Supabase Documentation: https://supabase.com/docs
 - FastAPI Documentation: https://fastapi.tiangolo.com
 - Nuxt.js Documentation: https://nuxt.com/docs
+- SETUP.md: Development (Docker, Supabase, no nginx) and Production (Render, env vars, migrations)
 
 ### Key Dependencies
 
@@ -1728,6 +1863,6 @@ socialmediaAI/
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: 2024-01-15  
-**Status**: Draft - Ready for Review
+**Document Version**: 1.1  
+**Last Updated**: 2026-01-28  
+**Status**: Living document — updated from executed plans (infra Supabase-only, app features and UX, dashboard revamp)
