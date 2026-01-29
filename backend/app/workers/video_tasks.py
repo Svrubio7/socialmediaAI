@@ -452,41 +452,93 @@ def edit_video(
     output_format: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
-    Edit video based on script or patterns.
-    
-    Args:
-        video_id: ID of the source video
-        video_path: Path to the video file
-        script_id: Optional script ID to apply
-        pattern_ids: Optional pattern IDs to apply
-        platform: Target platform
-        output_format: Output format specifications
-        
-    Returns:
-        Editing result with output path
+    Edit video based on script or patterns. Uses VideoEditorService.
     """
     try:
         logger.info(f"Starting video editing for video {video_id}")
-        
-        # TODO: Implement video editing
-        # 1. Load script or patterns
-        # 2. Generate FFmpeg commands from template
-        # 3. Execute editing pipeline
-        # 4. Upload result to storage
-        # 5. Create new video record for edited version
-        
+        import asyncio
+        from app.services.video_editor import VideoEditorService
+
+        svc = VideoEditorService()
+        # TODO: Load script from DB if script_id; build script dict; call apply_script.
+        # TODO: Upload result to storage; create video record.
+        output_path = tempfile.mktemp(suffix=".mp4", prefix="edit_")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(
+                svc.create_platform_version(video_path, platform, output_path)
+            )
+        finally:
+            loop.close()
         result = {
             "video_id": video_id,
             "status": "completed",
             "output_video_id": None,
-            "output_path": None,
+            "output_path": output_path,
         }
-        
         logger.info(f"Completed video editing for video {video_id}")
         return result
-        
     except Exception as exc:
         logger.error(f"Video editing failed for video {video_id}: {exc}")
+        raise self.retry(exc=exc)
+
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=60)
+def execute_editor_op(
+    self,
+    video_id: str,
+    video_path: str,
+    op: str,
+    params: Dict[str, Any],
+    output_path: str,
+) -> Dict[str, Any]:
+    """
+    Run a single foundation editor op (trim_clip, clip_out, etc.) via VideoEditorService.
+    """
+    import asyncio
+    from app.services.video_editor import VideoEditorService
+
+    try:
+        logger.info(f"Running editor op {op} for video {video_id}")
+        svc = VideoEditorService()
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            if op == "trim_clip":
+                loop.run_until_complete(
+                    svc.trim_clip(video_path, float(params["start"]), float(params["end"]), output_path)
+                )
+            elif op == "clip_out":
+                loop.run_until_complete(
+                    svc.clip_out(video_path, float(params["start"]), float(params["end"]), output_path)
+                )
+            elif op == "duplicate_clip":
+                loop.run_until_complete(svc.duplicate_clip(video_path, output_path))
+            elif op == "set_clip_speed":
+                loop.run_until_complete(
+                    svc.set_clip_speed(video_path, float(params.get("speed", 1)), output_path)
+                )
+            elif op == "reverse_clip":
+                loop.run_until_complete(svc.reverse_clip(video_path, output_path))
+            elif op == "export_video":
+                loop.run_until_complete(
+                    svc.export_video(
+                        video_path,
+                        output_path,
+                        width=params.get("width"),
+                        height=params.get("height"),
+                        fps=params.get("fps"),
+                        bitrate=params.get("bitrate"),
+                    )
+                )
+            else:
+                raise ValueError(f"Unsupported op: {op}")
+        finally:
+            loop.close()
+        return {"video_id": video_id, "op": op, "output_path": output_path, "status": "completed"}
+    except Exception as exc:
+        logger.error(f"Editor op {op} failed for {video_id}: {exc}")
         raise self.retry(exc=exc)
 
 

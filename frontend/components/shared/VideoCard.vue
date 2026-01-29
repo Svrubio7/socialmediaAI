@@ -43,11 +43,20 @@
       </div>
       
       <!-- Actions -->
-      <div class="flex gap-2">
+      <div class="flex flex-wrap gap-2">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          :to="localePath(`/editor?video=${video.id}`)"
+          class="flex-1"
+        >
+          <UiIcon name="Scissors" :size="16" />
+          <span>Edit</span>
+        </Button>
         <Button 
           variant="secondary" 
           size="sm" 
-          :to="`/videos/${video.id}`"
+          :to="localePath(`/videos/${video.id}`)"
           class="flex-1"
         >
           <UiIcon name="Eye" :size="16" />
@@ -84,6 +93,8 @@ interface Props {
 }
 
 defineProps<Props>()
+
+const localePath = useLocalePath()
 
 defineEmits<{
   (e: 'analyze', id: string): void

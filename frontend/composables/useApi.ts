@@ -173,6 +173,33 @@ export const useApi = () => {
     delete: (id: string) => del(`/materials/${id}`),
   }
 
+  // Editor ops (foundation clip/transform/export)
+  const editorOps = {
+    execute: (videoId: string, op: string, params: Record<string, unknown> = {}) =>
+      post<{ op: string; output_path?: string; result?: Record<string, unknown>; error?: string }>(
+        `/editor/${videoId}/op`,
+        { op, params }
+      ),
+  }
+
+  // Edit templates (content library)
+  const editTemplates = {
+    list: (params?: { limit?: number; offset?: number }) => {
+      const query = new URLSearchParams()
+      if (params?.limit) query.set('limit', params.limit.toString())
+      if (params?.offset) query.set('offset', params.offset.toString())
+      return get<{ items: any[]; total: number }>(`/edit-templates?${query}`)
+    },
+    get: (id: string) => get<any>(`/edit-templates/${id}`),
+    create: (body: { name: string; description?: string; style_spec?: Record<string, unknown> }) =>
+      post<any>('/edit-templates', body),
+    update: (id: string, body: { name?: string; description?: string; style_spec?: Record<string, unknown> }) =>
+      patch<any>(`/edit-templates/${id}`, body),
+    delete: (id: string) => del(`/edit-templates/${id}`),
+    apply: (templateId: string, videoId: string) =>
+      post<any>(`/edit-templates/${templateId}/apply`, { video_id: videoId }),
+  }
+
   // Analytics endpoints
   const analytics = {
     video: (videoId: string) => get<any>(`/analytics/videos/${videoId}`),
@@ -214,6 +241,8 @@ export const useApi = () => {
     posts,
     chat,
     materials,
+    editTemplates,
+    editorOps,
     analytics,
   }
 }

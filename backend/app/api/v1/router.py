@@ -4,7 +4,7 @@ API v1 Router - Aggregates all API endpoints.
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, videos, patterns, strategies, scripts, posts, analytics, oauth, chat, materials
+from app.api.v1.endpoints import auth, videos, patterns, strategies, scripts, posts, analytics, oauth, chat, materials, edit_templates, editor_ops
 
 api_router = APIRouter()
 
@@ -19,3 +19,5 @@ api_router.include_router(posts.router, prefix="/posts", tags=["Publishing"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
 api_router.include_router(oauth.router, prefix="/oauth", tags=["OAuth"])
 api_router.include_router(materials.router, prefix="/materials", tags=["Materials"])
+api_router.include_router(edit_templates.router, prefix="/edit-templates", tags=["Edit templates"])
+api_router.include_router(editor_ops.router, prefix="/editor", tags=["Editor ops"])

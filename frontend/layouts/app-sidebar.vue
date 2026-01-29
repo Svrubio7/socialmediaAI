@@ -181,6 +181,17 @@
             </li>
             <li>
               <NuxtLink
+                :to="localePath('/editor')"
+                class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
+                :class="isActive('/editor') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-100' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-400 dark:hover:text-surface-100 dark:hover:bg-surface-800'"
+                @click="sidebarOpen = false"
+              >
+                <UiIcon name="Scissors" :size="18" class="flex-shrink-0" />
+                Editor
+              </NuxtLink>
+            </li>
+            <li>
+              <NuxtLink
                 :to="localePath('/analytics')"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
                 :class="isActive('/analytics') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-100' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-400 dark:hover:text-surface-100 dark:hover:bg-surface-800'"

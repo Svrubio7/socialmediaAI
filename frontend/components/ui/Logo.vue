@@ -84,5 +84,5 @@ const textSizeClass = computed(() => {
   }
 })
 
-const textColorClass = computed(() => 'text-surface-50')
+const textColorClass = computed(() => 'text-surface-950 dark:text-surface-50')
 </script>

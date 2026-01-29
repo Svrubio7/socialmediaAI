@@ -1,11 +1,14 @@
 """
 Video Editing Service - Uses FFmpeg for video processing.
+Foundation ops (clip, transform, overlay, etc.) used by UI and MCP.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
+import json
 import subprocess
 import os
 import tempfile
+import shutil
 
 
 class VideoEditorService:
@@ -166,17 +169,14 @@ class VideoEditorService:
             Path to the extracted segment
         """
         duration = end_time - start_time
-        
-        # TODO: Implement actual segment extraction
-        # cmd = [
-        #     "ffmpeg", "-i", input_path,
-        #     "-ss", str(start_time),
-        #     "-t", str(duration),
-        #     "-c", "copy",
-        #     "-y", output_path
-        # ]
-        # subprocess.run(cmd, check=True)
-        
+        cmd = [
+            "ffmpeg", "-y", "-i", input_path,
+            "-ss", str(start_time),
+            "-t", str(duration),
+            "-c", "copy",
+            output_path,
+        ]
+        subprocess.run(cmd, check=True)
         return output_path
 
     async def add_text_overlay(
@@ -232,10 +232,20 @@ class VideoEditorService:
         Returns:
             Path to the speed-adjusted video
         """
-        # TODO: Implement actual speed adjustment
-        # setpts_factor = 1 / speed_factor
-        # atempo_factor = speed_factor if speed_factor <= 2 else 2  # atempo only supports 0.5-2x
-        
+        setpts = 1.0 / speed_factor
+        vf = f"setpts={setpts}*PTS"
+        t = speed_factor
+        atempos: List[str] = []
+        while t > 2:
+            atempos.append("atempo=2")
+            t /= 2
+        while t < 0.5:
+            atempos.append("atempo=0.5")
+            t /= 0.5
+        atempos.append(f"atempo={t}")
+        af = ",".join(atempos)
+        cmd = ["ffmpeg", "-y", "-i", input_path, "-vf", vf, "-af", af, "-c:v", "libx264", "-preset", "fast", output_path]
+        subprocess.run(cmd, check=True)
         return output_path
 
     async def get_video_info(self, video_path: str) -> Dict[str, Any]:
@@ -248,21 +258,274 @@ class VideoEditorService:
         Returns:
             Dictionary containing video metadata
         """
-        # TODO: Implement actual ffprobe call
-        # cmd = [
-        #     "ffprobe", "-v", "quiet",
-        #     "-print_format", "json",
-        #     "-show_format", "-show_streams",
-        #     video_path
-        # ]
-        # result = subprocess.run(cmd, capture_output=True, text=True)
-        # return json.loads(result.stdout)
-        
+        cmd = [
+            "ffprobe", "-v", "quiet",
+            "-print_format", "json",
+            "-show_format", "-show_streams",
+            video_path,
+        ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            data = json.loads(result.stdout)
+        except (subprocess.CalledProcessError, json.JSONDecodeError, FileNotFoundError):
+            return {"duration": 0, "width": 0, "height": 0, "fps": 0, "codec": "", "bitrate": 0}
+        vs = next((s for s in data.get("streams", []) if s.get("codec_type") == "video"), {})
+        fmt = data.get("format", {})
+        rfr = vs.get("r_frame_rate") or "0/1"
+        a, b = (int(x) for x in rfr.split("/")) if "/" in rfr else (0, 1)
+        fps = (a / b) if b else 0
         return {
-            "duration": 0,
-            "width": 0,
-            "height": 0,
-            "fps": 0,
-            "codec": "",
-            "bitrate": 0,
+            "duration": float(fmt.get("duration", 0)),
+            "width": int(vs.get("width", 0)),
+            "height": int(vs.get("height", 0)),
+            "fps": fps,
+            "codec": vs.get("codec_name", ""),
+            "bitrate": int(fmt.get("bit_rate", 0)),
         }
+
+    # --- Foundation ops (Phase 2): used by UI and MCP ---
+
+    async def clip_out(self, input_path: str, start: float, end: float, output_path: str) -> str:
+        """Remove segment [start, end]; output = before + after concatenated."""
+        info = await self.get_video_info(input_path)
+        dur = info.get("duration") or 0.0
+        if start <= 0 and end >= dur:
+            raise ValueError("clip_out would remove entire video")
+        before = output_path + ".before.mp4"
+        after = output_path + ".after.mp4"
+        paths: List[str] = []
+        if start > 0:
+            await self.extract_segment(input_path, 0.0, start, before)
+            paths.append(before)
+        if end < dur:
+            await self.extract_segment(input_path, end, dur, after)
+            paths.append(after)
+        if len(paths) == 1:
+            shutil.move(paths[0], output_path)
+            return output_path
+        await self.merge_clips(paths, output_path)
+        for p in paths:
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+        return output_path
+
+    async def trim_clip(self, input_path: str, start: float, end: float, output_path: str) -> str:
+        """Trim to [start, end]. Same as extract segment."""
+        return await self.extract_segment(input_path, start, end, output_path)
+
+    async def split_clip(
+        self,
+        input_path: str,
+        split_at: float,
+        output_left: str,
+        output_right: str,
+    ) -> Tuple[str, str]:
+        """Split at split_at; output two clips."""
+        info = await self.get_video_info(input_path)
+        dur = info.get("duration") or 0.0
+        await self.extract_segment(input_path, 0.0, split_at, output_left)
+        await self.extract_segment(input_path, split_at, dur, output_right)
+        return (output_left, output_right)
+
+    async def duplicate_clip(self, input_path: str, output_path: str) -> str:
+        """Copy clip to output_path."""
+        shutil.copy2(input_path, output_path)
+        return output_path
+
+    async def merge_clips(self, input_paths: List[str], output_path: str) -> str:
+        """Concatenate clips in order."""
+        list_path = output_path + ".list"
+        with open(list_path, "w") as f:
+            for p in input_paths:
+                ab = os.path.abspath(p).replace("\\", "/")
+                f.write(f"file '{ab}'\n")
+        cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_path, "-c", "copy", output_path]
+        subprocess.run(cmd, check=True)
+        try:
+            os.remove(list_path)
+        except OSError:
+            pass
+        return output_path
+
+    async def replace_clip(
+        self,
+        timeline_path: str,
+        segment_start: float,
+        segment_end: float,
+        replacement_path: str,
+        output_path: str,
+    ) -> str:
+        """Replace segment [start, end] with replacement clip. Stub: use clip_out + insert + merge."""
+        # TODO: extract before, replacement, after; merge_clips
+        return output_path
+
+    async def crop_clip(
+        self,
+        input_path: str,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        output_path: str,
+    ) -> str:
+        """Crop to region (x,y,width,height)."""
+        cmd = [
+            "ffmpeg", "-y", "-i", input_path,
+            "-vf", f"crop={width}:{height}:{x}:{y}",
+            "-c:a", "copy",
+            output_path,
+        ]
+        subprocess.run(cmd, check=True)
+        return output_path
+
+    async def rotate_clip(self, input_path: str, degrees: float, output_path: str) -> str:
+        """Rotate clip (90, 180, 270 or arbitrary)."""
+        if abs(degrees - 90) < 1:
+            vf = "transpose=1"
+        elif abs(degrees - 270) < 1:
+            vf = "transpose=2"
+        elif abs(degrees - 180) < 1:
+            vf = "transpose=2,transpose=2"
+        else:
+            vf = f"rotate={degrees}*PI/180"
+        cmd = ["ffmpeg", "-y", "-i", input_path, "-vf", vf, "-c:a", "copy", output_path]
+        subprocess.run(cmd, check=True)
+        return output_path
+
+    async def mirror_clip(self, input_path: str, horizontal: bool, output_path: str) -> str:
+        """Flip horizontal or vertical."""
+        vf = "hflip" if horizontal else "vflip"
+        cmd = ["ffmpeg", "-y", "-i", input_path, "-vf", vf, "-c:a", "copy", output_path]
+        subprocess.run(cmd, check=True)
+        return output_path
+
+    async def set_clip_speed(self, input_path: str, speed: float, output_path: str) -> str:
+        """Uniform speed change (0.25--4)."""
+        return await self.adjust_speed(input_path, speed, output_path)
+
+    async def reverse_clip(self, input_path: str, output_path: str) -> str:
+        """Reverse playback."""
+        cmd = ["ffmpeg", "-y", "-i", input_path, "-vf", "reverse", "-af", "areverse", output_path]
+        subprocess.run(cmd, check=True)
+        return output_path
+
+    async def freeze_frame(
+        self,
+        input_path: str,
+        at_time: float,
+        duration: float,
+        output_path: str,
+    ) -> str:
+        """Hold frame at at_time for duration seconds."""
+        # Extract frame, create still clip, splice. Stub: output = input for now.
+        shutil.copy2(input_path, output_path)
+        return output_path
+
+    async def set_canvas_size(
+        self,
+        input_path: str,
+        width: int,
+        height: int,
+        output_path: str,
+    ) -> str:
+        """Scale and pad to target canvas (aspect ratio preserved)."""
+        cmd = [
+            "ffmpeg", "-y", "-i", input_path,
+            "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
+            "-c:a", "copy",
+            output_path,
+        ]
+        subprocess.run(cmd, check=True)
+        return output_path
+
+    async def insert_video(
+        self,
+        base_path: str,
+        overlay_path: str,
+        at_time: float,
+        position: str,
+        output_path: str,
+    ) -> str:
+        """Overlay video at at_time, position (e.g. center, top-right). Stub."""
+        # TODO: overlay filter with enable='between(t,...)'
+        shutil.copy2(base_path, output_path)
+        return output_path
+
+    async def insert_image(
+        self,
+        input_path: str,
+        image_path: str,
+        at_time: float,
+        duration: float,
+        position: str,
+        output_path: str,
+    ) -> str:
+        """Overlay image at position for duration. Stub."""
+        shutil.copy2(input_path, output_path)
+        return output_path
+
+    async def insert_audio(
+        self,
+        video_path: str,
+        audio_path: str,
+        at_time: float,
+        volume: float,
+        output_path: str,
+    ) -> str:
+        """Mix in audio at at_time. Stub."""
+        shutil.copy2(video_path, output_path)
+        return output_path
+
+    async def add_sticker(
+        self,
+        input_path: str,
+        image_path: str,
+        at_time: float,
+        duration: float,
+        x: int,
+        y: int,
+        output_path: str,
+    ) -> str:
+        """Overlay sticker at (x,y). Stub."""
+        shutil.copy2(input_path, output_path)
+        return output_path
+
+    async def reorder_layers(self, project_or_path: str, layer_order: List[str]) -> Dict[str, Any]:
+        """Reorder layers (project-level). Stub; returns current state."""
+        return {"layers": layer_order}
+
+    async def set_layer_visibility(
+        self,
+        project_or_path: str,
+        layer_id: str,
+        visible: bool,
+    ) -> Dict[str, Any]:
+        """Set layer visibility. Stub."""
+        return {"layer_id": layer_id, "visible": visible}
+
+    async def export_video(
+        self,
+        input_path: str,
+        output_path: str,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
+        fps: Optional[float] = None,
+        bitrate: Optional[str] = None,
+        format: str = "mp4",
+    ) -> str:
+        """Render to file. Optional resolution, fps, bitrate."""
+        args = ["ffmpeg", "-y", "-i", input_path]
+        vf: List[str] = []
+        if width and height:
+            vf.append(f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2")
+        if vf:
+            args += ["-vf", ",".join(vf)]
+        if fps:
+            args += ["-r", str(fps)]
+        if bitrate:
+            args += ["-b:v", bitrate]
+        args += ["-c:a", "copy", output_path]
+        subprocess.run(args, check=True)
+        return output_path

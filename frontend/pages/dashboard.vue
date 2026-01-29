@@ -113,7 +113,7 @@
         class="flex flex-col min-h-[280px] rounded-2xl border border-amber-500/25 hover:border-amber-500/40 hover:scale-[1.02] hover:shadow-xl hover:shadow-black/20 bg-surface-200/80 dark:bg-surface-800/80 cursor-pointer transition-all duration-200"
         padding="lg"
       >
-        <div class="flex items-center gap-4 mb-4">
+        <div class="flex items-center gap-4 mb-6">
           <div class="w-12 h-12 rounded-xl bg-amber-500/30 flex items-center justify-center flex-shrink-0">
             <UiIcon name="Calendar" :size="24" class="text-surface-800 dark:text-surface-100" />
           </div>
@@ -130,31 +130,33 @@
           </div>
         </div>
         <template v-else>
-          <div class="flex-1 min-h-0">
-            <div class="grid grid-cols-7 gap-px bg-surface-700 rounded-lg overflow-hidden text-center text-xs font-medium mb-4 max-w-xl">
-              <div v-for="d in weekDayLabels" :key="d" class="bg-surface-800/80 py-1.5 text-surface-400">{{ d }}</div>
+          <div class="flex-1 min-h-0 flex flex-col">
+            <div class="grid grid-cols-7 gap-1.5 bg-surface-600/30 dark:bg-surface-700/40 rounded-lg overflow-hidden text-center text-sm font-medium mb-5 max-w-xl">
+              <div v-for="d in weekDayLabels" :key="d" class="bg-surface-700/50 dark:bg-surface-600/40 py-2 text-surface-500 dark:text-surface-400">{{ d }}</div>
               <div
                 v-for="i in 14"
                 :key="i"
-                class="aspect-square bg-surface-800/50 py-1 text-surface-500 flex items-center justify-center"
+                class="min-h-[2rem] py-2 bg-surface-700/30 dark:bg-surface-600/25 text-surface-500 dark:text-surface-400 flex items-center justify-center"
               >
                 {{ scheduleDayLabels[i - 1] }}
               </div>
             </div>
             <template v-if="scheduledPosts.length > 0">
-              <div
-                v-for="post in scheduledPosts.slice(0, 3)"
-                :key="post.id"
-                class="flex items-center gap-3 p-3 rounded-xl bg-surface-800/50 mb-3"
-              >
-                <PlatformIcon :platform="post.platform" size="sm" variant="outline" />
-                <div class="flex-1 min-w-0">
-                  <p class="font-medium text-surface-100 truncate text-sm">{{ post.video_title || 'Video' }}</p>
-                  <p class="text-surface-400 text-xs">{{ formatScheduleTime(post.scheduled_at) }}</p>
+              <div class="space-y-4 mb-4">
+                <div
+                  v-for="post in scheduledPosts.slice(0, 3)"
+                  :key="post.id"
+                  class="flex items-center gap-4 p-4 rounded-xl bg-surface-700/40 dark:bg-surface-600/30"
+                >
+                  <PlatformIcon :platform="post.platform" size="sm" variant="outline" />
+                  <div class="flex-1 min-w-0">
+                    <p class="font-medium text-surface-100 truncate text-sm">{{ post.video_title || 'Video' }}</p>
+                    <p class="text-surface-400 text-xs mt-0.5">{{ formatScheduleTime(post.scheduled_at) }}</p>
+                  </div>
                 </div>
               </div>
             </template>
-            <span class="inline-flex items-center gap-2 text-sm text-primary-400 font-medium">
+            <span class="inline-flex items-center gap-2 text-sm text-primary-400 font-medium mt-5">
               View schedule
               <UiIcon name="ArrowRight" :size="14" />
             </span>
@@ -218,6 +220,7 @@ const overviewSections = computed(() => {
     { to: '/publish', title: 'Publish Content', description: 'Share to all platforms', icon: 'Send', edgeClass: 'border border-emerald-500/25 hover:border-emerald-500/40', iconBg: 'bg-emerald-500/30' },
     { to: '/schedule', title: 'Schedule', description: 'Manage your scheduled posts', icon: 'Calendar', edgeClass: 'border border-amber-500/25 hover:border-amber-500/40', iconBg: 'bg-amber-500/30', summary: scheduleSummaryText },
     { to: '/videos', title: 'Videos', description: 'Upload and analyze your videos', icon: 'Video', edgeClass: 'border border-primary-500/25 hover:border-primary-500/40', iconBg: 'bg-primary-500/30', summary: videosSummary },
+    { to: '/editor', title: 'Editor', description: 'Edit and generate videos with timelines, layers, and templates', icon: 'Scissors', edgeClass: 'border border-accent-500/25 hover:border-accent-500/40', iconBg: 'bg-accent-500/30' },
     { to: '/analytics', title: 'Analytics', description: 'Views, engagement, and performance', icon: 'BarChart3', edgeClass: 'border border-amber-500/25 hover:border-amber-500/40', iconBg: 'bg-amber-500/30' },
   ]
 })

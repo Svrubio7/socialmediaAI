@@ -1,7 +1,9 @@
 <template>
   <header 
-    class="fixed top-0 left-0 right-0 z-50"
-    :class="isScrolled ? 'header-scrolled' : 'bg-transparent'"
+    class="fixed top-0 left-0 right-0 z-50 transition-colors duration-200"
+    :class="isScrolled 
+      ? 'bg-white/90 dark:bg-surface-950/90 backdrop-blur-[24px] border-b border-surface-200/80 dark:border-white/10 shadow-sm dark:shadow-black/20' 
+      : 'bg-transparent'"
   >
     <div class="container-wide">
       <div class="flex items-center justify-between h-16">
@@ -14,7 +16,7 @@
             v-for="item in navItems"
             :key="item.to"
             :to="localePath(item.to)"
-            class="font-mono text-sm text-surface-300 hover:text-surface-50"
+            class="font-mono text-sm text-surface-600 hover:text-surface-950 dark:text-surface-300 dark:hover:text-surface-50"
             style="white-space: nowrap;"
           >
             {{ $t(item.label) }}
@@ -27,7 +29,7 @@
           <button
             v-if="theme"
             type="button"
-            class="flex items-center justify-center w-9 h-9 rounded-lg text-surface-500 hover:text-surface-100 hover:bg-surface-800/50 dark:text-surface-400 dark:hover:text-surface-100 dark:hover:bg-surface-800 transition-colors"
+            class="flex items-center justify-center w-9 h-9 rounded-lg text-surface-500 hover:text-surface-900 dark:text-surface-400 dark:hover:text-surface-100 hover:bg-surface-200/80 dark:hover:bg-surface-800/50 transition-colors"
             :aria-label="theme.isDark ? 'Switch to light mode' : 'Switch to dark mode'"
             @click="theme.toggle()"
           >
@@ -38,7 +40,7 @@
           <UiDropdown align="right" width="sm">
             <template #trigger="{ open }">
               <button 
-                class="flex items-center font-mono text-sm text-surface-300 hover:text-surface-50"
+                class="flex items-center font-mono text-sm text-surface-600 hover:text-surface-950 dark:text-surface-300 dark:hover:text-surface-50"
                 style="gap: 6px;"
               >
                 <span>{{ currentLocaleName }}</span>
@@ -49,8 +51,8 @@
               <button
                 v-for="loc in availableLocales"
                 :key="loc.code"
-                class="w-full px-4 py-2 text-left font-mono text-sm text-surface-300 hover:text-surface-50 hover:bg-white/5"
-                :class="{ 'text-primary-400': loc.code === currentLocale }"
+                class="w-full px-4 py-2 text-left font-mono text-sm text-surface-600 hover:text-surface-950 dark:text-surface-300 dark:hover:text-surface-50 hover:bg-surface-200/50 dark:hover:bg-white/5"
+                :class="{ 'text-primary-500 dark:text-primary-400': loc.code === currentLocale }"
                 @click="switchLocale(loc.code)"
               >
                 {{ loc.name }}
@@ -68,7 +70,7 @@
           <button
             v-if="theme"
             type="button"
-            class="p-2 rounded-lg text-surface-500 hover:text-surface-100 dark:text-surface-400 dark:hover:text-surface-100"
+            class="p-2 rounded-lg text-surface-500 hover:text-surface-900 dark:text-surface-400 dark:hover:text-surface-100"
             :aria-label="theme.isDark ? 'Switch to light mode' : 'Switch to dark mode'"
             @click="theme.toggle()"
           >
@@ -76,7 +78,7 @@
             <UiIcon v-else name="Moon" :size="20" />
           </button>
           <button
-            class="p-2 rounded-lg text-surface-300 hover:text-surface-50 hover:bg-white/5"
+            class="p-2 rounded-lg text-surface-600 hover:text-surface-950 dark:text-surface-300 dark:hover:text-surface-50 hover:bg-surface-200/50 dark:hover:bg-white/5"
             @click="mobileMenuOpen = true"
           >
             <UiIcon name="Menu" :size="22" />
@@ -157,16 +159,9 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.header-scrolled {
-  background: rgba(245, 245, 245, 0.85);
+/* Backdrop blur for scrolled header (Tailwind handles colors) */
+header:not(.bg-transparent) {
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.08);
-}
-:global(.dark) .header-scrolled {
-  background: rgba(10, 10, 9, 0.7);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 </style>

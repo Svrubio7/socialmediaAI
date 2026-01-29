@@ -12,6 +12,7 @@ from app.models.social_account import SocialAccount
 from app.models.post import Post
 from app.models.analytics import Analytics
 from app.models.user_asset import UserAsset
+from app.models.edit_template import EditTemplate
 
 __all__ = [
     "Base",
@@ -26,4 +27,5 @@ __all__ = [
     "Post",
     "Analytics",
     "UserAsset",
+    "EditTemplate",
 ]
