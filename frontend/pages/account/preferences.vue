@@ -8,7 +8,7 @@
       Back to Dashboard
     </NuxtLink>
 
-    <h1 class="text-3xl lg:text-4xl font-mono font-bold text-surface-100 mb-2">Preferences</h1>
+    <h1 class="text-3xl lg:text-4xl font-mono font-normal text-surface-100 mb-2">Preferences</h1>
     <p class="text-surface-400 mb-8">Language, timezone, and notification settings</p>
 
     <Card class="max-w-xl border-l-4 border-l-accent-500">
@@ -48,7 +48,7 @@
 
 <script setup lang="ts">
 definePageMeta({
-  layout: 'app',
+  layout: 'app-sidebar',
   middleware: 'auth',
 })
 

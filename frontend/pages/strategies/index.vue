@@ -2,7 +2,7 @@
   <div class="flex flex-col h-[calc(100vh-3.5rem)] lg:h-[calc(100vh-4rem)]">
     <div class="container-wide flex-1 flex flex-col min-h-0 py-4 lg:py-6">
       <div class="mb-4">
-        <h1 class="text-2xl lg:text-3xl font-mono font-bold text-surface-100">Strategies</h1>
+        <h1 class="text-2xl lg:text-3xl font-mono font-normal text-surface-100">Strategies</h1>
         <p class="text-surface-400 text-sm mt-1">Describe your goals and the assistant will help with schedules, scripts, and strategies.</p>
       </div>
 
@@ -39,7 +39,7 @@
                 :disabled="sending"
               />
               <Button type="submit" variant="primary" size="sm" :disabled="sending || !inputText.trim()">
-                <Icon name="Send" :size="16" />
+                <UiIcon name="Send" :size="16" />
                 <span>Send</span>
               </Button>
             </form>
@@ -49,7 +49,7 @@
         <!-- Right: Result cards -->
         <div class="lg:col-span-3 flex flex-col min-h-0 overflow-hidden">
           <div class="flex items-center justify-between mb-3">
-            <h2 class="text-lg font-mono font-semibold text-surface-100">Results</h2>
+            <h2 class="text-lg font-mono font-medium text-surface-100">Results</h2>
             <Button v-if="cards.length > 0" variant="ghost" size="sm" @click="cards = []">
               Clear
             </Button>
@@ -66,20 +66,20 @@
                   class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
                   :class="cardIconBg(card.type)"
                 >
-                  <Icon :name="cardIcon(card.type)" :size="20" :class="cardIconColor(card.type)" />
+                  <UiIcon :name="cardIcon(card.type)" :size="20" :class="cardIconColor(card.type)" />
                 </div>
                 <div class="min-w-0 flex-1">
-                  <p class="font-mono font-semibold text-surface-100">{{ cardTitle(card) }}</p>
+                  <p class="font-mono font-medium text-surface-100">{{ cardTitle(card) }}</p>
                   <p class="text-surface-400 text-sm mt-0.5">{{ cardSummary(card) }}</p>
                   <div class="flex flex-wrap gap-2 mt-3">
                     <template v-if="card.type === 'schedule'">
-                      <Button variant="ghost" size="sm" to="/schedule">View schedule</Button>
+                      <Button variant="ghost" size="sm" :to="localePath('/schedule')">View schedule</Button>
                     </template>
                     <template v-else-if="card.type === 'script'">
-                      <Button variant="ghost" size="sm" :to="`/scripts`">View scripts</Button>
+                      <Button variant="ghost" size="sm" :to="localePath('/scripts')">View scripts</Button>
                     </template>
                     <template v-else-if="card.type === 'strategy'">
-                      <Button variant="ghost" size="sm" :to="`/strategies/${card.payload?.id}`">View strategy</Button>
+                      <Button variant="ghost" size="sm" :to="localePath(`/strategies/${card.payload?.id ?? ''}`)">View strategy</Button>
                     </template>
                     <template v-else-if="card.type === 'oauth'">
                       <a
@@ -100,7 +100,7 @@
               v-if="cards.length === 0 && !sending && messages.length <= 1"
               class="flex flex-col items-center justify-center py-12 text-center text-surface-500"
             >
-              <Icon name="Target" :size="48" class="mb-3 opacity-50" />
+              <UiIcon name="Target" :size="48" class="mb-3 opacity-50" />
               <p class="font-mono text-sm">Results from the assistant will appear here.</p>
               <p class="text-xs mt-1">Try: "List my scheduled posts" or "Create a script for a 60s TikTok."</p>
             </div>
@@ -113,10 +113,11 @@
 
 <script setup lang="ts">
 definePageMeta({
-  layout: 'app',
+  layout: 'app-sidebar',
   middleware: 'auth',
 })
 
+const localePath = useLocalePath()
 const api = useApi()
 const messages = ref<{ role: string; content: string }[]>([
   { role: 'assistant', content: 'I can help you schedule posts, create scripts, and generate strategies. What would you like to do?' },

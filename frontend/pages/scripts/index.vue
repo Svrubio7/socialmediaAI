@@ -3,11 +3,11 @@
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
       <div>
-        <h1 class="text-3xl lg:text-4xl font-mono font-bold text-surface-100">Scripts</h1>
+        <h1 class="text-3xl lg:text-4xl font-mono font-normal text-surface-100">Scripts</h1>
         <p class="text-surface-400 mt-2">AI-generated filming and editing scripts</p>
       </div>
       <Button variant="primary" @click="showGenerate = true">
-        <Icon name="FileText" :size="18" />
+        <UiIcon name="FileText" :size="18" />
         <span>Generate Script</span>
       </Button>
     </div>
@@ -55,7 +55,7 @@
           required
         >
           <template #icon-left>
-            <Icon name="Clock" :size="18" />
+            <UiIcon name="Clock" :size="18" />
           </template>
         </Input>
       </form>
@@ -106,10 +106,10 @@
       <Card v-for="script in scripts" :key="script.id" variant="hover" class="border-l-4 border-l-accent-500">
         <div class="flex items-start gap-4 mb-4">
           <div class="w-12 h-12 rounded-xl bg-accent-500/20 flex items-center justify-center flex-shrink-0">
-            <Icon name="FileText" :size="24" class="text-accent-400" />
+            <UiIcon name="FileText" :size="24" class="text-accent-400" />
           </div>
           <div class="flex-1 min-w-0">
-            <h3 class="font-semibold text-surface-100 truncate">{{ script.concept }}</h3>
+            <h3 class="font-medium text-surface-100 truncate">{{ script.concept }}</h3>
             <div class="flex items-center gap-2 mt-1 text-sm text-surface-400">
               <PlatformIcon :platform="script.platform" size="sm" variant="outline" />
               <span class="capitalize">{{ script.platform }}</span>
@@ -124,12 +124,12 @@
         </p>
         
         <div class="flex gap-2">
-          <Button variant="secondary" size="sm" :to="`/scripts/${script.id}`" class="flex-1">
-            <Icon name="Eye" :size="16" />
+          <Button variant="secondary" size="sm" :to="localePath(`/scripts/${script.id}`)" class="flex-1">
+            <UiIcon name="Eye" :size="16" />
             <span>View Script</span>
           </Button>
           <Button variant="ghost" size="sm">
-            <Icon name="Download" :size="16" />
+            <UiIcon name="Download" :size="16" />
           </Button>
         </div>
       </Card>
@@ -139,10 +139,11 @@
 
 <script setup lang="ts">
 definePageMeta({
-  layout: 'app',
+  layout: 'app-sidebar',
   middleware: 'auth',
 })
 
+const localePath = useLocalePath()
 const api = useApi()
 const showGenerate = ref(false)
 const generating = ref(false)

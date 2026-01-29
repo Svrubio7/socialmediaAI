@@ -55,6 +55,12 @@ export const useApi = () => {
   const patch = <T>(endpoint: string, body?: any, headers?: Record<string, string>) => 
     request<T>(endpoint, { method: 'PATCH', body, headers })
 
+  // Auth / user profile endpoints
+  const authApi = {
+    getMe: () => get<{ id: string; email: string; name?: string; avatar_url?: string; is_active: boolean; created_at: string }>('/auth/me'),
+    updateMe: (body: { name?: string; avatar_url?: string }) => patch<{ id: string; email: string; name?: string; avatar_url?: string; is_active: boolean; created_at: string }>('/auth/me', body),
+  }
+
   // Video endpoints
   const videos = {
     list: (params?: { page?: number; limit?: number; status?: string }) => {
@@ -199,6 +205,7 @@ export const useApi = () => {
     put,
     del,
     patch,
+    auth: authApi,
     videos,
     patterns,
     strategies,

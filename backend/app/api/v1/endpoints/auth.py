@@ -64,6 +64,12 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
+class UpdateProfileRequest(BaseModel):
+    """Update profile request schema."""
+    name: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+
 @router.post("/login", response_model=TokenResponse)
 async def login(request: LoginRequest, db: Session = Depends(get_db)):
     """
@@ -199,6 +205,33 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
     """
     Get current authenticated user information.
     """
+    return UserResponse(
+        id=str(current_user.id),
+        email=current_user.email,
+        name=current_user.name,
+        avatar_url=current_user.avatar_url,
+        is_active=current_user.is_active,
+        created_at=current_user.created_at,
+    )
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_current_user_profile(
+    body: UpdateProfileRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Update current user profile (name, avatar_url).
+    Updates the app users table; Supabase Auth is not modified here
+    (frontend can call Supabase updateUser separately if needed).
+    """
+    if body.name is not None:
+        current_user.name = body.name
+    if body.avatar_url is not None:
+        current_user.avatar_url = body.avatar_url
+    db.commit()
+    db.refresh(current_user)
     return UserResponse(
         id=str(current_user.id),
         email=current_user.email,

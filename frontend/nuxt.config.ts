@@ -103,14 +103,23 @@ export default defineNuxtConfig({
           `,
         },
       ],
-      // Script to detect font loading and show content
+      // Theme: set dark class on <html> before paint to avoid flash
       script: [
+        {
+          children: `
+            try {
+              var t = localStorage.getItem('elevoai-theme');
+              if (t === 'light') document.documentElement.classList.remove('dark');
+              else document.documentElement.classList.add('dark');
+            } catch (e) {}
+          `,
+          type: 'text/javascript',
+        },
         {
           children: `
             document.fonts.ready.then(function() {
               document.body.classList.add('fonts-loaded');
             });
-            // Fallback: show content after 500ms even if fonts haven't loaded
             setTimeout(function() {
               document.body.classList.add('fonts-loaded');
             }, 500);

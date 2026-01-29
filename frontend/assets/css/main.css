@@ -8,12 +8,12 @@
   }
 
   body {
-    @apply bg-surface-950 text-surface-200 min-h-screen font-mono;
+    @apply bg-surface-50 text-surface-900 min-h-screen font-mono dark:bg-surface-950 dark:text-surface-200;
     font-feature-settings: 'kern' 1, 'liga' 1;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply font-mono tracking-tight text-surface-50 font-normal;
+    @apply font-mono font-normal tracking-tight text-surface-900 dark:text-surface-50;
   }
 
   /* Custom scrollbar for webkit browsers */
@@ -22,20 +22,20 @@
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-surface-950;
+    @apply bg-surface-100 dark:bg-surface-950;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-surface-700 rounded-full;
+    @apply bg-surface-400 rounded-full dark:bg-surface-700;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-surface-600;
+    @apply bg-surface-500 dark:bg-surface-600;
   }
 
   /* Focus styles */
   :focus-visible {
-    @apply outline-none ring-2 ring-primary-500 ring-offset-2 ring-offset-surface-950;
+    @apply outline-none ring-2 ring-primary-500 ring-offset-2 ring-offset-surface-50 dark:ring-offset-surface-950;
   }
 }
 
@@ -167,20 +167,25 @@
 
   /* Card styles */
   .card {
-    @apply bg-surface-900 border border-surface-800 rounded-xl p-6
-           transition-all duration-300;
+    @apply bg-surface-100 border border-surface-200 rounded-xl p-6
+           transition-all duration-300
+           dark:bg-surface-900 dark:border-surface-800;
   }
 
   .card-hover {
     @apply card
-           hover:border-surface-700 hover:bg-surface-900/80
-           hover:-translate-y-1 hover:shadow-xl hover:shadow-surface-950/50;
+           hover:border-surface-300 hover:bg-surface-200/80
+           hover:-translate-y-1 hover:shadow-xl hover:shadow-surface-900/20
+           dark:hover:border-surface-700 dark:hover:bg-surface-900/80 dark:hover:shadow-surface-950/50;
   }
 
   .card-interactive {
     @apply card cursor-pointer
-           hover:border-primary-500/30 hover:bg-surface-800/50
-           active:scale-[0.98];
+           hover:border-primary-500/30 hover:bg-surface-200/80
+           hover:-translate-y-1 hover:shadow-xl hover:shadow-black/20
+           active:scale-[0.98]
+           transition-all duration-200
+           dark:hover:bg-surface-800/50;
   }
 
   /* Badge styles */
@@ -231,7 +236,12 @@
   }
 
   .container-wide {
-    @apply max-w-6xl mx-auto px-6 sm:px-8 lg:px-12;
+    @apply max-w-7xl mx-auto px-6 sm:px-8 lg:px-12;
+  }
+
+  /* Full-width app content when using sidebar (no max-width) */
+  .container-app {
+    @apply w-full mx-auto px-6 sm:px-8 lg:px-12;
   }
 
   /* Section divider - contained within content, not edge-to-edge */

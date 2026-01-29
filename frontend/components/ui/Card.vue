@@ -59,5 +59,6 @@ const bodyClass = computed(() => {
 const cardClasses = computed(() => [
   variantClasses.value,
   props.padding === 'none' ? 'p-0' : '',
+  props.to ? 'block w-full no-underline cursor-pointer' : '',
 ])
 </script>

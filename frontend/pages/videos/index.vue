@@ -3,11 +3,11 @@
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
       <div>
-        <h1 class="text-3xl lg:text-4xl font-mono font-bold text-surface-100">Videos</h1>
+        <h1 class="text-3xl lg:text-4xl font-mono font-normal text-surface-100">Videos</h1>
         <p class="text-surface-400 mt-2">Manage and analyze your video content</p>
       </div>
       <Button variant="primary" @click="showUpload = true">
-        <Icon name="Upload" :size="18" />
+        <UiIcon name="Upload" :size="18" />
         <span>Upload Video</span>
       </Button>
     </div>
@@ -25,13 +25,13 @@
           <option value="processed">Processed</option>
           <option value="failed">Failed</option>
         </select>
-        <Icon name="ChevronDown" :size="16" class="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 pointer-events-none" />
+        <UiIcon name="ChevronDown" :size="16" class="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 pointer-events-none" />
       </div>
       
       <div class="flex-1 max-w-xs">
         <Input v-model="searchQuery" placeholder="Search videos..." type="search">
           <template #icon-left>
-            <Icon name="Search" :size="18" />
+            <UiIcon name="Search" :size="18" />
           </template>
         </Input>
       </div>
@@ -82,7 +82,7 @@
         />
         
         <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary-500/10 flex items-center justify-center">
-          <Icon name="Upload" :size="32" class="text-primary-400" />
+          <UiIcon name="Upload" :size="32" class="text-primary-400" />
         </div>
         
         <p class="text-surface-200 font-medium mb-1">
@@ -123,7 +123,7 @@
 
 <script setup lang="ts">
 definePageMeta({
-  layout: 'app',
+  layout: 'app-sidebar',
   middleware: 'auth',
 })
 

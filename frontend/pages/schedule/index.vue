@@ -10,10 +10,10 @@
 
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
       <div>
-        <h1 class="text-3xl lg:text-4xl font-mono font-bold text-surface-100">Posting Schedule</h1>
+        <h1 class="text-3xl lg:text-4xl font-mono font-normal text-surface-100">Posting Schedule</h1>
         <p class="text-surface-400 mt-2">Manage your scheduled posts across platforms</p>
       </div>
-      <Button variant="primary" to="/publish">
+      <Button variant="primary" :to="localePath('/publish')">
         <UiIcon name="CalendarPlus" :size="18" />
         Schedule a post
       </Button>
@@ -38,7 +38,24 @@
       </button>
     </div>
 
-    <Card class="border-l-4 border-l-amber-500">
+    <!-- Placeholder calendar (lighter schedule area) -->
+    <Card class="border-l-4 border-l-amber-500 border border-amber-500/20 bg-surface-800 mb-6 pl-4">
+      <h3 class="text-sm font-mono font-medium text-surface-400 mb-3">Calendar</h3>
+      <div class="grid grid-cols-7 gap-px bg-surface-700 rounded-xl overflow-hidden text-center text-xs font-medium max-w-2xl">
+        <div v-for="d in weekDayLabels" :key="d" class="bg-surface-700 py-2.5 text-surface-400">{{ d }}</div>
+        <div
+          v-for="i in 35"
+          :key="i"
+          class="aspect-square bg-surface-700/80 py-1.5 text-surface-500 flex items-center justify-center min-h-[44px]"
+        >
+          {{ calendarDayNumbers[i - 1] }}
+        </div>
+      </div>
+    </Card>
+
+    <!-- Scheduled posts list (lighter schedule area) -->
+    <Card class="border-l-4 border-l-primary-500/50 border border-primary-500/20 bg-surface-800 pl-4">
+      <h3 class="text-sm font-mono font-medium text-surface-400 mb-4">Scheduled posts</h3>
       <div v-if="loading" class="py-12 flex justify-center">
         <div class="flex flex-col items-center gap-3">
           <Skeleton variant="rounded" width="64px" height="48px" />
@@ -60,7 +77,7 @@
         <div
           v-for="post in filteredPosts"
           :key="post.id"
-          class="flex items-center gap-4 p-4 rounded-xl bg-surface-800/50 border border-surface-700"
+          class="flex items-center gap-4 p-4 rounded-xl bg-surface-700/80 border border-surface-600"
         >
           <PlatformIcon :platform="post.platform" size="md" variant="outline" />
           <div class="flex-1 min-w-0">
@@ -84,12 +101,15 @@
 
 <script setup lang="ts">
 definePageMeta({
-  layout: 'app',
+  layout: 'app-sidebar',
   middleware: 'auth',
 })
 
 const localePath = useLocalePath()
 const api = useApi()
+
+const weekDayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const calendarDayNumbers = Array.from({ length: 35 }, (_, i) => (i >= 31 ? '' : (i + 1).toString()))
 
 const loading = ref(true)
 const cancelling = ref<string | null>(null)

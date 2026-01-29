@@ -17,7 +17,7 @@
     <div v-else-if="error" class="text-red-400">{{ error }}</div>
     <template v-else-if="script">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <h1 class="text-3xl lg:text-4xl font-mono font-bold text-surface-100 truncate">{{ script.concept }}</h1>
+        <h1 class="text-3xl lg:text-4xl font-mono font-normal text-surface-100 truncate">{{ script.concept }}</h1>
         <div class="flex gap-2">
           <Button variant="secondary" size="sm" :disabled="exporting" @click="exportAs('json')">
             <UiIcon name="Download" :size="16" />
@@ -50,7 +50,7 @@
         </div>
 
         <div v-if="script.script_data?.segments?.length" class="border-t border-surface-800 pt-6 space-y-4">
-          <h2 class="text-xl font-mono font-semibold text-surface-100 mb-4">Script segments</h2>
+          <h2 class="text-xl font-mono font-medium text-surface-100 mb-4">Script segments</h2>
           <div
             v-for="(seg, i) in script.script_data.segments"
             :key="i"
@@ -70,7 +70,7 @@
 
 <script setup lang="ts">
 definePageMeta({
-  layout: 'app',
+  layout: 'app-sidebar',
   middleware: 'auth',
 })
 

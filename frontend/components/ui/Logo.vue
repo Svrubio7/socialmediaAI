@@ -13,13 +13,13 @@
       class="relative flex items-center justify-center rounded-lg bg-gradient-to-br from-primary-500 to-primary-600"
       :class="iconSizeClass"
     >
-      <span class="font-bold text-surface-950" :class="iconTextClass">E</span>
+      <span class="font-normal text-surface-950" :class="iconTextClass">E</span>
     </div>
 
     <!-- Logo Text -->
     <span 
       v-if="variant !== 'icon'"
-      class="font-semibold tracking-tight"
+      class="font-medium tracking-tight"
       :class="[textSizeClass, textColorClass]"
     >
       Elevo<span class="text-primary-400">AI</span>

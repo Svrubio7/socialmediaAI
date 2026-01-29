@@ -10,7 +10,7 @@
         class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
       />
       <div v-else class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-surface-800 to-surface-900">
-        <Icon name="Video" :size="40" class="text-surface-600" />
+        <UiIcon name="Video" :size="40" class="text-surface-600" />
       </div>
       
       <!-- Duration badge -->
@@ -50,7 +50,7 @@
           :to="`/videos/${video.id}`"
           class="flex-1"
         >
-          <Icon name="Eye" :size="16" />
+          <UiIcon name="Eye" :size="16" />
           <span>View</span>
         </Button>
         <Button 
@@ -60,7 +60,7 @@
           :disabled="video.status === 'processing'"
           @click="$emit('analyze', video.id)"
         >
-          <Icon name="Sparkles" :size="16" />
+          <UiIcon name="Sparkles" :size="16" />
           <span>Analyze</span>
         </Button>
       </div>

@@ -4,6 +4,12 @@
   </NuxtLayout>
 </template>
 
+<script setup lang="ts">
+onMounted(() => {
+  useThemeStore().initialize()
+})
+</script>
+
 <style>
 /* Page transitions */
 .page-enter-active,

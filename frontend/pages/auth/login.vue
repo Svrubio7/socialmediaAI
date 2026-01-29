@@ -2,7 +2,7 @@
   <NuxtLayout name="auth">
     <Card class="backdrop-blur-xl bg-surface-900/80 border-surface-700/50">
       <div class="text-center mb-8">
-        <h1 class="text-2xl font-mono font-bold text-surface-100">Welcome back</h1>
+        <h1 class="text-2xl font-mono font-normal text-surface-100">Welcome back</h1>
         <p class="text-surface-400 mt-2">Sign in to your ElevoAI account</p>
       </div>
 
@@ -16,7 +16,7 @@
           :error="error && error.includes('email') ? error : undefined"
         >
           <template #icon-left>
-            <Icon name="Mail" :size="18" />
+            <UiIcon name="Mail" :size="18" />
           </template>
         </Input>
 
@@ -28,7 +28,7 @@
           required
         >
           <template #icon-left>
-            <Icon name="Lock" :size="18" />
+            <UiIcon name="Lock" :size="18" />
           </template>
         </Input>
 
@@ -66,7 +66,7 @@
           <span>Google</span>
         </Button>
         <Button variant="secondary" @click="signInWithGithub">
-          <Icon name="Github" :size="20" />
+          <UiIcon name="Github" :size="20" />
           <span>GitHub</span>
         </Button>
       </div>

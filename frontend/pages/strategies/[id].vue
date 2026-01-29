@@ -17,7 +17,7 @@
     <div v-else-if="error" class="text-red-400">{{ error }}</div>
     <template v-else-if="strategy">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <h1 class="text-3xl lg:text-4xl font-mono font-bold text-surface-100">Strategy</h1>
+        <h1 class="text-3xl lg:text-4xl font-mono font-normal text-surface-100">Strategy</h1>
         <div class="flex gap-2">
           <Button variant="secondary" size="sm" :disabled="exporting" @click="exportAs('markdown')">
             <UiIcon name="FileText" :size="16" />
@@ -52,7 +52,7 @@
 
         <div v-if="strategy.strategy_data && Object.keys(strategy.strategy_data).length" class="space-y-6">
           <div v-if="strategy.strategy_data.recommendations?.length" class="border-t border-surface-800 pt-6">
-            <h2 class="text-xl font-mono font-semibold text-surface-100 mb-4">Recommendations</h2>
+            <h2 class="text-xl font-mono font-medium text-surface-100 mb-4">Recommendations</h2>
             <div class="space-y-4">
               <div
                 v-for="(rec, i) in strategy.strategy_data.recommendations"
@@ -66,14 +66,14 @@
             </div>
           </div>
           <div v-if="strategy.strategy_data.posting_schedule" class="border-t border-surface-800 pt-6">
-            <h2 class="text-xl font-mono font-semibold text-surface-100 mb-4">Posting Schedule</h2>
+            <h2 class="text-xl font-mono font-medium text-surface-100 mb-4">Posting Schedule</h2>
             <p class="text-surface-300">{{ strategy.strategy_data.posting_schedule.frequency || 'Daily' }}</p>
             <p v-if="strategy.strategy_data.posting_schedule.optimal_times?.length" class="text-surface-400 text-sm mt-1">
               Optimal times: {{ strategy.strategy_data.posting_schedule.optimal_times.join(', ') }}
             </p>
           </div>
           <div v-if="strategy.strategy_data.hashtag_strategy" class="border-t border-surface-800 pt-6">
-            <h2 class="text-xl font-mono font-semibold text-surface-100 mb-4">Hashtag Strategy</h2>
+            <h2 class="text-xl font-mono font-medium text-surface-100 mb-4">Hashtag Strategy</h2>
             <p v-if="strategy.strategy_data.hashtag_strategy.primary_hashtags?.length" class="text-surface-300">
               Primary: {{ strategy.strategy_data.hashtag_strategy.primary_hashtags.join(' ') }}
             </p>
@@ -82,7 +82,7 @@
             </p>
           </div>
           <div v-if="strategy.strategy_data.content_themes?.length" class="border-t border-surface-800 pt-6">
-            <h2 class="text-xl font-mono font-semibold text-surface-100 mb-4">Content Themes</h2>
+            <h2 class="text-xl font-mono font-medium text-surface-100 mb-4">Content Themes</h2>
             <ul class="list-disc list-inside text-surface-300 space-y-1">
               <li v-for="(theme, i) in strategy.strategy_data.content_themes" :key="i">{{ theme }}</li>
             </ul>
@@ -96,7 +96,7 @@
 
 <script setup lang="ts">
 definePageMeta({
-  layout: 'app',
+  layout: 'app-sidebar',
   middleware: 'auth',
 })
 

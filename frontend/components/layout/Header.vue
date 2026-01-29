@@ -23,6 +23,17 @@
 
         <!-- Desktop Actions -->
         <div class="hidden lg:flex items-center" style="gap: 20px;">
+          <!-- Theme toggle -->
+          <button
+            v-if="theme"
+            type="button"
+            class="flex items-center justify-center w-9 h-9 rounded-lg text-surface-500 hover:text-surface-100 hover:bg-surface-800/50 dark:text-surface-400 dark:hover:text-surface-100 dark:hover:bg-surface-800 transition-colors"
+            :aria-label="theme.isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+            @click="theme.toggle()"
+          >
+            <UiIcon v-if="theme.isDark" name="Sun" :size="20" />
+            <UiIcon v-else name="Moon" :size="20" />
+          </button>
           <!-- Language Switcher -->
           <UiDropdown align="right" width="sm">
             <template #trigger="{ open }">
@@ -52,13 +63,25 @@
           </NuxtLink>
         </div>
 
-        <!-- Mobile Menu Button -->
-        <button
-          class="lg:hidden p-2 rounded-lg text-surface-300 hover:text-surface-50 hover:bg-white/5"
-          @click="mobileMenuOpen = true"
-        >
-          <UiIcon name="Menu" :size="22" />
-        </button>
+        <!-- Mobile: theme + menu -->
+        <div class="lg:hidden flex items-center gap-2">
+          <button
+            v-if="theme"
+            type="button"
+            class="p-2 rounded-lg text-surface-500 hover:text-surface-100 dark:text-surface-400 dark:hover:text-surface-100"
+            :aria-label="theme.isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+            @click="theme.toggle()"
+          >
+            <UiIcon v-if="theme.isDark" name="Sun" :size="20" />
+            <UiIcon v-else name="Moon" :size="20" />
+          </button>
+          <button
+            class="p-2 rounded-lg text-surface-300 hover:text-surface-50 hover:bg-white/5"
+            @click="mobileMenuOpen = true"
+          >
+            <UiIcon name="Menu" :size="22" />
+          </button>
+        </div>
       </div>
     </div>
 
@@ -77,6 +100,7 @@ const { locale, locales, setLocale } = useI18n()
 const localePath = useLocalePath()
 const user = useSupabaseUser()
 const supabase = useSupabaseClient()
+const theme = import.meta.client ? useThemeStore() : null
 
 const mobileMenuOpen = ref(false)
 const isScrolled = ref(false)
@@ -134,12 +158,15 @@ onMounted(() => {
 
 <style scoped>
 .header-scrolled {
-  background: rgba(10, 10, 9, 0.7);
+  background: rgba(245, 245, 245, 0.85);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.08);
+}
+:global(.dark) .header-scrolled {
+  background: rgba(10, 10, 9, 0.7);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 
-    0 4px 30px rgba(0, 0, 0, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 </style>

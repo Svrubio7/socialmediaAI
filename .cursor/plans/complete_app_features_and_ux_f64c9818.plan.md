@@ -286,5 +286,120 @@ The following items are **in-scope** for the plan. Each has a clear goal, scope,
 | [frontend/pages/publish/index.vue](frontend/pages/publish/index.vue)                             | Connection summary + link to Account > Connected Platforms (requirement 8.9).                     |
 | Global: colours/icons                                                                            | Tailwind/card/icon pass on dashboard, strategies, scripts, publish (section 3).                   |
 
+---
+
+## 11. All in-scope suggestions (consolidated)
+
+Every deliverable and suggestion from sections 1–10 in one numbered list. **Total in plan: 63 in-scope items.** Items 14 (Integrations) and 20 (Mobile) are explicitly **deferred** (out of scope for this plan).
+
+**Strategies & chat (1–6)**
+
+1. Strategies page: two-column layout (chat left ~40–50%, result cards right ~50–60%).
+2. Chat UI: message list, input, send; optional system prompt; support streaming.
+3. Result cards: Schedule changes, Generated documents, Strategy updates; append from tool results; same Card component, icons by type.
+4. Backend: `POST /chat` or `POST /strategies/chat` with messages; LLM + tool definitions; stream or JSON with `message` + `cards[]`/tool_results; auth per user.
+5. Frontend: strategies/index.vue redesign — chat | cards; wire to endpoint; cards link to /schedule, /scripts, /strategies/[id].
+6. Scripts page: standalone list/detail; chat creates scripts via tools; "Save to Scripts" from cards; optional "Generate script" form.
+
+**MCP (7–11)**
+
+7. Define full MCP tool list: schedule, scripts, strategies, videos, materials, connected accounts (names, descriptions, input schemas).
+8. Implement schedule tools: list_scheduled_posts, get_schedule, schedule_post, reschedule_post, cancel_scheduled_post; optional get_optimal_slots.
+9. Implement script/strategy/video/materials/connected-accounts tools (list, get, create, update, export, upload, OAuth URL, etc.).
+10. Implement tools as MCP server (Option A) or internal FastAPI/service layer (Option B); document if external.
+11. Wire chat endpoint to MCP tools so in-app chatbot can modify schedule, create scripts/docs, refine strategies, trigger connect flows.
+
+**Colours & icons (12–13)**
+
+12. Colour pass: stronger icon backgrounds, coloured left borders on cards, coloured badges/links; keep dark base, add primary/accent/emerald/amber.
+13. Icons: lucide-vue-next everywhere; every action has an icon; PlatformIcon for all platforms; no emojis.
+
+**Materials (15–16)** *(14 = Integrations — deferred)*
+
+15. Materials backend: table (user_assets/materials), storage bucket/folder, RLS; endpoints GET/POST/GET id/DELETE.
+16. Materials frontend: account/materials page — list by type, upload (drag-drop or button), delete; Card grid, icons.
+
+**Account (17–21)**
+
+17. App header: account dropdown (Profile, Preferences, My Materials, Connected Platforms, Sign out); icons per item.
+18. Profile page: display name, email, avatar; edit name/avatar.
+19. Preferences page: language, timezone, notifications, theme (if added).
+20. *(Mobile — deferred)*
+21. Connected Platforms page: move full connect/disconnect UI from publish/dashboard; list platforms with PlatformIcon, connect/disconnect, status.
+22. Optional: account layout with sidebar (Profile, Preferences, Materials, Connected Platforms) for larger screens.
+
+**Dashboard & schedule (23–26)**
+
+23. Dashboard: remove Connected Platforms card; add Posting Schedule card (Notion-style).
+24. Schedule card: collapsed — title, summary (e.g. "3 posts scheduled"), "View schedule"; expanded — next N scheduled posts, "Open full schedule" → /schedule.
+25. Schedule page: full-screen list or calendar view; fetch from GET /posts/scheduled; per-platform tabs/filters; edit time, cancel.
+26. Schedule page: add new scheduled post (link to Publish flow with Schedule path).
+
+**Frontend per area (27–33)**
+
+27. Videos: list with thumbnails, status, actions (analyze, delete); upload with Icon; detail or inline pattern summary.
+28. Strategies: replace list/modal with chat + result cards (see 1–6).
+29. Scripts: wire generate to API; list refresh; "Save to Scripts" from chat; detail or expand inline; export.
+30. Publish: keep connect summary; "Manage in Account" link; schedule flow → success + link to schedule.
+31. Analytics: charts/table with colours and icons; link from dashboard stat cards.
+32. Schedule: dedicated page (see 25–26).
+33. Account: Profile, Preferences, Materials, Connected Platforms + dropdown (see 17–22).
+
+**Formal requirements (34–42)**
+
+34. Toasts: useToast composable + Toast container; success/error (and optional info); auto-dismiss; use for chat results, generate, publish, schedule, preferences, connect/disconnect.
+35. Strategy detail page: strategies/[id].vue — full content, Export as Markdown/PDF.
+36. Script detail: scripts/[id].vue or modal — full script, metadata, Export (JSON/text).
+37. Timezone in preferences: store in preferences; schedule display and creation use user timezone.
+38. Empty states: Videos, Strategies (if list), Scripts, Schedule, Materials, analytics — EmptyState with icon, title, description, primary action.
+39. Loading states: skeleton/spinner for all lists; loading state on modals (generate, publish, schedule, preferences save).
+40. Breadcrumbs or back links: account pages, schedule, strategy detail, script detail — "Back to Dashboard" or Breadcrumb component.
+41. Escape to close: modal and dropdown close on Escape; one layer at a time.
+42. Publish page: Connected Platforms summary (e.g. "3 of 4 connected") + "Manage in Account" link; full connect UI only on Account > Connected Platforms.
+
+**Implementation & files (43–65)**
+
+43. MCP tool contract and implementation (schedule, scripts, strategies, videos, materials, connected accounts); auth per user.
+44. Chat backend: POST /chat with LLM, tool definitions, streaming/events for card payloads.
+45. Strategies page redesign: two-column chat | cards; wire to endpoint; cards from tool results.
+46. Colours and icons pass: dashboard, strategies, scripts, publish (section 3).
+47. App header account dropdown (section 5).
+48. Account pages: Profile, Preferences, Connected Platforms; stub Materials until backend (sections 4–5).
+49. Dashboard: replace Connected Platforms with expandable Schedule card; "Open full schedule" → /schedule.
+50. Schedule page: full view, list from /posts/scheduled, per-platform filter, cancel/edit.
+51. Materials backend + frontend: table, storage, API, then Materials page; MCP tools for materials.
+52. Strategy detail page: strategies/[id].vue, fetch by id, export Markdown/PDF.
+53. Script detail/export: scripts/[id].vue or modal, export wired.
+54. Toasts: useToast + Toast component; integrate across chat, publish, schedule, preferences, connect/disconnect.
+55. Timezone in preferences: store and use in schedule display/creation.
+56. Empty states: all lists use EmptyState with copy + primary action.
+57. Loading states: skeleton/spinner for lists; loading on modals.
+58. Breadcrumbs or back links on account and schedule pages.
+59. Escape to close: Modal and Dropdown components.
+60. Publish page: connection summary + link to Account > Connected Platforms.
+61. Backend: MCP tools or MCP server; chat endpoint (POST /chat or /strategies/chat).
+62. Frontend files: strategies, scripts, app layout, account/*, dashboard, schedule, Toast, preferences timezone.
+63. Global: colours/icons pass on dashboard, strategies, scripts, publish.
+64. Backend: analytics/summary endpoint with video_count, pattern_count, post_count (and optional change) for dashboard stat cards.
+65. Frontend: dashboard wired to real API (stats, recent videos, connected platforms); loading states (skeletons).
+
+---
+
+## 12. All suggestions — grouped by section (reference)
+
+Use this to find which numbered item (section 11) corresponds to each area.
+
+- **Strategies & chat**: 1–6.
+- **MCP**: 7–11.
+- **Colours & icons**: 12–13.
+- **Deferred**: 14 (Integrations), 20 (Mobile).
+- **Materials**: 15–16.
+- **Account**: 17–19, 21–22.
+- **Dashboard & schedule**: 23–26.
+- **Frontend per area**: 27–33.
+- **Formal requirements (toasts, detail pages, timezone, empty/loading, breadcrumbs, Escape, Publish summary)**: 34–42.
+- **Implementation order & file checklist**: 43–65.
+
+---
 
 This plan keeps the existing style (no emojis, mono font, dark base with primary/accent), adds colour and icons everywhere, fixes broken buttons, and introduces account, schedule, and materials as requested, plus concrete suggestions to make the app more complete.

@@ -2,7 +2,7 @@
   <div class="container-wide py-8 lg:py-12">
     <!-- Header -->
     <div class="mb-8">
-      <h1 class="text-3xl lg:text-4xl font-mono font-bold text-surface-100">Publish</h1>
+      <h1 class="text-3xl lg:text-4xl font-mono font-normal text-surface-100">Publish</h1>
       <p class="text-surface-400 mt-2">Connect accounts and publish content across platforms</p>
     </div>
 
@@ -14,7 +14,7 @@
             <UiIcon name="Link2" :size="20" class="text-primary-400" />
           </div>
           <div>
-            <h2 class="text-lg font-mono font-semibold text-surface-100">Connected Platforms</h2>
+            <h2 class="text-lg font-mono font-medium text-surface-100">Connected Platforms</h2>
             <p class="text-surface-400 text-sm">
               {{ connectedCount }} of {{ platforms.length }} platforms connected
             </p>
@@ -31,7 +31,7 @@
     <div class="grid lg:grid-cols-2 gap-6 lg:gap-8">
       <!-- Publish Form -->
       <Card>
-        <h2 class="text-xl font-mono font-semibold text-surface-100 mb-6">Publish Content</h2>
+        <h2 class="text-xl font-mono font-medium text-surface-100 mb-6">Publish Content</h2>
         
         <form @submit.prevent="publishContent" class="space-y-5">
           <!-- Video Selection -->
@@ -44,7 +44,7 @@
                   {{ video.filename }}
                 </option>
               </select>
-              <Icon name="ChevronDown" :size="16" class="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 pointer-events-none" />
+              <UiIcon name="ChevronDown" :size="16" class="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 pointer-events-none" />
             </div>
           </div>
 
@@ -64,7 +64,7 @@
               >
                 <PlatformIcon :platform="platform.id" size="sm" variant="outline" />
                 <span>{{ platform.name }}</span>
-                <Icon 
+                <UiIcon 
                   :name="selectedPublishPlatforms.includes(platform.id) ? 'Check' : 'Plus'" 
                   :size="14" 
                 />
@@ -91,7 +91,7 @@
             placeholder="#viral #fyp #trending"
           >
             <template #icon-left>
-              <Icon name="Hash" :size="18" />
+              <UiIcon name="Hash" :size="18" />
             </template>
           </Input>
 
@@ -103,7 +103,7 @@
               class="flex-1"
               :disabled="!canPublish"
             >
-              <Icon name="Send" :size="18" />
+              <UiIcon name="Send" :size="18" />
               <span>Publish Now</span>
             </Button>
             <Button 
@@ -112,7 +112,7 @@
               :disabled="!canPublish"
               @click="showSchedule = true"
             >
-              <Icon name="Calendar" :size="18" />
+              <UiIcon name="Calendar" :size="18" />
               <span>Schedule</span>
             </Button>
           </div>
@@ -121,7 +121,7 @@
 
       <!-- Scheduled Posts -->
       <Card class="border-l-4 border-l-amber-500">
-        <h2 class="text-xl font-mono font-semibold text-surface-100 mb-6">Scheduled Posts</h2>
+        <h2 class="text-xl font-mono font-medium text-surface-100 mb-6">Scheduled Posts</h2>
         
         <EmptyState
           v-if="scheduledPosts.length === 0"
@@ -150,7 +150,7 @@
             
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-2 text-sm text-surface-400">
-                <Icon name="Clock" :size="14" />
+                <UiIcon name="Clock" :size="14" />
                 <span>{{ formatDateTime(post.scheduled_at) }}</span>
               </div>
               <Button 
@@ -171,7 +171,7 @@
 
 <script setup lang="ts">
 definePageMeta({
-  layout: 'app',
+  layout: 'app-sidebar',
   middleware: 'auth',
 })
 

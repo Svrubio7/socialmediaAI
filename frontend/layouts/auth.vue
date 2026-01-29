@@ -22,7 +22,7 @@
       to="/"
       class="mt-8 flex items-center gap-2 text-surface-500 hover:text-surface-300 text-sm transition-colors relative z-10"
     >
-      <Icon name="ArrowLeft" :size="16" />
+      <UiIcon name="ArrowLeft" :size="16" />
       <span>Back to home</span>
     </NuxtLink>
   </div>

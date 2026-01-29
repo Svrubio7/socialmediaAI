@@ -5,11 +5,11 @@
       class="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
       :class="iconBgClass"
     >
-      <Icon :name="icon" :size="40" :class="iconColorClass" />
+      <UiIcon :name="icon" :size="40" :class="iconColorClass" />
     </div>
     
     <!-- Title -->
-    <h3 class="text-xl font-mono font-semibold text-surface-100 mb-2">
+    <h3 class="text-xl font-mono font-medium text-surface-100 mb-2">
       {{ title }}
     </h3>
     
@@ -21,7 +21,7 @@
     <!-- Action -->
     <slot name="action">
       <Button v-if="actionLabel" :variant="actionVariant" @click="$emit('action')">
-        <Icon v-if="actionIcon" :name="actionIcon" :size="18" />
+        <UiIcon v-if="actionIcon" :name="actionIcon" :size="18" />
         <span>{{ actionLabel }}</span>
       </Button>
     </slot>

@@ -2,7 +2,7 @@
   <NuxtLayout name="auth">
     <Card class="backdrop-blur-xl bg-surface-900/80 border-surface-700/50">
       <div class="text-center mb-8">
-        <h1 class="text-2xl font-mono font-bold text-surface-100">Create account</h1>
+        <h1 class="text-2xl font-mono font-normal text-surface-100">Create account</h1>
         <p class="text-surface-400 mt-2">Start your free trial with ElevoAI</p>
       </div>
 
@@ -15,7 +15,7 @@
           required
         >
           <template #icon-left>
-            <Icon name="User" :size="18" />
+            <UiIcon name="User" :size="18" />
           </template>
         </Input>
 
@@ -27,7 +27,7 @@
           required
         >
           <template #icon-left>
-            <Icon name="Mail" :size="18" />
+            <UiIcon name="Mail" :size="18" />
           </template>
         </Input>
 
@@ -40,7 +40,7 @@
           hint="At least 6 characters"
         >
           <template #icon-left>
-            <Icon name="Lock" :size="18" />
+            <UiIcon name="Lock" :size="18" />
           </template>
         </Input>
 
@@ -50,7 +50,7 @@
 
         <div v-if="success" class="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
           <div class="flex items-center gap-2 justify-center">
-            <Icon name="CheckCircle" :size="18" class="text-emerald-400" />
+            <UiIcon name="CheckCircle" :size="18" class="text-emerald-400" />
             <p class="text-emerald-400 text-sm">{{ success }}</p>
           </div>
         </div>
@@ -85,7 +85,7 @@
           <span>Google</span>
         </Button>
         <Button variant="secondary" @click="signUpWithGithub">
-          <Icon name="Github" :size="20" />
+          <UiIcon name="Github" :size="20" />
           <span>GitHub</span>
         </Button>
       </div>

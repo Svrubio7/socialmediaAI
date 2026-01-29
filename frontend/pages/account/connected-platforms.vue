@@ -8,7 +8,7 @@
       Back to Dashboard
     </NuxtLink>
 
-    <h1 class="text-3xl lg:text-4xl font-mono font-bold text-surface-100 mb-2">Connected Platforms</h1>
+    <h1 class="text-3xl lg:text-4xl font-mono font-normal text-surface-100 mb-2">Connected Platforms</h1>
     <p class="text-surface-400 mb-8">Connect your social accounts to publish content</p>
 
     <Card class="border-l-4 border-l-primary-500">
@@ -22,7 +22,7 @@
             <PlatformIcon :platform="platform.id" size="lg" :variant="platform.connected ? 'filled' : 'outline'" />
             <StatusBadge :status="platform.connected ? 'connected' : 'disconnected'" :show-dot="false" />
           </div>
-          <h3 class="font-semibold text-surface-100 mb-1">{{ platform.name }}</h3>
+          <h3 class="font-medium text-surface-100 mb-1">{{ platform.name }}</h3>
           <p v-if="platform.username" class="text-surface-400 text-sm mb-4 truncate">@{{ platform.username }}</p>
           <p v-else class="text-surface-500 text-sm mb-4">Not connected</p>
           <Button
@@ -56,7 +56,7 @@
 
 <script setup lang="ts">
 definePageMeta({
-  layout: 'app',
+  layout: 'app-sidebar',
   middleware: 'auth',
 })
 
