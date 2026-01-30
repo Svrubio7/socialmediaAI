@@ -10,7 +10,7 @@ from app.models.base import Base, TimestampMixin
 
 
 class EditTemplate(Base, TimestampMixin):
-    """Edit template: reusable edit style applied to raw materials."""
+    """Edit template: reusable edit style applied to raw footage."""
 
     __tablename__ = "edit_templates"
 

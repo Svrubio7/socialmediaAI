@@ -64,6 +64,8 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+
 interface Props {
   modelValue: boolean
   title?: string
@@ -102,7 +104,7 @@ const sizeClasses = computed(() => {
 })
 
 const modalClasses = computed(() => [
-  'relative w-full bg-surface-900 border border-surface-800 rounded-2xl p-6 shadow-2xl',
+  'relative w-full bg-surface-800/95 dark:bg-surface-800 border border-surface-600/60 dark:border-surface-600 rounded-2xl p-6 shadow-2xl shadow-black/40',
   sizeClasses.value,
 ])
 

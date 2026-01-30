@@ -1,5 +1,5 @@
 """
-UserAsset model for storing user-uploaded materials (logos, images, etc.).
+UserAsset model for storing user-uploaded branding assets (logos, images, etc.).
 """
 
 from sqlalchemy import Column, String, ForeignKey
@@ -10,7 +10,7 @@ from app.models.base import Base, TimestampMixin
 
 
 class UserAsset(Base, TimestampMixin):
-    """User asset (material) for logos, images, watermarks, etc."""
+    """User asset (branding) for logos, images, watermarks, etc."""
 
     __tablename__ = "user_assets"
 

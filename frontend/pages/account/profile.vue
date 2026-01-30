@@ -8,30 +8,30 @@
       Back to Dashboard
     </NuxtLink>
 
-    <h1 class="text-3xl lg:text-4xl font-mono font-normal text-surface-100 mb-2">Profile</h1>
-    <p class="text-surface-400 mb-8">Your account information</p>
+    <h1 class="text-xl lg:text-2xl font-mono font-normal text-surface-100">Profile</h1>
+    <p class="text-surface-400 mt-1 text-sm mb-6">Your account information</p>
 
     <div v-if="loading" class="max-w-xl">
-      <Card class="border-l-4 border-l-primary-500">
+      <UiCard class="border-l-4 border-l-primary-500">
         <div class="flex flex-col sm:flex-row items-start gap-6">
-          <Skeleton variant="rounded" width="96px" height="96px" />
+          <UiSkeleton variant="rounded" width="96px" height="96px" />
           <div class="flex-1 space-y-4 w-full">
-            <Skeleton variant="text" width="100%" height="32px" />
-            <Skeleton variant="text" width="60%" height="24px" />
+            <UiSkeleton variant="text" width="100%" height="32px" />
+            <UiSkeleton variant="text" width="60%" height="24px" />
           </div>
         </div>
-      </Card>
+      </UiCard>
     </div>
 
     <div v-else-if="error" class="max-w-xl">
-      <Card class="border-l-4 border-l-red-500">
+      <UiCard class="border-l-4 border-l-red-500">
         <p class="text-surface-100 font-medium">Could not load profile</p>
         <p class="text-surface-400 text-sm mt-1">{{ error }}</p>
-        <Button variant="secondary" class="mt-4" @click="fetchProfile">Retry</Button>
-      </Card>
+        <UiButton variant="secondary" class="mt-4" @click="fetchProfile">Retry</UiButton>
+      </UiCard>
     </div>
 
-    <Card v-else class="max-w-xl border-l-4 border-l-primary-500">
+    <UiCard v-else class="max-w-xl border-l-4 border-l-primary-500">
       <form class="flex flex-col sm:flex-row items-start gap-6" @submit.prevent="save">
         <div class="w-24 h-24 rounded-2xl bg-primary-500/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
           <img
@@ -70,20 +70,21 @@
             />
           </div>
           <div class="flex items-center gap-3 pt-2">
-            <Button type="submit" variant="primary" :disabled="saving">
+            <UiButton type="submit" variant="primary" :disabled="saving">
               {{ saving ? 'Saving...' : 'Save' }}
-            </Button>
-            <Button type="button" variant="ghost" :disabled="saving" @click="resetForm">
+            </UiButton>
+            <UiButton type="button" variant="ghost" :disabled="saving" @click="resetForm">
               Reset
-            </Button>
+            </UiButton>
           </div>
         </div>
       </form>
-    </Card>
+    </UiCard>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 definePageMeta({
   layout: 'app-sidebar',
   middleware: 'auth',

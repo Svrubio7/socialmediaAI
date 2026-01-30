@@ -1,4 +1,4 @@
-"""Add user_assets table for materials
+"""Add user_assets table for branding assets
 
 Revision ID: 003
 Revises: 002

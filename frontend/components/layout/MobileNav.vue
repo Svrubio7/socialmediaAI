@@ -103,6 +103,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed, ref, watch } from 'vue'
 import type { User } from '@supabase/supabase-js'
 
 const { locale, locales, setLocale } = useI18n()
@@ -133,14 +134,15 @@ const close = () => {
 
 const currentLocale = computed(() => locale.value)
 
+type LocaleCode = 'en' | 'es' | 'fr' | 'de'
 const availableLocales = computed(() => {
-  return (locales.value as Array<{ code: string; name: string }>).map(l => ({
+  return (locales.value as Array<{ code: LocaleCode; name: string }>).map(l => ({
     code: l.code,
     name: l.name,
   }))
 })
 
-const switchLocale = (code: string) => {
+const switchLocale = (code: LocaleCode) => {
   setLocale(code)
 }
 

@@ -68,6 +68,7 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
 const localePath = useLocalePath()
 const auth = useAuthStore()
 
@@ -78,7 +79,7 @@ onMounted(() => {
 const accountLinks = [
   { to: '/account/profile', label: 'Profile', icon: 'User' },
   { to: '/account/preferences', label: 'Preferences', icon: 'Settings' },
-  { to: '/account/materials', label: 'My Materials', icon: 'Image' },
+  { to: '/account/branding', label: 'Branding', icon: 'Image' },
   { to: '/account/connected-platforms', label: 'Connected Platforms', icon: 'Link2' },
 ]
 

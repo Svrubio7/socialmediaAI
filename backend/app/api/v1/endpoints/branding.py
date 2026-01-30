@@ -1,5 +1,5 @@
 """
-Materials (user assets) endpoints.
+Branding (user assets) endpoints.
 """
 
 import os
@@ -22,8 +22,8 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 ASSET_TYPES = ["logo", "image", "watermark"]
 
 
-class MaterialResponse(BaseModel):
-    """Material response schema."""
+class BrandingAssetResponse(BaseModel):
+    """Branding asset response schema."""
     id: str
     type: str
     filename: str
@@ -36,9 +36,9 @@ class MaterialResponse(BaseModel):
         from_attributes = True
 
 
-class MaterialListResponse(BaseModel):
-    """Material list response schema."""
-    items: List[MaterialResponse]
+class BrandingAssetListResponse(BaseModel):
+    """Branding asset list response schema."""
+    items: List[BrandingAssetResponse]
     total: int
 
 
@@ -56,21 +56,21 @@ def validate_asset_file(file: UploadFile, asset_type: str) -> None:
         )
 
 
-@router.get("", response_model=MaterialListResponse)
-async def list_materials(
+@router.get("", response_model=BrandingAssetListResponse)
+async def list_branding_assets(
     type_filter: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List user materials."""
+    """List user branding assets."""
     query = db.query(UserAsset).filter(UserAsset.user_id == current_user.id)
     if type_filter and type_filter in ASSET_TYPES:
         query = query.filter(UserAsset.type == type_filter)
     total = query.count()
     items = query.order_by(UserAsset.created_at.desc()).all()
-    return MaterialListResponse(
+    return BrandingAssetListResponse(
         items=[
-            MaterialResponse(
+            BrandingAssetResponse(
                 id=str(a.id),
                 type=a.type,
                 filename=a.filename,
@@ -85,19 +85,19 @@ async def list_materials(
     )
 
 
-@router.post("/upload", response_model=MaterialResponse)
-async def upload_material(
+@router.post("/upload", response_model=BrandingAssetResponse)
+async def upload_branding_asset(
     file: UploadFile = File(...),
     asset_type: str = "image",
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload a material (logo, image, watermark)."""
+    """Upload a branding asset (logo, image, watermark)."""
     validate_asset_file(file, asset_type)
     asset_id = uuid4()
     ext = os.path.splitext(file.filename or ".png")[1].lower()
     storage_filename = f"{asset_id}{ext}"
-    storage_path = f"materials/{current_user.id}/{storage_filename}"
+    storage_path = f"branding/{current_user.id}/{storage_filename}"
 
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
@@ -122,7 +122,7 @@ async def upload_material(
     db.add(asset)
     db.commit()
     db.refresh(asset)
-    return MaterialResponse(
+    return BrandingAssetResponse(
         id=str(asset.id),
         type=asset.type,
         filename=asset.filename,
@@ -133,20 +133,20 @@ async def upload_material(
     )
 
 
-@router.get("/{asset_id}", response_model=MaterialResponse)
-async def get_material(
+@router.get("/{asset_id}", response_model=BrandingAssetResponse)
+async def get_branding_asset(
     asset_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get a single material by id."""
+    """Get a single branding asset by id."""
     asset = db.query(UserAsset).filter(
         UserAsset.id == UUID(asset_id),
         UserAsset.user_id == current_user.id,
     ).first()
     if not asset:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Material not found")
-    return MaterialResponse(
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branding asset not found")
+    return BrandingAssetResponse(
         id=str(asset.id),
         type=asset.type,
         filename=asset.filename,
@@ -158,18 +158,18 @@ async def get_material(
 
 
 @router.delete("/{asset_id}")
-async def delete_material(
+async def delete_branding_asset(
     asset_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Delete a material."""
+    """Delete a branding asset."""
     asset = db.query(UserAsset).filter(
         UserAsset.id == UUID(asset_id),
         UserAsset.user_id == current_user.id,
     ).first()
     if not asset:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Material not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branding asset not found")
     db.delete(asset)
     db.commit()
     return {"ok": True}

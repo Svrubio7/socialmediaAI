@@ -151,26 +151,26 @@ export const useApi = () => {
       post<{ message: string; cards: { type: string; payload: Record<string, unknown> }[] }>('/chat', { messages }),
   }
 
-  // Materials endpoints (user assets: logos, images)
-  const materials = {
+  // Branding endpoints (user assets: logos, images)
+  const branding = {
     list: (params?: { type?: string }) => {
       const query = new URLSearchParams()
-      if (params?.type) query.set('type', params.type)
-      return get<any>(`/materials?${query}`)
+      if (params?.type) query.set('type_filter', params.type)
+      return get<any>(`/branding?${query}`)
     },
-    get: (id: string) => get<any>(`/materials/${id}`),
+    get: (id: string) => get<any>(`/branding/${id}`),
     upload: async (file: File, assetType: string = 'image') => {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('asset_type', assetType)
       const authHeaders = await getAuthHeaders()
-      return $fetch(`${config.public.apiUrl}/materials/upload`, {
+      return $fetch(`${config.public.apiUrl}/branding/upload`, {
         method: 'POST',
         body: formData,
         headers: authHeaders,
       })
     },
-    delete: (id: string) => del(`/materials/${id}`),
+    delete: (id: string) => del(`/branding/${id}`),
   }
 
   // Editor ops (foundation clip/transform/export)
@@ -240,7 +240,7 @@ export const useApi = () => {
     oauth,
     posts,
     chat,
-    materials,
+    branding,
     editTemplates,
     editorOps,
     analytics,

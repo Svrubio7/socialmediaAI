@@ -2,12 +2,12 @@
   <div class="container-wide py-8 lg:py-12">
     <!-- Header -->
     <div class="mb-8">
-      <h1 class="text-3xl lg:text-4xl font-mono font-normal text-surface-100">Publish</h1>
-      <p class="text-surface-400 mt-2">Connect accounts and publish content across platforms</p>
+      <h1 class="text-xl lg:text-2xl font-mono font-normal text-surface-100">Publish</h1>
+      <p class="text-surface-400 mt-1 text-sm">Connect accounts and publish content across platforms</p>
     </div>
 
     <!-- Connected Accounts summary -->
-    <Card class="mb-8 border-l-4 border-l-primary-500">
+    <UiCard class="mb-8 border-l-4 border-l-primary-500">
       <div class="flex items-center justify-between flex-wrap gap-4">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-xl bg-primary-500/20 flex items-center justify-center">
@@ -25,12 +25,12 @@
           Manage in Account
         </NuxtLink>
       </div>
-    </Card>
+    </UiCard>
 
     <!-- Publish Content -->
     <div class="grid lg:grid-cols-2 gap-6 lg:gap-8">
       <!-- Publish Form -->
-      <Card>
+      <UiCard>
         <h2 class="text-xl font-mono font-medium text-surface-100 mb-6">Publish Content</h2>
         
         <form @submit.prevent="publishContent" class="space-y-5">
@@ -41,7 +41,7 @@
               <select v-model="selectedVideo" class="input pr-10 appearance-none cursor-pointer">
                 <option value="">Select a video...</option>
                 <option v-for="video in availableVideos" :key="video.id" :value="video.id">
-                  {{ video.filename }}
+                  {{ video.original_filename || video.filename }}
                 </option>
               </select>
               <UiIcon name="ChevronDown" :size="16" class="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 pointer-events-none" />
@@ -56,13 +56,11 @@
                 v-for="platform in connectedPlatforms"
                 :key="platform.id"
                 type="button"
-                class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200"
-                :class="selectedPublishPlatforms.includes(platform.id) 
-                  ? 'bg-primary-500/20 text-primary-300 border border-primary-500/30' 
-                  : 'bg-surface-800 text-surface-400 border border-surface-700 hover:border-surface-600'"
+                class="toggle-pill"
+                :class="selectedPublishPlatforms.includes(platform.id) ? 'toggle-pill-active' : 'toggle-pill-inactive'"
                 @click="togglePublishPlatform(platform.id)"
               >
-                <PlatformIcon :platform="platform.id" size="sm" variant="outline" />
+                <SharedPlatformIcon :platform="platform.id" size="sm" variant="outline" />
                 <span>{{ platform.name }}</span>
                 <UiIcon 
                   :name="selectedPublishPlatforms.includes(platform.id) ? 'Check' : 'Plus'" 
@@ -76,7 +74,7 @@
           </div>
 
           <!-- Caption -->
-          <Input
+          <UiInput
             v-model="caption"
             label="Caption"
             type="textarea"
@@ -85,7 +83,7 @@
           />
 
           <!-- Hashtags -->
-          <Input
+          <UiInput
             v-model="hashtags"
             label="Hashtags"
             placeholder="#viral #fyp #trending"
@@ -93,37 +91,39 @@
             <template #icon-left>
               <UiIcon name="Hash" :size="18" />
             </template>
-          </Input>
+          </UiInput>
 
           <!-- Actions -->
           <div class="flex gap-3 pt-2">
-            <Button 
+            <UiButton 
               type="submit" 
               variant="primary" 
-              class="flex-1"
-              :disabled="!canPublish"
+              class="flex-1 rounded-xl"
+              :disabled="!canPublish || publishing"
+              :loading="publishing"
             >
-              <UiIcon name="Send" :size="18" />
-              <span>Publish Now</span>
-            </Button>
-            <Button 
+              <template #icon-left><UiIcon name="Send" :size="16" /></template>
+              Publish Now
+            </UiButton>
+            <UiButton 
               type="button" 
               variant="secondary"
+              class="rounded-xl"
               :disabled="!canPublish"
               @click="showSchedule = true"
             >
-              <UiIcon name="Calendar" :size="18" />
-              <span>Schedule</span>
-            </Button>
+              <template #icon-left><UiIcon name="Calendar" :size="16" /></template>
+              Schedule
+            </UiButton>
           </div>
         </form>
-      </Card>
+      </UiCard>
 
       <!-- Scheduled Posts -->
-      <Card class="border-l-4 border-l-amber-500">
+      <UiCard class="border-l-4 border-l-amber-500">
         <h2 class="text-xl font-mono font-medium text-surface-100 mb-6">Scheduled Posts</h2>
         
-        <EmptyState
+        <SharedEmptyState
           v-if="scheduledPosts.length === 0"
           icon="Calendar"
           title="No scheduled posts"
@@ -139,13 +139,13 @@
           >
             <div class="flex items-start justify-between mb-3">
               <div class="flex-1 min-w-0">
-                <p class="font-medium text-surface-100 truncate">{{ post.video_title }}</p>
+                <p class="font-medium text-surface-100 truncate">{{ post.video_title || 'Video' }}</p>
                 <div class="flex items-center gap-2 mt-1">
-                  <PlatformIcon :platform="post.platform" size="sm" variant="outline" />
+                  <SharedPlatformIcon :platform="post.platform" size="sm" variant="outline" />
                   <span class="text-surface-400 text-sm">{{ post.platform }}</span>
                 </div>
               </div>
-              <Badge variant="accent">Scheduled</Badge>
+              <UiBadge variant="accent">Scheduled</UiBadge>
             </div>
             
             <div class="flex items-center justify-between">
@@ -153,23 +153,47 @@
                 <UiIcon name="Clock" :size="14" />
                 <span>{{ formatDateTime(post.scheduled_at) }}</span>
               </div>
-              <Button 
+              <UiButton 
                 variant="ghost" 
                 size="sm" 
-                class="text-red-400 hover:text-red-300"
+                class="rounded-xl text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                :disabled="cancelling === post.id"
                 @click="cancelScheduled(post.id)"
               >
+                <template #icon-left><UiIcon name="X" :size="14" /></template>
                 Cancel
-              </Button>
+              </UiButton>
             </div>
           </div>
         </div>
-      </Card>
+      </UiCard>
     </div>
+
+    <!-- Schedule modal -->
+    <UiModal v-model="showSchedule" title="Schedule post" size="md">
+      <form @submit.prevent="submitSchedule" class="space-y-4">
+        <div>
+          <label class="label text-sm">Date & time</label>
+          <input
+            v-model="scheduleDatetime"
+            type="datetime-local"
+            class="input w-full"
+            required
+          />
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <UiButton variant="ghost" type="button" class="rounded-xl" @click="showSchedule = false">Cancel</UiButton>
+          <UiButton variant="primary" type="submit" class="rounded-xl" :disabled="scheduling">
+            {{ scheduling ? 'Scheduling…' : 'Schedule' }}
+          </UiButton>
+        </div>
+      </form>
+    </UiModal>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 definePageMeta({
   layout: 'app-sidebar',
   middleware: 'auth',
@@ -177,12 +201,17 @@ definePageMeta({
 
 const localePath = useLocalePath()
 const api = useApi()
+const toast = useToast()
 
 const selectedVideo = ref('')
 const selectedPublishPlatforms = ref<string[]>([])
 const caption = ref('')
 const hashtags = ref('')
 const showSchedule = ref(false)
+const scheduleDatetime = ref('')
+const publishing = ref(false)
+const scheduling = ref(false)
+const cancelling = ref<string | null>(null)
 
 const platforms = ref([
   { id: 'instagram' as const, name: 'Instagram', connected: false, username: '' },
@@ -215,8 +244,28 @@ async function fetchPlatforms() {
   }
 }
 
+async function fetchVideos() {
+  try {
+    const res = await api.videos.list({ limit: 100 })
+    availableVideos.value = (res as { items?: any[] })?.items ?? []
+  } catch {
+    availableVideos.value = []
+  }
+}
+
+async function fetchScheduled() {
+  try {
+    const res = await api.posts.scheduled()
+    scheduledPosts.value = (res as { items?: any[] })?.items ?? []
+  } catch {
+    scheduledPosts.value = []
+  }
+}
+
 onMounted(() => {
   fetchPlatforms()
+  fetchVideos()
+  fetchScheduled()
 })
 
 const canPublish = computed(() => {
@@ -243,13 +292,59 @@ const connectAccount = async (platformId: string) => {
 }
 
 const publishContent = async () => {
-  console.log('Publishing to:', selectedPublishPlatforms.value)
-  // TODO: Implement publishing
+  if (!canPublish.value) return
+  publishing.value = true
+  try {
+    await api.posts.publish({
+      video_id: selectedVideo.value,
+      platforms: selectedPublishPlatforms.value,
+      caption: caption.value || undefined,
+      hashtags: hashtags.value ? hashtags.value.trim().split(/\s+/).filter(Boolean) : undefined,
+      publish_now: true,
+    })
+    toast.success('Publish queued')
+    await fetchScheduled()
+  } catch (e: any) {
+    toast.error(e?.data?.detail ?? e?.message ?? 'Publish failed')
+  } finally {
+    publishing.value = false
+  }
+}
+
+async function submitSchedule() {
+  if (!canPublish.value || !scheduleDatetime.value) return
+  scheduling.value = true
+  try {
+    const at = new Date(scheduleDatetime.value).toISOString()
+    await api.posts.schedule({
+      video_id: selectedVideo.value,
+      platforms: selectedPublishPlatforms.value,
+      scheduled_at: at,
+      caption: caption.value || undefined,
+      hashtags: hashtags.value ? hashtags.value.trim().split(/\s+/).filter(Boolean) : undefined,
+    })
+    toast.success('Post scheduled')
+    showSchedule.value = false
+    scheduleDatetime.value = ''
+    await fetchScheduled()
+  } catch (e: any) {
+    toast.error(e?.data?.detail ?? e?.message ?? 'Schedule failed')
+  } finally {
+    scheduling.value = false
+  }
 }
 
 const cancelScheduled = async (postId: string) => {
-  console.log('Canceling:', postId)
-  // TODO: Implement cancel scheduled
+  cancelling.value = postId
+  try {
+    await api.posts.cancel(postId)
+    toast.success('Schedule cancelled')
+    await fetchScheduled()
+  } catch (e: any) {
+    toast.error(e?.data?.detail ?? e?.message ?? 'Cancel failed')
+  } finally {
+    cancelling.value = null
+  }
 }
 
 const formatDateTime = (date: string) => {

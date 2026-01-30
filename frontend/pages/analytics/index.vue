@@ -3,8 +3,8 @@
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
       <div>
-        <h1 class="text-3xl lg:text-4xl font-mono font-normal text-surface-100">Analytics</h1>
-        <p class="text-surface-400 mt-2">Track your content performance across platforms</p>
+        <h1 class="text-xl lg:text-2xl font-mono font-normal text-surface-100">Analytics</h1>
+        <p class="text-surface-400 mt-1 text-sm">Track your content performance across platforms</p>
       </div>
       <div class="relative">
         <select v-model="dateRange" class="input w-auto pr-10 appearance-none cursor-pointer" @change="fetchData">
@@ -19,22 +19,22 @@
     <!-- Loading -->
     <div v-if="loading" class="flex justify-center py-16">
       <div class="flex flex-col items-center gap-4">
-        <Skeleton variant="rounded" width="200px" height="80px" />
-        <Skeleton variant="text" width="160px" />
+        <UiSkeleton variant="rounded" width="200px" height="80px" />
+        <UiSkeleton variant="text" width="160px" />
       </div>
     </div>
 
     <!-- Error -->
-    <Card v-else-if="error" class="border-l-4 border-l-red-500 mb-8">
+    <UiCard v-else-if="error" class="border-l-4 border-l-red-500 mb-8">
       <p class="text-surface-100 font-medium">Could not load analytics</p>
       <p class="text-surface-400 text-sm mt-1">{{ error }}</p>
-      <Button variant="secondary" class="mt-4" @click="fetchData">Retry</Button>
-    </Card>
+      <UiButton variant="secondary" class="mt-4" @click="fetchData">Retry</UiButton>
+    </UiCard>
 
     <template v-else>
     <!-- Overview Stats -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-8">
-      <Card v-for="stat in overviewStats" :key="stat.label" :class="stat.borderClass">
+      <UiCard v-for="stat in overviewStats" :key="stat.label" :class="stat.borderClass">
         <div class="flex items-start justify-between">
           <div>
             <p class="text-surface-400 text-sm mb-1">{{ stat.label }}</p>
@@ -57,13 +57,13 @@
           <UiIcon :name="stat.change >= 0 ? 'TrendingUp' : 'TrendingDown'" :size="14" />
           <span>{{ stat.change >= 0 ? '+' : '' }}{{ stat.change }}% from last period</span>
         </p>
-      </Card>
+      </UiCard>
     </div>
 
     <!-- Platform Breakdown & Top Performing -->
     <div class="grid lg:grid-cols-2 gap-6 lg:gap-8 mb-8">
       <!-- Platform Performance -->
-      <Card>
+      <UiCard>
         <h2 class="text-xl font-mono font-medium text-surface-100 mb-6">Platform Performance</h2>
         
         <div class="space-y-4">
@@ -74,7 +74,7 @@
           >
             <div class="flex items-center justify-between mb-3">
               <div class="flex items-center gap-3">
-                <PlatformIcon :platform="platform.id" size="md" />
+                <SharedPlatformIcon :platform="platform.id" size="md" />
                 <span class="font-medium text-surface-100">{{ platform.name }}</span>
               </div>
               <span class="text-surface-300 font-medium">{{ formatNumber(platform.views) }} views</span>
@@ -92,17 +92,17 @@
                 <UiIcon name="Share2" :size="14" class="text-emerald-400" />
                 {{ formatNumber(platform.shares) }}
               </span>
-              <Badge variant="primary" class="ml-auto">{{ platform.engagement }}% engagement</Badge>
+              <UiBadge variant="primary" class="ml-auto">{{ platform.engagement }}% engagement</UiBadge>
             </div>
           </div>
         </div>
-      </Card>
+      </UiCard>
 
       <!-- Top Performing Content -->
-      <Card>
+      <UiCard>
         <h2 class="text-xl font-mono font-medium text-surface-100 mb-6">Top Performing Content</h2>
         
-        <EmptyState
+        <SharedEmptyState
           v-if="topVideos.length === 0"
           icon="BarChart3"
           title="No data yet"
@@ -132,17 +132,17 @@
               <p class="font-medium text-surface-100 truncate">{{ video.title }}</p>
               <p class="text-surface-400 text-sm">{{ formatNumber(video.views) }} views</p>
             </div>
-            <Badge variant="success">{{ video.engagement }}%</Badge>
+            <UiBadge variant="success">{{ video.engagement }}%</UiBadge>
           </div>
         </div>
-      </Card>
+      </UiCard>
     </div>
 
     <!-- Pattern Insights -->
-    <Card>
+    <UiCard>
       <h2 class="text-xl font-mono font-medium text-surface-100 mb-6">Pattern Insights</h2>
       
-      <EmptyState
+      <SharedEmptyState
         v-if="patternInsights.length === 0"
         icon="Lightbulb"
         title="No insights yet"
@@ -172,12 +172,13 @@
           </div>
         </div>
       </div>
-    </Card>
+    </UiCard>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed, ref, watch, onMounted } from 'vue'
 definePageMeta({
   layout: 'app-sidebar',
   middleware: 'auth',

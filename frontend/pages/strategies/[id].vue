@@ -10,27 +10,27 @@
 
     <div v-if="loading" class="py-12 flex justify-center">
       <div class="flex flex-col items-center gap-3">
-        <Skeleton variant="rounded" width="64px" height="48px" />
-        <Skeleton variant="text" width="200px" />
+        <UiSkeleton variant="rounded" width="64px" height="48px" />
+        <UiSkeleton variant="text" width="200px" />
       </div>
     </div>
     <div v-else-if="error" class="text-red-400">{{ error }}</div>
     <template v-else-if="strategy">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <h1 class="text-3xl lg:text-4xl font-mono font-normal text-surface-100">Strategy</h1>
+        <h1 class="text-xl lg:text-2xl font-mono font-normal text-surface-100">Strategy</h1>
         <div class="flex gap-2">
-          <Button variant="secondary" size="sm" :disabled="exporting" @click="exportAs('markdown')">
+          <UiButton variant="secondary" size="sm" :disabled="exporting" @click="exportAs('markdown')">
             <UiIcon name="FileText" :size="16" />
             Export as Markdown
-          </Button>
-          <Button variant="ghost" size="sm" :disabled="exporting" @click="exportAs('json')">
+          </UiButton>
+          <UiButton variant="ghost" size="sm" :disabled="exporting" @click="exportAs('json')">
             <UiIcon name="Download" :size="16" />
             Export as JSON
-          </Button>
+          </UiButton>
         </div>
       </div>
 
-      <Card class="border-l-4 border-l-accent-500 mb-6">
+      <UiCard class="border-l-4 border-l-accent-500 mb-6">
         <div class="grid sm:grid-cols-2 gap-4 mb-6">
           <div>
             <p class="label">Platforms</p>
@@ -89,12 +89,13 @@
           </div>
         </div>
         <p v-else class="text-surface-500">No strategy content.</p>
-      </Card>
+      </UiCard>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 definePageMeta({
   layout: 'app-sidebar',
   middleware: 'auth',
@@ -130,6 +131,7 @@ async function fetchStrategy() {
   }
 }
 
+const toast = useToast()
 async function exportAs(format: 'markdown' | 'json') {
   exporting.value = true
   try {
@@ -144,8 +146,9 @@ async function exportAs(format: 'markdown' | 'json') {
     a.download = `strategy_${(route.params.id as string).slice(0, 8)}.${format === 'markdown' ? 'md' : 'json'}`
     a.click()
     URL.revokeObjectURL(url)
-  } catch {
-    // use toast when available
+    toast.success('Export downloaded')
+  } catch (e: any) {
+    toast.error(e?.data?.detail ?? e?.message ?? 'Export failed')
   } finally {
     exporting.value = false
   }

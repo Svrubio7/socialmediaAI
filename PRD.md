@@ -8,7 +8,7 @@ The core value proposition centers on transforming raw video content into optimi
 
 The MVP goal is to deliver a fully functional platform that enables users to upload videos, receive AI-generated strategies and scripts, create optimized video variations, schedule and publish content across multiple platforms, and track performance analytics—all within a unified, intuitive interface.
 
-**Current implementation state**: Infrastructure is Supabase-only (no Postgres containers; development uses Docker without nginx at :3000/:8000; production is Render-only with release-command migrations). The app includes a dedicated app layout (logo-only header), dashboard with real stats and a Posting Schedule card, Strategies page as an LLM-powered chatbot with result cards (schedule changes, scripts, strategy docs), account area (Profile, Preferences, My Materials, Connected Platforms), Schedule page, Strategy and Script detail/export, toasts, timezone in preferences, empty/loading states, breadcrumbs/back links, and Escape-to-close for modals/dropdowns. See Appendix for executed plans.
+**Current implementation state**: Infrastructure is Supabase-only (no Postgres containers; development uses Docker without nginx at :3000/:8000; production is Render-only with release-command migrations). The app includes a dedicated app layout (logo-only header), dashboard with real stats and a Posting Schedule card, Strategies page as an LLM-powered chatbot with result cards (schedule changes, scripts, strategy docs), account area (Profile, Preferences, Branding, Connected Platforms), Schedule page, Strategy and Script detail/export, toasts, timezone in preferences, empty/loading states, breadcrumbs/back links, and Escape-to-close for modals/dropdowns. See Appendix for executed plans.
 
 ## 2. Mission
 
@@ -73,11 +73,11 @@ The MVP goal is to deliver a fully functional platform that enables users to upl
 - ✅ Dashboard UI for managing content, strategies, and analytics
 - ✅ App layout (logo-only header, no website nav) for authenticated routes
 - ✅ Strategies page as LLM-powered chatbot with result cards (schedule changes, scripts, strategy docs)
-- ✅ Chat backend with tool/function calling (schedule, scripts, strategies, videos, materials, connected platforms)
-- ✅ Account area: Profile, Preferences, My Materials, Connected Platforms (dropdown in app header)
+- ✅ Chat backend with tool/function calling (schedule, scripts, strategies, videos, Branding, connected platforms)
+- ✅ Account area: Profile, Preferences, Branding, Connected Platforms (dropdown in app header)
 - ✅ Schedule page (full schedule view; per-platform filter; edit/cancel)
 - ✅ Dashboard Posting Schedule card (expandable; link to Schedule page)
-- ✅ My Materials backend and frontend (user assets: upload, list, delete)
+- ✅ Branding backend and frontend (user assets: upload, list, delete)
 - ✅ Strategy detail page and Script detail/export
 - ✅ Toasts (useToast + component) for success/error feedback
 - ✅ Timezone in preferences; schedule display/creation in user timezone
@@ -614,7 +614,7 @@ backend/
 
 **Operations**:
 - Accept chat messages and optional session ID; call LLM (OpenAI or configurable provider) with tool definitions matching platform capabilities
-- Execute tools: list/create/reschedule/cancel schedule, list/create/update/export scripts, list/create/update/export strategies, list videos/patterns, list/upload/delete materials, list connected platforms / get OAuth connect URL
+- Execute tools: list/create/reschedule/cancel schedule, list/create/update/export scripts, list/create/update/export strategies, list videos/patterns, list/upload/delete Branding, list connected platforms / get OAuth connect URL
 - Return assistant message and structured card payloads (schedule changes, generated scripts, strategy docs) for the frontend to render in a result-cards panel
 
 **Key Features**:
@@ -625,25 +625,25 @@ backend/
 
 **Technical Details**:
 - Endpoint: `POST /chat` or `POST /strategies/chat` with `messages[]`, optional `session_id`
-- Tool definitions mirror MCP-style contract: schedule, scripts, strategies, videos, materials, connected_platforms
+- Tool definitions mirror MCP-style contract: schedule, scripts, strategies, videos, Branding, connected_platforms
 - Backend implements tools as internal service calls (or via MCP client); no separate MCP process required for in-app chat
 
-#### 7.11 My Materials (User Assets)
+#### 7.11 Branding (User Assets)
 
 **Purpose**: Let users upload and manage brand assets (logos, images) for use in content.
 
 **Operations**:
-- List materials by user; filter by type (logo, image, watermark)
-- Upload file with type; store in Supabase Storage (e.g. `materials/{user_id}/`)
+- List Branding by user; filter by type (logo, image, watermark)
+- Upload file with type; store in Supabase Storage (e.g. `Branding/{user_id}/`)
 - Get material by ID; delete material
 
 **Key Features**:
-- Materials page under Account (or dedicated route); list grid, upload area, delete
+- Branding page under Account (or dedicated route); list grid, upload area, delete
 - RLS for user_id; storage path and metadata (JSONB) per asset
 
 **Technical Details**:
-- Table: `user_assets` or `materials` (id, user_id, type, filename, storage_path, url/metadata, created_at, updated_at)
-- Endpoints: `GET /materials`, `POST /materials/upload`, `GET /materials/{id}`, `DELETE /materials/{id}`
+- Table: `user_assets` or `Branding` (id, user_id, type, filename, storage_path, url/metadata, created_at, updated_at)
+- Endpoints: `GET /Branding`, `POST /Branding/upload`, `GET /Branding/{id}`, `DELETE /Branding/{id}`
 
 #### 7.12 Schedule Page & Dashboard Schedule Card
 
@@ -659,10 +659,10 @@ backend/
 
 #### 7.13 Account Area (Profile, Preferences, Connected Platforms)
 
-**Purpose**: Central place for user profile, app preferences, materials, and connected social accounts.
+**Purpose**: Central place for user profile, app preferences, Branding, and connected social accounts.
 
 **Operations**:
-- App header dropdown: Profile, Preferences, My Materials, Connected Platforms, Sign out
+- App header dropdown: Profile, Preferences, Branding, Connected Platforms, Sign out
 - Profile: display/edit name, email, avatar (Supabase user)
 - Preferences: language, timezone for scheduling, notifications
 - Connected Platforms: list Instagram, TikTok, YouTube, Facebook with connect/disconnect; moved from dashboard/publish; Publish page shows summary + "Manage in Account"
@@ -677,7 +677,7 @@ backend/
 
 **Operations**:
 - Toasts: success/error (and optional info) via `useToast()` and toast container; auto-dismiss; used for chat tool results, publish, schedule, preferences save, connect/disconnect
-- Empty states: every list (Videos, Scripts, Schedule, Materials, etc.) uses EmptyState with icon, title, description, primary action
+- Empty states: every list (Videos, Scripts, Schedule, Branding, etc.) uses EmptyState with icon, title, description, primary action
 - Loading: skeleton or spinner for lists; loading state on modals during submit
 - Breadcrumbs or "Back to Dashboard" / "Back to Schedule" on account and schedule pages
 - Escape key closes topmost modal or dropdown
@@ -1629,13 +1629,13 @@ The MVP is considered successful when users can complete the core workflow end-t
 
 ### Phase 6: Infrastructure & App UX (Executed)
 
-**Goal**: Supabase-only infra, dev/prod split, Render-ready; app layout, chatbot strategies, account/schedule/materials, UX polish.
+**Goal**: Supabase-only infra, dev/prod split, Render-ready; app layout, chatbot strategies, account/schedule/Branding, UX polish.
 
 **Deliverables** (executed per plans):
 - ✅ Infrastructure: Docker without nginx (dev :3000/:8000); docker-compose.prod without postgres; CORS from env; Render release command for migrations; SETUP/README/env examples aligned
 - ✅ App layout (logo-only header) for authenticated routes; dashboard revamp (real stats, Schedule card)
-- ✅ Strategies page as chatbot + result cards; chat backend with LLM + tools (schedule, scripts, strategies, videos, materials, connected platforms)
-- ✅ Account dropdown and pages: Profile, Preferences, My Materials, Connected Platforms
+- ✅ Strategies page as chatbot + result cards; chat backend with LLM + tools (schedule, scripts, strategies, videos, Branding, connected platforms)
+- ✅ Account dropdown and pages: Profile, Preferences, Branding, Connected Platforms
 - ✅ Schedule page; Strategy and Script detail/export; Toasts; timezone in preferences; empty/loading states; breadcrumbs/back links; Escape to close; Publish connection summary
 
 **Total MVP Timeline**: ~17 weeks (~4 months) plus executed Phase 6
@@ -1802,7 +1802,7 @@ The MVP is considered successful when users can complete the core workflow end-t
 - Architecture Plan: `.cursor/plans/social_media_ai_saas_architecture_f3707f3c.plan.md`
 - **Executed plans** (reference for current implementation):
   - **Infrastructure (Supabase-only, dev/prod, Render)**: `.cursor/plans/infra_supabase_dev_prod_render_7adb4aba.plan.md` — Docker without nginx, no Postgres containers, CORS from env, release command, SETUP/README/env examples
-  - **Complete app features and UX**: `.cursor/plans/complete_app_features_and_ux_f64c9818.plan.md` — Strategies chatbot + result cards, MCP/tools, account/schedule/materials, toasts, timezone, empty/loading states, breadcrumbs, Escape to close, Publish connection summary
+  - **Complete app features and UX**: `.cursor/plans/complete_app_features_and_ux_f64c9818.plan.md` — Strategies chatbot + result cards, MCP/tools, account/schedule/Branding, toasts, timezone, empty/loading states, breadcrumbs, Escape to close, Publish connection summary
   - **App dashboard frontend revamp**: `.cursor/plans/app_dashboard_frontend_revamp_45ac4bb7.plan.md` — App layout, dashboard stat cards and real data, Schedule card
   - **Frontend professional revamp**: `.cursor/plans/frontend_professional_revamp_ef892aae.plan.md` — UI components, landing sections, icons (lucide), Tailwind, rebrand (ElevoAI if applied)
   - **Docker infrastructure**: `.cursor/plans/docker_infrastructure_setup_06842005.plan.md` — Dockerfiles, compose, CI/CD (superseded in part by Supabase-only infra plan)
@@ -1866,3 +1866,4 @@ socialmediaAI/
 **Document Version**: 1.1  
 **Last Updated**: 2026-01-28  
 **Status**: Living document — updated from executed plans (infra Supabase-only, app features and UX, dashboard revamp)
+

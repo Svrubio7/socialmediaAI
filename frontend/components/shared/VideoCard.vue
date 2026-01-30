@@ -1,5 +1,5 @@
 <template>
-  <Card variant="hover" padding="none" class="group overflow-hidden">
+  <UiCard variant="hover" padding="none" class="group overflow-hidden">
     <!-- Thumbnail -->
     <div class="relative aspect-video bg-surface-800 overflow-hidden">
       <!-- Thumbnail image or placeholder -->
@@ -36,7 +36,7 @@
       
       <!-- Meta row -->
       <div class="flex items-center justify-between mb-4">
-        <StatusBadge :status="video.status" />
+        <SharedStatusBadge :status="video.status" />
         <span class="text-xs text-surface-500">
           {{ formatDate(video.created_at) }}
         </span>
@@ -44,37 +44,38 @@
       
       <!-- Actions -->
       <div class="flex flex-wrap gap-2">
-        <Button 
+        <UiButton 
           variant="ghost" 
           size="sm" 
           :to="localePath(`/editor?video=${video.id}`)"
-          class="flex-1"
+          class="flex-1 rounded-xl"
         >
-          <UiIcon name="Scissors" :size="16" />
-          <span>Edit</span>
-        </Button>
-        <Button 
+          <template #icon-left><UiIcon name="Scissors" :size="14" /></template>
+          Edit
+        </UiButton>
+        <UiButton 
           variant="secondary" 
           size="sm" 
           :to="localePath(`/videos/${video.id}`)"
-          class="flex-1"
+          class="flex-1 rounded-xl"
         >
-          <UiIcon name="Eye" :size="16" />
-          <span>View</span>
-        </Button>
-        <Button 
+          <template #icon-left><UiIcon name="Eye" :size="14" /></template>
+          View
+        </UiButton>
+        <UiButton 
           variant="primary" 
           size="sm" 
-          class="flex-1"
+          class="flex-1 rounded-xl"
           :disabled="video.status === 'processing'"
+          :loading="analyzing"
           @click="$emit('analyze', video.id)"
         >
-          <UiIcon name="Sparkles" :size="16" />
-          <span>Analyze</span>
-        </Button>
+          <template #icon-left><UiIcon name="Sparkles" :size="14" /></template>
+          Analyze
+        </UiButton>
       </div>
     </div>
-  </Card>
+  </UiCard>
 </template>
 
 <script setup lang="ts">
@@ -90,9 +91,10 @@ interface Video {
 
 interface Props {
   video: Video
+  analyzing?: boolean
 }
 
-defineProps<Props>()
+withDefaults(defineProps<Props>(), { analyzing: false })
 
 const localePath = useLocalePath()
 

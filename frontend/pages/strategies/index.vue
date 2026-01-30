@@ -2,7 +2,7 @@
   <div class="flex flex-col h-[calc(100vh-3.5rem)] lg:h-[calc(100vh-4rem)]">
     <div class="container-wide flex-1 flex flex-col min-h-0 py-4 lg:py-6">
       <div class="mb-4">
-        <h1 class="text-2xl lg:text-3xl font-mono font-normal text-surface-100">Strategies</h1>
+        <h1 class="text-xl lg:text-2xl font-mono font-normal text-surface-100">Strategies</h1>
         <p class="text-surface-400 text-sm mt-1">Describe your goals and the assistant will help with schedules, scripts, and strategies.</p>
       </div>
 
@@ -38,10 +38,10 @@
                 class="input flex-1 min-w-0"
                 :disabled="sending"
               />
-              <Button type="submit" variant="primary" size="sm" :disabled="sending || !inputText.trim()">
+              <UiButton type="submit" variant="primary" size="sm" :disabled="sending || !inputText.trim()">
                 <UiIcon name="Send" :size="16" />
                 <span>Send</span>
-              </Button>
+              </UiButton>
             </form>
           </div>
         </div>
@@ -50,12 +50,12 @@
         <div class="lg:col-span-3 flex flex-col min-h-0 overflow-hidden">
           <div class="flex items-center justify-between mb-3">
             <h2 class="text-lg font-mono font-medium text-surface-100">Results</h2>
-            <Button v-if="cards.length > 0" variant="ghost" size="sm" @click="cards = []">
+            <UiButton v-if="cards.length > 0" variant="ghost" size="sm" @click="cards = []">
               Clear
-            </Button>
+            </UiButton>
           </div>
           <div class="flex-1 overflow-y-auto space-y-3 pr-1">
-            <Card
+            <UiCard
               v-for="(card, i) in cards"
               :key="i"
               class="border-l-4 flex-shrink-0"
@@ -73,29 +73,30 @@
                   <p class="text-surface-400 text-sm mt-0.5">{{ cardSummary(card) }}</p>
                   <div class="flex flex-wrap gap-2 mt-3">
                     <template v-if="card.type === 'schedule'">
-                      <Button variant="ghost" size="sm" :to="localePath('/schedule')">View schedule</Button>
+                      <UiButton variant="ghost" size="sm" :to="localePath('/schedule')">View schedule</UiButton>
                     </template>
                     <template v-else-if="card.type === 'script'">
-                      <Button variant="ghost" size="sm" :to="localePath('/scripts')">View scripts</Button>
+                      <UiButton variant="ghost" size="sm" :to="localePath('/scripts')">View scripts</UiButton>
                     </template>
-                    <template v-else-if="card.type === 'strategy'">
-                      <Button variant="ghost" size="sm" :to="localePath(`/strategies/${card.payload?.id ?? ''}`)">View strategy</Button>
+                    <template v-else-if="card.type === 'strategy' && card.payload?.id">
+                      <UiButton variant="ghost" size="sm" :to="localePath(`/strategies/${card.payload.id}`)">View strategy</UiButton>
                     </template>
                     <template v-else-if="card.type === 'oauth'">
-                      <a
+                      <UiButton
                         v-if="card.payload?.url"
+                        variant="primary"
+                        size="sm"
                         :href="card.payload.url"
                         target="_blank"
                         rel="noopener"
-                        class="btn btn-primary btn-sm"
                       >
                         Connect {{ card.payload?.platform }}
-                      </a>
+                      </UiButton>
                     </template>
                   </div>
                 </div>
               </div>
-            </Card>
+            </UiCard>
             <div
               v-if="cards.length === 0 && !sending && messages.length <= 1"
               class="flex flex-col items-center justify-center py-12 text-center text-surface-500"
@@ -112,6 +113,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 definePageMeta({
   layout: 'app-sidebar',
   middleware: 'auth',
@@ -119,12 +121,26 @@ definePageMeta({
 
 const localePath = useLocalePath()
 const api = useApi()
+
+type LocaleCode = 'en' | 'es' | 'fr' | 'de'
+type StrategyCardPayload = {
+  id?: string
+  url?: string
+  platform?: string
+  platforms?: string[]
+  concept?: string
+  scheduled_at?: string
+  created?: { platform: string }[]
+  cancelled?: boolean
+}
+type StrategyCard = { type: 'schedule' | 'script' | 'strategy' | 'oauth' | string; payload: StrategyCardPayload }
+
 const messages = ref<{ role: string; content: string }[]>([
   { role: 'assistant', content: 'I can help you schedule posts, create scripts, and generate strategies. What would you like to do?' },
 ])
 const inputText = ref('')
 const sending = ref(false)
-const cards = ref<{ type: string; payload: Record<string, unknown> }[]>([])
+const cards = ref<StrategyCard[]>([])
 
 function cardBorderClass(type: string) {
   switch (type) {
@@ -166,7 +182,7 @@ function cardIconColor(type: string) {
   }
 }
 
-function cardTitle(card: { type: string; payload: Record<string, unknown> }) {
+function cardTitle(card: StrategyCard) {
   switch (card.type) {
     case 'schedule':
       if (card.payload?.cancelled) return 'Post cancelled'
@@ -174,30 +190,30 @@ function cardTitle(card: { type: string; payload: Record<string, unknown> }) {
       if (card.payload?.scheduled_at) return 'Post rescheduled'
       return 'Schedule updated'
     case 'script':
-      return (card.payload?.concept as string) || 'Script created'
+      return card.payload?.concept || 'Script created'
     case 'strategy':
-      return `Strategy for ${(card.payload?.platforms as string[])?.join(', ') || 'platforms'}`
+      return `Strategy for ${card.payload?.platforms?.join(', ') || 'platforms'}`
     case 'oauth':
-      return `Connect ${(card.payload?.platform as string) || 'platform'}`
+      return `Connect ${card.payload?.platform || 'platform'}`
     default:
       return 'Result'
   }
 }
 
-function cardSummary(card: { type: string; payload: Record<string, unknown> }) {
+function cardSummary(card: StrategyCard) {
   switch (card.type) {
     case 'schedule':
-      if (card.payload?.scheduled_at) return `New time: ${new Date(card.payload.scheduled_at as string).toLocaleString()}`
+      if (card.payload?.scheduled_at) return `New time: ${new Date(card.payload.scheduled_at).toLocaleString()}`
       if (Array.isArray(card.payload?.created) && card.payload.created.length) {
-        return `${(card.payload.created as { platform: string }[]).map((p: { platform: string }) => p.platform).join(', ')} at ${card.payload.scheduled_at ? new Date(card.payload.scheduled_at as string).toLocaleString() : 'scheduled time'}`
+        return `${card.payload.created.map((p) => p.platform).join(', ')} at ${card.payload.scheduled_at ? new Date(card.payload.scheduled_at).toLocaleString() : 'scheduled time'}`
       }
       return 'View your schedule to manage posts.'
     case 'script':
-      return (card.payload?.platform as string) ? `Platform: ${card.payload.platform}` : 'Saved to your scripts.'
+      return card.payload?.platform ? `Platform: ${card.payload.platform}` : 'Saved to your scripts.'
     case 'strategy':
       return 'View full strategy to export or refine.'
     case 'oauth':
-      return (card.payload?.url as string) ? 'Open the link to complete connection.' : 'Complete connection in Account.'
+      return card.payload?.url ? 'Open the link to complete connection.' : 'Complete connection in Account.'
     default:
       return ''
   }

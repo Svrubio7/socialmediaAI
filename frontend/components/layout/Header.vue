@@ -98,6 +98,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed, ref, onMounted } from 'vue'
 const { locale, locales, setLocale } = useI18n()
 const localePath = useLocalePath()
 const user = useSupabaseUser()
@@ -121,20 +122,21 @@ const mobileNavItems = computed(() => [
   { label: 'Contact', to: '/contact', icon: 'Mail' },
 ])
 
-const currentLocale = computed(() => locale.value)
+type LocaleCode = 'en' | 'es' | 'fr' | 'de'
+const currentLocale = computed(() => locale.value as LocaleCode)
 const currentLocaleName = computed(() => {
-  const loc = availableLocales.value.find(l => l.code === locale.value)
+  const loc = availableLocales.value.find(l => l.code === currentLocale.value)
   return loc?.name || 'EN'
 })
 
 const availableLocales = computed(() => {
-  return (locales.value as Array<{ code: string; name: string }>).map(l => ({
+  return (locales.value as Array<{ code: LocaleCode; name: string }>).map(l => ({
     code: l.code,
     name: l.name,
   }))
 })
 
-const switchLocale = (code: string) => {
+const switchLocale = (code: LocaleCode) => {
   setLocale(code)
 }
 

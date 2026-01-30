@@ -9,13 +9,14 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import * as icons from 'lucide-vue-next'
 
 interface Props {
-  name: keyof typeof icons
-  size?: number | string
+  name: keyof typeof icons | string
+  size?: number
   strokeWidth?: number
-  class?: string
+  class?: string | Record<string, boolean> | Array<string | Record<string, boolean>>
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -24,7 +25,8 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const iconComponent = computed(() => {
-  return icons[props.name] || icons.HelpCircle
+  const comp = (icons as Record<string, any>)[props.name as string]
+  return comp || icons.HelpCircle
 })
 
 const iconClasses = computed(() => props.class || '')

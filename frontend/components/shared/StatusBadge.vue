@@ -1,10 +1,12 @@
 <template>
-  <Badge :variant="badgeVariant" :dot="showDot">
+  <UiBadge :variant="badgeVariant" :dot="showDot">
     {{ label }}
-  </Badge>
+  </UiBadge>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+
 interface Props {
   status: 'uploaded' | 'processing' | 'processed' | 'failed' | 'scheduled' | 'published' | 'connected' | 'disconnected'
   showDot?: boolean

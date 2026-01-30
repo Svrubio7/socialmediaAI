@@ -8,10 +8,10 @@
       Back to Dashboard
     </NuxtLink>
 
-    <h1 class="text-3xl lg:text-4xl font-mono font-normal text-surface-100 mb-2">Connected Platforms</h1>
-    <p class="text-surface-400 mb-8">Connect your social accounts to publish content</p>
+    <h1 class="text-xl lg:text-2xl font-mono font-normal text-surface-100">Connected Platforms</h1>
+    <p class="text-surface-400 mt-1 text-sm mb-6">Connect your social accounts to publish content</p>
 
-    <Card class="border-l-4 border-l-primary-500">
+    <UiCard class="border-l-4 border-l-primary-500">
       <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div
           v-for="platform in platforms"
@@ -19,13 +19,13 @@
           class="p-5 rounded-2xl bg-surface-800/50 border border-surface-700 hover:border-surface-600 transition-colors"
         >
           <div class="flex items-center justify-between mb-4">
-            <PlatformIcon :platform="platform.id" size="lg" :variant="platform.connected ? 'filled' : 'outline'" />
-            <StatusBadge :status="platform.connected ? 'connected' : 'disconnected'" :show-dot="false" />
+            <SharedPlatformIcon :platform="platform.id" size="lg" :variant="platform.connected ? 'filled' : 'outline'" />
+            <SharedStatusBadge :status="platform.connected ? 'connected' : 'disconnected'" :show-dot="false" />
           </div>
           <h3 class="font-medium text-surface-100 mb-1">{{ platform.name }}</h3>
           <p v-if="platform.username" class="text-surface-400 text-sm mb-4 truncate">@{{ platform.username }}</p>
           <p v-else class="text-surface-500 text-sm mb-4">Not connected</p>
-          <Button
+          <UiButton
             v-if="!platform.connected"
             variant="primary"
             size="sm"
@@ -35,8 +35,8 @@
           >
             <UiIcon name="Link" :size="16" />
             Connect
-          </Button>
-          <Button
+          </UiButton>
+          <UiButton
             v-else
             variant="ghost"
             size="sm"
@@ -47,14 +47,15 @@
           >
             <UiIcon name="Unlink" :size="16" />
             Disconnect
-          </Button>
+          </UiButton>
         </div>
       </div>
-    </Card>
+    </UiCard>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 definePageMeta({
   layout: 'app-sidebar',
   middleware: 'auth',

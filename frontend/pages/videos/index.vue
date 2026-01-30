@@ -3,13 +3,13 @@
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
       <div>
-        <h1 class="text-3xl lg:text-4xl font-mono font-normal text-surface-100">Videos</h1>
-        <p class="text-surface-400 mt-2">Manage and analyze your video content</p>
+        <h1 class="text-xl lg:text-2xl font-mono font-normal text-surface-100">Videos</h1>
+        <p class="text-surface-400 mt-1 text-sm">Manage and analyze your video content</p>
       </div>
-      <Button variant="primary" @click="showUpload = true">
-        <UiIcon name="Upload" :size="18" />
-        <span>Upload Video</span>
-      </Button>
+      <UiButton variant="primary" class="rounded-xl" @click="showUpload = true">
+        <template #icon-left><UiIcon name="Upload" :size="16" /></template>
+        Upload Video
+      </UiButton>
     </div>
 
     <!-- Filters -->
@@ -29,11 +29,11 @@
       </div>
       
       <div class="flex-1 max-w-xs">
-        <Input v-model="searchQuery" placeholder="Search videos..." type="search">
+        <UiInput v-model="searchQuery" placeholder="Search videos..." type="search">
           <template #icon-left>
             <UiIcon name="Search" :size="18" />
           </template>
-        </Input>
+        </UiInput>
       </div>
     </div>
 
@@ -41,7 +41,7 @@
     <div v-if="isLoading" class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       <SharedVideoCardSkeleton v-for="i in 6" :key="i" />
     </div>
-    <EmptyState
+    <SharedEmptyState
       v-else-if="filteredVideos.length === 0"
       icon="Video"
       title="No videos yet"
@@ -52,23 +52,25 @@
       @action="showUpload = true"
     />
     <div v-else class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-      <VideoCard
+      <SharedVideoCard
         v-for="video in filteredVideos"
         :key="video.id"
         :video="video"
+        :analyzing="analyzingId === video.id"
         @analyze="analyzeVideo"
       />
     </div>
 
     <!-- Upload Modal -->
-    <Modal v-model="showUpload" title="Upload Video" size="lg">
+    <UiModal v-model="showUpload" title="Upload Video" size="lg">
       <div
         class="relative border-2 border-dashed border-surface-700 rounded-2xl p-8 lg:p-12 text-center transition-all duration-200 cursor-pointer"
         :class="{ 
           'border-primary-500 bg-primary-500/5': isDragging,
-          'hover:border-surface-600 hover:bg-surface-800/30': !isDragging
+          'hover:border-surface-600 hover:bg-surface-800/30': !uploading && !isDragging,
+          'pointer-events-none opacity-60': uploading
         }"
-        @click="triggerFileInput"
+        @click="() => { if (!uploading) triggerFileInput() }"
         @drop.prevent="handleDrop"
         @dragover.prevent="isDragging = true"
         @dragleave.prevent="isDragging = false"
@@ -97,7 +99,7 @@
       </div>
 
       <!-- Upload Progress -->
-      <div v-if="uploadProgress > 0" class="mt-6">
+      <div v-if="uploading" class="mt-6">
         <div class="flex items-center justify-between text-sm mb-2">
           <span class="text-surface-300">{{ uploadingFileName }}</span>
           <span class="text-surface-400">{{ uploadProgress }}%</span>
@@ -112,22 +114,24 @@
 
       <template #footer>
         <div class="flex justify-end gap-3">
-          <Button variant="ghost" @click="showUpload = false">
+          <UiButton variant="ghost" class="rounded-xl" :disabled="uploading" @click="showUpload = false">
             Cancel
-          </Button>
+          </UiButton>
         </div>
       </template>
-    </Modal>
+    </UiModal>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed, ref, onMounted } from 'vue'
 definePageMeta({
   layout: 'app-sidebar',
   middleware: 'auth',
 })
 
 const api = useApi()
+const toast = useToast()
 const showUpload = ref(false)
 const uploadProgress = ref(0)
 const uploadingFileName = ref('')
@@ -137,6 +141,7 @@ const isDragging = ref(false)
 const isLoading = ref(true)
 const fileInput = ref<HTMLInputElement | null>(null)
 const videos = ref<any[]>([])
+const analyzingId = ref<string | null>(null)
 
 async function fetchVideos() {
   isLoading.value = true
@@ -155,8 +160,8 @@ onMounted(fetchVideos)
 const filteredVideos = computed(() => {
   return videos.value.filter(video => {
     const matchesStatus = !statusFilter.value || video.status === statusFilter.value
-    const matchesSearch = !searchQuery.value || 
-      video.filename.toLowerCase().includes(searchQuery.value.toLowerCase())
+    const matchesSearch = !searchQuery.value ||
+      (video.filename || '').toLowerCase().includes(searchQuery.value.toLowerCase())
     return matchesStatus && matchesSearch
   })
 })
@@ -171,6 +176,7 @@ const handleFileSelect = (event: Event) => {
   if (file) {
     uploadFile(file)
   }
+  target.value = ''
 }
 
 const handleDrop = (event: DragEvent) => {
@@ -181,28 +187,36 @@ const handleDrop = (event: DragEvent) => {
   }
 }
 
+const uploading = ref(false)
 const uploadFile = async (file: File) => {
   uploadingFileName.value = file.name
-  uploadProgress.value = 0
-  
-  // Simulate upload progress
-  const interval = setInterval(() => {
-    uploadProgress.value += Math.random() * 15
-    if (uploadProgress.value >= 100) {
-      uploadProgress.value = 100
-      clearInterval(interval)
-      setTimeout(() => {
-        showUpload.value = false
-        uploadProgress.value = 0
-        uploadingFileName.value = ''
-        // TODO: Add video to list after actual upload
-      }, 500)
-    }
-  }, 200)
+  uploadProgress.value = 10
+  uploading.value = true
+  try {
+    await api.videos.upload(file)
+    uploadProgress.value = 100
+    toast.success('Video uploaded')
+    await fetchVideos()
+    showUpload.value = false
+  } catch (e: any) {
+    toast.error(e?.data?.detail ?? e?.message ?? 'Upload failed')
+  } finally {
+    uploadProgress.value = 0
+    uploadingFileName.value = ''
+    uploading.value = false
+  }
 }
 
 const analyzeVideo = async (videoId: string) => {
-  console.log('Analyzing video:', videoId)
-  // TODO: Implement video analysis
+  analyzingId.value = videoId
+  try {
+    await api.videos.analyze(videoId)
+    toast.success('Analysis started')
+    await fetchVideos()
+  } catch (e: any) {
+    toast.error(e?.data?.detail ?? e?.message ?? 'Analysis failed')
+  } finally {
+    analyzingId.value = null
+  }
 }
 </script>

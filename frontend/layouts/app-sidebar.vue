@@ -126,13 +126,13 @@
           <ul class="space-y-0.5 px-3">
             <li>
               <NuxtLink
-                :to="localePath('/account/materials')"
+                :to="localePath('/account/branding')"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                :class="isActive('/account/materials') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-100' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-400 dark:hover:text-surface-100 dark:hover:bg-surface-800'"
+                :class="isActive('/account/branding') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-100' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-400 dark:hover:text-surface-100 dark:hover:bg-surface-800'"
                 @click="sidebarOpen = false"
               >
                 <UiIcon name="Image" :size="18" class="flex-shrink-0" />
-                Materials
+                Branding
               </NuxtLink>
             </li>
             <li>
@@ -255,6 +255,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
 const localePath = useLocalePath()
 const route = useRoute()
 const auth = useAuthStore()
@@ -269,7 +270,7 @@ onMounted(() => {
 const accountLinks = [
   { to: '/account/profile', label: 'Profile', icon: 'User' },
   { to: '/account/preferences', label: 'Preferences', icon: 'Settings' },
-  { to: '/account/materials', label: 'My Materials', icon: 'Image' },
+  { to: '/account/branding', label: 'Branding', icon: 'Image' },
   { to: '/account/connected-platforms', label: 'Connected Platforms', icon: 'Link2' },
 ]
 

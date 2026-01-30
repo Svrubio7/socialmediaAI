@@ -89,7 +89,7 @@
 
   /* Button base */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-medium text-sm
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-medium text-sm
            transition-all duration-200 ease-out-expo
            focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-surface-950
            disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none;
@@ -151,12 +151,27 @@
     @apply px-8 py-4 text-lg;
   }
 
-  /* Input styles */
+  /* Toggle pills */
+  .toggle-pill {
+    @apply flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 border;
+  }
+
+  .toggle-pill-active {
+    @apply bg-primary-500/10 text-primary-600 border-primary-500/20
+           dark:bg-primary-500/20 dark:text-primary-300 dark:border-primary-500/30;
+  }
+
+  .toggle-pill-inactive {
+    @apply bg-surface-100 text-surface-600 border-surface-200 hover:border-surface-300
+           dark:bg-surface-800/50 dark:text-surface-400 dark:border-surface-700 dark:hover:border-surface-600;
+  }
+
+  /* Input styles - match card background (no light boxes) */
   .input {
-    @apply w-full px-4 py-3 bg-white dark:bg-surface-900 border border-surface-300 dark:border-surface-700 rounded-lg
-           text-surface-900 placeholder-surface-500 dark:text-surface-100 dark:placeholder-surface-500 font-sans
+    @apply w-full px-4 py-3 rounded-xl bg-surface-100 border border-surface-200
+           text-surface-900 placeholder-surface-500 dark:bg-surface-800/50 dark:border-surface-700/60 dark:text-surface-100 dark:placeholder-surface-400 font-sans
            transition-all duration-200
-           focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500
+           focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500
            disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
@@ -427,3 +442,12 @@
     transform: translateY(0) scale(1);
   }
 }
+
+
+
+
+
+
+
+
+

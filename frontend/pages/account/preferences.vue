@@ -8,10 +8,10 @@
       Back to Dashboard
     </NuxtLink>
 
-    <h1 class="text-3xl lg:text-4xl font-mono font-normal text-surface-100 mb-2">Preferences</h1>
-    <p class="text-surface-400 mb-8">Language, timezone, and notification settings</p>
+    <h1 class="text-xl lg:text-2xl font-mono font-normal text-surface-100">Preferences</h1>
+    <p class="text-surface-400 mt-1 text-sm mb-6">Language, timezone, and notification settings</p>
 
-    <Card class="max-w-xl border-l-4 border-l-accent-500">
+    <UiCard class="max-w-xl border-l-4 border-l-accent-500">
       <form @submit.prevent="savePreferences" class="space-y-6">
         <div>
           <label class="label">Language</label>
@@ -36,17 +36,18 @@
           </label>
         </div>
         <div class="pt-2">
-          <Button type="submit" variant="primary" :loading="saving" :disabled="saving">
-            <UiIcon name="Save" :size="18" />
+          <UiButton type="submit" variant="primary" class="rounded-xl" :loading="saving" :disabled="saving">
+            <template #icon-left><UiIcon name="Save" :size="16" /></template>
             Save preferences
-          </Button>
+          </UiButton>
         </div>
       </form>
-    </Card>
+    </UiCard>
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 definePageMeta({
   layout: 'app-sidebar',
   middleware: 'auth',

@@ -1,6 +1,6 @@
 <template>
-  <component
-    :is="componentType"
+  <NuxtLink
+    v-if="to"
     :to="to"
     :class="cardClasses"
     v-bind="$attrs"
@@ -8,18 +8,33 @@
     <div v-if="$slots.header" class="px-6 py-4 border-b border-surface-800">
       <slot name="header" />
     </div>
-    
     <div :class="bodyClass">
       <slot />
     </div>
-    
     <div v-if="$slots.footer" class="px-6 py-4 border-t border-surface-800 bg-surface-900/50">
       <slot name="footer" />
     </div>
-  </component>
+  </NuxtLink>
+  <div
+    v-else
+    :class="cardClasses"
+    v-bind="$attrs"
+  >
+    <div v-if="$slots.header" class="px-6 py-4 border-b border-surface-800">
+      <slot name="header" />
+    </div>
+    <div :class="bodyClass">
+      <slot />
+    </div>
+    <div v-if="$slots.footer" class="px-6 py-4 border-t border-surface-800 bg-surface-900/50">
+      <slot name="footer" />
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+
 interface Props {
   variant?: 'default' | 'hover' | 'interactive' | 'gradient'
   padding?: 'none' | 'sm' | 'md' | 'lg'
@@ -29,11 +44,6 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   variant: 'default',
   padding: 'md',
-})
-
-const componentType = computed(() => {
-  if (props.to) return resolveComponent('NuxtLink')
-  return 'div'
 })
 
 const variantClasses = computed(() => {

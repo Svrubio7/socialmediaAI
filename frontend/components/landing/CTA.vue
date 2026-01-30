@@ -73,6 +73,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted, onUnmounted } from 'vue'
 const localePath = useLocalePath()
 
 const sectionRef = ref<HTMLElement | null>(null)

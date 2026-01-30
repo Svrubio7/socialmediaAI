@@ -28,6 +28,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 const localePath = useLocalePath()
 
 interface Props {
