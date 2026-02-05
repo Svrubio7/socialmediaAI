@@ -1,6 +1,6 @@
 <template>
   <aside class="h-full min-h-0 flex border-l border-surface-800 bg-surface-900">
-    <section class="flex-1 min-w-0 min-h-0 flex flex-col">
+    <section class="flex-1 min-w-0 min-h-0 flex flex-col panel-container">
       <div class="px-4 pt-4 pb-3 border-b border-surface-800">
         <div class="flex items-center justify-between">
           <h2 class="text-base font-normal text-surface-100 tracking-tight">{{ panelTitle }}</h2>
@@ -48,7 +48,7 @@
               :class="selectedFilter === preset.name ? 'border-primary-500 bg-primary-500/15' : 'border-surface-800 bg-surface-950/60 hover:border-primary-400'"
               @click="selectFilter(preset.name)"
             >
-              <div class="h-16 rounded-md mb-2" :style="{ background: preset.swatch }" />
+              <div class="h-[clamp(2.5rem,7vw,4rem)] rounded-md mb-2" :style="{ background: preset.swatch }" />
               <p class="text-xs text-surface-100">{{ preset.name }}</p>
             </button>
           </div>
@@ -387,5 +387,30 @@ function emitShape(commit = false) {
 .panel-action:hover {
   filter: brightness(1.05);
   border-color: #7d9a7d;
+}
+
+.panel-container {
+  container-type: inline-size;
+}
+
+@container (max-width: 220px) {
+  .panel-container :where(.text-lg) {
+    font-size: 0.95rem;
+  }
+  .panel-container :where(.text-base) {
+    font-size: 0.88rem;
+  }
+  .panel-container :where(.text-sm) {
+    font-size: 0.78rem;
+  }
+  .panel-container :where(.text-xs) {
+    font-size: 0.68rem;
+  }
+}
+
+@container (min-width: 300px) {
+  .panel-container :where(.text-base) {
+    font-size: 1rem;
+  }
 }
 </style>

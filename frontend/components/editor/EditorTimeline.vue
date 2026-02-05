@@ -1,5 +1,5 @@
 <template>
-  <section class="h-full min-h-0 border-t border-surface-800 bg-surface-900/70 flex flex-col">
+  <section class="h-full min-h-0 border-t border-surface-800 bg-surface-900/70 flex flex-col timeline-container">
     <div class="px-4 pt-2 pb-1">
       <div class="relative h-3 rounded-full bg-surface-800 overflow-hidden">
         <div class="absolute inset-y-0 left-0 bg-primary-500/40" :style="{ width: `${progressPercent}%` }" />
@@ -44,7 +44,7 @@
           <div
             v-for="tick in timelineTicks"
             :key="tick.time"
-            class="absolute top-0 h-full border-l border-surface-800 text-[10px] text-surface-400"
+            class="absolute top-0 h-full border-l border-surface-800 text-[clamp(0.6rem,0.7vw,0.7rem)] text-surface-400"
             :style="{ left: `${tick.left}px` }"
           >
             <span class="absolute top-1 left-1">{{ tick.label }}</span>
@@ -422,5 +422,19 @@ onBeforeUnmount(() => {
   width: 0.35rem;
   background: rgba(245, 245, 245, 0.95);
   cursor: ew-resize;
+}
+
+.timeline-container {
+  container-type: inline-size;
+}
+
+@container (max-width: 700px) {
+  .timeline-container :where(.text-xs) {
+    font-size: 0.68rem;
+  }
+
+  .timeline-container :where(.text-sm) {
+    font-size: 0.78rem;
+  }
 }
 </style>

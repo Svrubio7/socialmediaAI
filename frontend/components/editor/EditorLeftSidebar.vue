@@ -16,7 +16,7 @@
 
     <section
       v-if="!collapsed"
-      class="flex-1 min-w-0 min-h-0 flex flex-col"
+      class="flex-1 min-w-0 min-h-0 flex flex-col panel-container"
     >
       <div class="flex items-center justify-between px-4 pt-4 pb-3">
         <h2 class="text-base font-normal text-surface-100 tracking-tight">{{ sectionTitle }}</h2>
@@ -86,7 +86,7 @@
               class="w-full rounded-lg border border-surface-800 bg-surface-950/60 p-3 text-left hover:border-primary-400 transition-colors"
               @click="$emit('add-text', style.name)"
             >
-              <div class="h-16 rounded-md mb-2 flex items-center justify-center font-normal tracking-tight" :class="style.previewClass">
+              <div class="h-[clamp(2.5rem,7vw,4rem)] rounded-md mb-2 flex items-center justify-center font-normal tracking-tight" :class="style.previewClass">
                 {{ style.preview }}
               </div>
               <p class="text-xs text-surface-100">{{ style.name }}</p>
@@ -258,3 +258,30 @@ function formatDuration(seconds: number) {
   return `${minutes}:${secs.toString().padStart(2, '0')}`
 }
 </script>
+
+<style scoped>
+.panel-container {
+  container-type: inline-size;
+}
+
+@container (max-width: 220px) {
+  .panel-container :where(.text-lg) {
+    font-size: 0.95rem;
+  }
+  .panel-container :where(.text-base) {
+    font-size: 0.88rem;
+  }
+  .panel-container :where(.text-sm) {
+    font-size: 0.78rem;
+  }
+  .panel-container :where(.text-xs) {
+    font-size: 0.68rem;
+  }
+}
+
+@container (min-width: 300px) {
+  .panel-container :where(.text-base) {
+    font-size: 1rem;
+  }
+}
+</style>

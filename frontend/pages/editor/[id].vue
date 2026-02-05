@@ -192,6 +192,12 @@ const {
 const activeLeftSection = ref('media')
 const activeRightTab = ref('fade')
 const leftCollapsed = ref(false)
+const gridRef = ref<HTMLDivElement | null>(null)
+const centerRef = ref<HTMLDivElement | null>(null)
+const leftWidth = ref(260)
+const rightWidth = ref(260)
+const timelineHeight = ref(280)
+const resizerSize = 6
 const previewUrl = ref('')
 const previewDuration = ref(0)
 const timelineDuration = computed(() => Math.max(duration.value, previewDuration.value, 1))
@@ -210,6 +216,8 @@ const outputSettings = ref({
 let saveStateTimer: ReturnType<typeof setTimeout> | null = null
 let playbackFrame: number | null = null
 let lastFrameTime = 0
+let resizeCleanup: (() => void) | null = null
+let windowResizeCleanup: (() => void) | null = null
 
 const accountInitial = computed(() => {
   const name = auth.user?.name?.trim()
@@ -220,8 +228,10 @@ const accountInitial = computed(() => {
 })
 
 const desktopGridStyle = computed(() => {
+  const leftColumn = leftCollapsed.value ? '56px' : `${leftWidth.value}px`
+  const leftGrip = leftCollapsed.value ? 0 : resizerSize
   return {
-    gridTemplateColumns: `${leftCollapsed.value ? '56px' : 'minmax(256px, 276px)'} minmax(0, 1fr) minmax(256px, 276px)`,
+    gridTemplateColumns: `${leftColumn} ${leftGrip}px minmax(0, 1fr) ${resizerSize}px ${rightWidth.value}px`,
   }
 })
 
@@ -266,6 +276,64 @@ function markLocalSaving() {
 function handleProjectRename(nextName: string) {
   setProjectName(nextName)
   markLocalSaving()
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function startResize(type: 'left' | 'right' | 'timeline', event: PointerEvent) {
+  const grid = gridRef.value
+  const center = centerRef.value
+  if (!grid || !center) return
+  const gridRect = grid.getBoundingClientRect()
+  const centerRect = center.getBoundingClientRect()
+
+  const minLeft = 180
+  const minRight = 180
+  const minCenter = 420
+  const minTimeline = 200
+  const minPreview = 240
+
+  function onMove(e: PointerEvent) {
+    if (type === 'left') {
+      const maxLeft = Math.max(minLeft, gridRect.width - minCenter - rightWidth.value - resizerSize * 2)
+      leftWidth.value = clamp(e.clientX - gridRect.left, minLeft, maxLeft)
+      return
+    }
+
+    if (type === 'right') {
+      const maxRight = Math.max(minRight, gridRect.width - minCenter - (leftCollapsed.value ? 56 : leftWidth.value) - resizerSize * 2)
+      rightWidth.value = clamp(gridRect.right - e.clientX, minRight, maxRight)
+      return
+    }
+
+    const pointerOffset = e.clientY - centerRect.top
+    const available = centerRect.height
+    const maxTimeline = Math.max(minTimeline, available - minPreview)
+    timelineHeight.value = clamp(available - pointerOffset, minTimeline, maxTimeline)
+  }
+
+  function onUp() {
+    window.removeEventListener('pointermove', onMove)
+    window.removeEventListener('pointerup', onUp)
+    resizeCleanup = null
+  }
+
+  window.addEventListener('pointermove', onMove)
+  window.addEventListener('pointerup', onUp)
+  resizeCleanup = onUp
+  onMove(event)
+}
+
+function syncTimelineHeight() {
+  const center = centerRef.value
+  if (!center) return
+  const rect = center.getBoundingClientRect()
+  const minTimeline = 200
+  const minPreview = 240
+  const maxTimeline = Math.max(minTimeline, rect.height - minPreview)
+  timelineHeight.value = clamp(timelineHeight.value, minTimeline, maxTimeline)
 }
 
 async function loadWorkspace() {
@@ -782,6 +850,10 @@ function inferAspectRatio(width?: number, height?: number) {
 onMounted(async () => {
   await auth.initialize()
   await loadWorkspace()
+  syncTimelineHeight()
+  const onResize = () => syncTimelineHeight()
+  window.addEventListener('resize', onResize)
+  windowResizeCleanup = () => window.removeEventListener('resize', onResize)
 })
 
 function stopPlaybackLoop() {
@@ -824,6 +896,8 @@ watch(isPlaying, (playing) => {
 
 onBeforeUnmount(() => {
   stopPlaybackLoop()
+  if (resizeCleanup) resizeCleanup()
+  if (windowResizeCleanup) windowResizeCleanup()
 })
 </script>
 
@@ -836,5 +910,23 @@ onBeforeUnmount(() => {
   color: #f5f5f5;
   font-size: 0.82rem;
   padding: 0.42rem 0.6rem;
+}
+
+.editor-resizer {
+  background: rgba(105, 117, 101, 0.15);
+  transition: background 150ms ease;
+}
+
+.editor-resizer:hover {
+  background: rgba(105, 117, 101, 0.35);
+}
+
+.editor-resizer-vertical {
+  cursor: col-resize;
+}
+
+.editor-resizer-horizontal {
+  cursor: row-resize;
+  height: 6px;
 }
 </style>
