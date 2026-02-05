@@ -21,7 +21,7 @@
           :icon-bg="stat.iconBg"
           :icon-color="stat.iconColor"
           :change="stat.change"
-          card-class="bg-surface-700/20 dark:bg-surface-700/30 p-4 rounded-2xl border border-surface-600/40"
+          card-class="bg-accent-100/70 dark:bg-surface-700/30 p-4 rounded-2xl border border-surface-300/70 dark:border-surface-600/70"
         />
       </template>
     </div>
@@ -32,18 +32,18 @@
         v-for="section in overviewSections"
         :key="section.to"
         :to="section.href"
-        class="block no-underline group min-h-[120px] rounded-2xl p-5 lg:p-6 transition-all duration-200 hover:scale-[1.01] hover:shadow-lg cursor-pointer bg-surface-700/20 dark:bg-surface-700/30"
+        class="block no-underline group min-h-[120px] rounded-2xl p-5 lg:p-6 transition-all duration-200 hover:scale-[1.01] hover:shadow-lg cursor-pointer bg-accent-100/70 dark:bg-surface-700/30"
         :class="section.edgeClass"
       >
         <div class="flex items-start gap-4">
           <div
-            class="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+            class="card-icon w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
             :class="section.iconBg"
           >
             <UiIcon :name="section.icon" :size="22" class="text-surface-800 dark:text-surface-100" />
           </div>
           <div class="min-w-0 flex-1">
-            <h3 class="font-mono font-medium text-base text-surface-900 dark:text-surface-100">{{ section.title }}</h3>
+            <h3 class="font-mono font-normal text-base text-surface-900 dark:text-surface-100">{{ section.title }}</h3>
             <p class="text-surface-600 dark:text-surface-400 text-sm mt-1">{{ section.description }}</p>
             <p v-if="section.summary" class="text-surface-500 dark:text-surface-500 text-xs mt-2 font-medium">{{ section.summary }}</p>
           </div>
@@ -56,10 +56,10 @@
       <!-- Recent Videos (whole card links to /videos) -->
       <NuxtLink
         :to="videosHref"
-        class="flex flex-col min-h-[280px] rounded-2xl border border-primary-500/20 hover:border-primary-500/35 hover:scale-[1.01] hover:shadow-lg cursor-pointer transition-all duration-200 p-5 lg:p-6 bg-surface-700/20 dark:bg-surface-700/30 block no-underline"
+        class="flex flex-col min-h-[280px] rounded-2xl border border-primary-500/30 hover:border-primary-500/45 hover:scale-[1.01] hover:shadow-lg cursor-pointer transition-all duration-200 p-5 lg:p-6 bg-accent-100/70 dark:bg-surface-700/30 block no-underline"
       >
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-mono font-medium text-surface-900 dark:text-surface-100">Recent Videos</h2>
+          <h2 class="text-lg font-mono font-normal text-surface-900 dark:text-surface-100">Recent Videos</h2>
           <span class="rounded-xl inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-primary-400">
             View all
             <UiIcon name="ArrowRight" :size="14" />
@@ -84,9 +84,9 @@
           <div
             v-for="video in recentVideos"
             :key="video.id"
-            class="flex items-center gap-3 p-2.5 rounded-xl bg-surface-600/25 dark:bg-surface-600/30 hover:bg-surface-600/40 transition-colors"
+            class="flex items-center gap-3 p-2.5 rounded-xl bg-surface-50/70 dark:bg-surface-600/30 hover:bg-surface-100/70 dark:hover:bg-surface-600/40 transition-colors"
           >
-            <div class="w-12 h-9 bg-surface-600/50 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+            <div class="w-12 h-9 bg-surface-200/60 dark:bg-surface-600/50 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
               <img
                 v-if="video.thumbnail_url"
                 :src="video.thumbnail_url"
@@ -96,7 +96,7 @@
               <UiIcon v-else name="Video" :size="16" class="text-surface-500" />
             </div>
             <div class="flex-1 min-w-0">
-              <p class="font-medium text-surface-100 truncate text-sm">{{ video.filename }}</p>
+              <p class="font-normal text-surface-900 dark:text-surface-100 truncate text-sm">{{ video.filename }}</p>
               <div class="flex items-center gap-2 mt-0.5">
                 <SharedStatusBadge :status="video.status" :show-dot="false" />
               </div>
@@ -108,14 +108,14 @@
       <!-- Posting Schedule (whole card links to schedule) -->
       <NuxtLink
         :to="scheduleHref"
-        class="flex flex-col min-h-[280px] rounded-2xl border border-amber-500/20 hover:border-amber-500/35 hover:scale-[1.01] hover:shadow-lg cursor-pointer transition-all duration-200 bg-surface-700/20 dark:bg-surface-700/30 p-5 lg:p-6 block no-underline"
+        class="flex flex-col min-h-[280px] rounded-2xl border border-amber-500/30 hover:border-amber-500/45 hover:scale-[1.01] hover:shadow-lg cursor-pointer transition-all duration-200 bg-accent-100/70 dark:bg-surface-700/30 p-5 lg:p-6 block no-underline"
       >
         <div class="flex items-center gap-3 mb-4">
-          <div class="w-10 h-10 rounded-xl bg-amber-500/25 flex items-center justify-center flex-shrink-0">
+          <div class="card-icon w-10 h-10 rounded-xl bg-amber-500/25 flex items-center justify-center flex-shrink-0">
             <UiIcon name="Calendar" :size="20" class="text-surface-800 dark:text-surface-100" />
           </div>
           <div>
-            <h2 class="text-lg font-mono font-medium text-surface-900 dark:text-surface-100">Posting Schedule</h2>
+            <h2 class="text-lg font-mono font-normal text-surface-900 dark:text-surface-100">Posting Schedule</h2>
             <p class="text-surface-600 dark:text-surface-400 text-xs mt-0.5">{{ scheduleSummary }}</p>
           </div>
         </div>
@@ -129,18 +129,18 @@
         <template v-else>
           <div class="flex-1 min-h-0 flex flex-col">
             <!-- Full-month calendar (Notion-like, compact) -->
-            <div class="grid grid-cols-7 gap-px bg-surface-600/20 dark:bg-surface-600/30 rounded-xl overflow-hidden text-center max-w-md mb-4">
-              <div v-for="d in weekDayLabels" :key="d" class="py-1.5 text-[10px] font-medium uppercase tracking-wide text-surface-500 bg-surface-600/30 dark:bg-surface-600/40">{{ d }}</div>
+            <div class="grid grid-cols-7 gap-px bg-surface-300/30 dark:bg-surface-600/30 rounded-xl overflow-hidden text-center max-w-md mb-4">
+              <div v-for="d in weekDayLabels" :key="d" class="py-1.5 text-[10px] font-normal uppercase tracking-wide text-surface-700 dark:text-surface-500 bg-surface-200/60 dark:bg-surface-600/40">{{ d }}</div>
               <div
                 v-for="cell in calendarCells"
                 :key="cell.key"
                 class="min-h-[1.5rem] py-1 flex flex-col items-center justify-start text-surface-400"
                 :class="[
-                  cell.isCurrentMonth ? 'bg-surface-600/20 dark:bg-surface-600/25' : 'bg-surface-700/10 dark:bg-surface-700/15 text-surface-500',
+                  cell.isCurrentMonth ? 'bg-surface-50/70 dark:bg-surface-600/25' : 'bg-surface-100/50 dark:bg-surface-700/15 text-surface-600',
                   cell.isToday ? 'bg-amber-500/15 dark:bg-amber-500/20' : '',
                 ]"
               >
-                <span class="text-[11px] font-medium" :class="cell.isToday ? 'text-amber-400' : ''">{{ cell.label }}</span>
+                <span class="text-[11px] font-normal" :class="cell.isToday ? 'text-amber-500' : ''">{{ cell.label }}</span>
                 <span
                   v-if="cell.hasScheduled"
                   class="w-1 h-1 rounded-full bg-primary-400 mt-0.5"
@@ -153,11 +153,11 @@
                 <div
                   v-for="post in scheduledPosts.slice(0, 3)"
                   :key="post.id"
-                  class="flex items-center gap-3 p-2.5 rounded-lg bg-surface-600/25 dark:bg-surface-600/30"
+                  class="flex items-center gap-3 p-2.5 rounded-lg bg-surface-50/70 dark:bg-surface-600/30"
                 >
                   <SharedPlatformIcon :platform="post.platform" size="sm" variant="outline" />
                   <div class="flex-1 min-w-0">
-                    <p class="font-medium text-surface-100 truncate text-xs">{{ post.video_title || 'Video' }}</p>
+                    <p class="font-normal text-surface-900 dark:text-surface-100 truncate text-xs">{{ post.video_title || 'Video' }}</p>
                     <p class="text-surface-500 text-[11px] mt-0.5">{{ formatScheduleTime(post.scheduled_at) }}</p>
                   </div>
                 </div>
@@ -200,10 +200,10 @@ interface StatItem {
 }
 
 const stats = ref<StatItem[]>([
-  { label: 'Total Videos', value: '0', icon: 'Video', iconBg: 'bg-primary-500/30', iconColor: 'text-surface-100', change: 0 },
-  { label: 'Patterns Found', value: '0', icon: 'Target', iconBg: 'bg-accent-500/30', iconColor: 'text-surface-100', change: 0 },
-  { label: 'Posts Published', value: '0', icon: 'Send', iconBg: 'bg-emerald-500/30', iconColor: 'text-surface-100', change: 0 },
-  { label: 'Total Views', value: '0', icon: 'Eye', iconBg: 'bg-amber-500/30', iconColor: 'text-surface-100', change: 0 },
+  { label: 'Total Videos', value: '0', icon: 'Video', iconBg: 'bg-primary-500/30 dark:bg-primary-400/40', iconColor: 'text-surface-100', change: 0 },
+  { label: 'Patterns Found', value: '0', icon: 'Target', iconBg: 'bg-accent-500/30 dark:bg-accent-400/40', iconColor: 'text-surface-100', change: 0 },
+  { label: 'Posts Published', value: '0', icon: 'Send', iconBg: 'bg-emerald-500/30 dark:bg-emerald-400/40', iconColor: 'text-surface-100', change: 0 },
+  { label: 'Total Views', value: '0', icon: 'Eye', iconBg: 'bg-amber-500/30 dark:bg-amber-400/40', iconColor: 'text-surface-100', change: 0 },
 ])
 
 const recentVideos = ref<any[]>([])
@@ -284,13 +284,13 @@ const overviewSections = computed(() => {
   const videoCount = recentVideos.value.length
   const videosSummary = videoCount === 0 ? 'No videos yet' : videoCount === 1 ? '1 video' : `${videoCount} videos`
   const base = [
-    { to: '/account/branding', title: 'Branding', description: 'Logos, images, and brand assets for your content', icon: 'Image', edgeClass: 'border border-primary-500/25 hover:border-primary-500/40', iconBg: 'bg-primary-500/30' },
-    { to: '/strategies', title: 'Strategies', description: 'Chat with the assistant for scripts and schedules', icon: 'Target', edgeClass: 'border border-accent-500/25 hover:border-accent-500/40', iconBg: 'bg-accent-500/30' },
-    { to: '/publish', title: 'Publish Content', description: 'Share to all platforms', icon: 'Send', edgeClass: 'border border-emerald-500/25 hover:border-emerald-500/40', iconBg: 'bg-emerald-500/30' },
-    { to: '/schedule', title: 'Schedule', description: 'Manage your scheduled posts', icon: 'Calendar', edgeClass: 'border border-amber-500/25 hover:border-amber-500/40', iconBg: 'bg-amber-500/30', summary: scheduleSummaryText },
-    { to: '/videos', title: 'Videos', description: 'Upload and analyze your videos', icon: 'Video', edgeClass: 'border border-primary-500/25 hover:border-primary-500/40', iconBg: 'bg-primary-500/30', summary: videosSummary },
-    { to: '/editor', title: 'Editor', description: 'Edit and generate videos with timelines, layers, and templates', icon: 'Scissors', edgeClass: 'border border-accent-500/25 hover:border-accent-500/40', iconBg: 'bg-accent-500/30' },
-    { to: '/analytics', title: 'Analytics', description: 'Views, engagement, and performance', icon: 'BarChart3', edgeClass: 'border border-amber-500/25 hover:border-amber-500/40', iconBg: 'bg-amber-500/30' },
+    { to: '/account/branding', title: 'Branding', description: 'Logos, images, and brand assets for your content', icon: 'Image', edgeClass: 'border border-primary-500/25 hover:border-primary-500/40', iconBg: 'bg-primary-500/30 dark:bg-primary-400/40' },
+    { to: '/strategies', title: 'Strategies', description: 'Chat with the assistant for scripts and schedules', icon: 'Target', edgeClass: 'border border-accent-500/25 hover:border-accent-500/40', iconBg: 'bg-accent-500/30 dark:bg-accent-400/40' },
+    { to: '/publish', title: 'Publish Content', description: 'Share to all platforms', icon: 'Send', edgeClass: 'border border-emerald-500/25 hover:border-emerald-500/40', iconBg: 'bg-emerald-500/30 dark:bg-emerald-400/40' },
+    { to: '/schedule', title: 'Schedule', description: 'Manage your scheduled posts', icon: 'Calendar', edgeClass: 'border border-amber-500/25 hover:border-amber-500/40', iconBg: 'bg-amber-500/30 dark:bg-amber-400/40', summary: scheduleSummaryText },
+    { to: '/videos', title: 'Videos', description: 'Upload and analyze your videos', icon: 'Video', edgeClass: 'border border-primary-500/25 hover:border-primary-500/40', iconBg: 'bg-primary-500/30 dark:bg-primary-400/40', summary: videosSummary },
+    { to: '/editor', title: 'Editor', description: 'Edit and generate videos with timelines, layers, and templates', icon: 'Scissors', edgeClass: 'border border-accent-500/25 hover:border-accent-500/40', iconBg: 'bg-accent-500/30 dark:bg-accent-400/40' },
+    { to: '/analytics', title: 'Analytics', description: 'Views, engagement, and performance', icon: 'BarChart3', edgeClass: 'border border-amber-500/25 hover:border-amber-500/40', iconBg: 'bg-amber-500/30 dark:bg-amber-400/40' },
   ]
   return base.map((s) => ({ ...s, href: localePath(s.to) }))
 })
@@ -309,10 +309,10 @@ async function fetchDashboard() {
   try {
     const data = await api.analytics.dashboard()
     stats.value = [
-      { label: 'Total Videos', value: data.video_count ?? 0, icon: 'Video', iconBg: 'bg-primary-500/30', iconColor: 'text-surface-100', change: 0 },
-      { label: 'Patterns Found', value: data.pattern_count ?? 0, icon: 'Target', iconBg: 'bg-accent-500/30', iconColor: 'text-surface-100', change: 0 },
-      { label: 'Posts Published', value: data.post_count ?? 0, icon: 'Send', iconBg: 'bg-emerald-500/30', iconColor: 'text-surface-100', change: 0 },
-      { label: 'Total Views', value: data.total_views ?? 0, icon: 'Eye', iconBg: 'bg-amber-500/30', iconColor: 'text-surface-100', change: 0 },
+      { label: 'Total Videos', value: data.video_count ?? 0, icon: 'Video', iconBg: 'bg-primary-500/30 dark:bg-primary-400/40', iconColor: 'text-surface-100', change: 0 },
+      { label: 'Patterns Found', value: data.pattern_count ?? 0, icon: 'Target', iconBg: 'bg-accent-500/30 dark:bg-accent-400/40', iconColor: 'text-surface-100', change: 0 },
+      { label: 'Posts Published', value: data.post_count ?? 0, icon: 'Send', iconBg: 'bg-emerald-500/30 dark:bg-emerald-400/40', iconColor: 'text-surface-100', change: 0 },
+      { label: 'Total Views', value: data.total_views ?? 0, icon: 'Eye', iconBg: 'bg-amber-500/30 dark:bg-amber-400/40', iconColor: 'text-surface-100', change: 0 },
     ]
   } catch {
     // Keep default stats on error

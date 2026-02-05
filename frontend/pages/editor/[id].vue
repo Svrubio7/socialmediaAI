@@ -1,478 +1,819 @@
 <template>
-  <div class="h-screen w-screen bg-surface-950 text-surface-100 overflow-hidden">
-    <header class="h-14 border-b border-surface-800 px-4 lg:px-6 flex items-center justify-between gap-3">
-      <div class="flex items-center gap-2 min-w-0">
-        <UiButton variant="ghost" size="sm" :to="localePath('/editor')">
-          <template #icon-left><UiIcon name="ArrowLeft" :size="14" /></template>
-          Editor Hub
-        </UiButton>
-        <div class="hidden sm:block w-px h-5 bg-surface-700" />
-        <p class="truncate text-sm font-medium">
-          {{ video?.original_filename || video?.filename || 'Editor Workspace' }}
-        </p>
-      </div>
-      <div class="flex items-center gap-3">
-        <label class="inline-flex items-center gap-2 text-xs text-surface-400">
-          <input v-model="saveToLibrary" type="checkbox" class="accent-primary-500" />
-          Save edits to library
-        </label>
-        <UiButton v-if="lastOutputUrl" variant="secondary" size="sm" :href="lastOutputUrl" target="_blank" rel="noopener">
-          <template #icon-left><UiIcon name="ExternalLink" :size="14" /></template>
-          Open output
-        </UiButton>
-      </div>
-    </header>
+  <div class="h-screen w-screen overflow-hidden bg-surface-950 text-surface-100">
+    <EditorHeader
+      :project-name="projectName"
+      :account-initial="accountInitial"
+      :save-state="saveState"
+      :can-undo="canUndo"
+      :can-redo="canRedo"
+      @toggle-left="leftCollapsed = !leftCollapsed"
+      @go-home="navigateTo(localePath('/editor'))"
+      @update:project-name="handleProjectRename"
+      @undo="undo"
+      @redo="redo"
+      @export="exportVideo"
+      @help="toast.info('Help center is coming soon')"
+      @feedback="toast.info('Thanks! Feedback channel is coming soon')"
+      @account="navigateTo(localePath('/account/profile'))"
+    />
 
-    <div class="h-[calc(100vh-56px)] grid grid-cols-1 xl:grid-cols-[360px_1fr_360px]">
-      <!-- Left tools panel -->
-      <aside class="border-r border-surface-800 overflow-y-auto p-4 space-y-4 bg-surface-900/60">
-        <UiCard class="bg-surface-800/50 border border-surface-700">
-          <p class="text-sm font-medium mb-3">Timeline</p>
-          <div class="grid grid-cols-2 gap-3 mb-3">
-            <UiInput v-model.number="trimStart" label="Start (s)" type="number" min="0" step="0.1" />
-            <UiInput v-model.number="trimEnd" label="End (s)" type="number" min="0" step="0.1" />
-          </div>
+    <div
+      class="h-[calc(100vh-56px)] flex flex-col lg:grid"
+      :style="desktopGridStyle"
+    >
+      <EditorLeftSidebar
+        class="hidden lg:flex"
+        :active-section="activeLeftSection"
+        :collapsed="leftCollapsed"
+        :media-items="mediaItems"
+        @update:active-section="activeLeftSection = $event"
+        @import-media="openImportDialog"
+        @add-media="handleAddMedia"
+        @add-text="handleAddText"
+        @add-shape="handleAddShape"
+        @add-transition="handleAddTransition"
+      />
+
+      <div class="min-h-0 flex flex-col border-x border-surface-800 lg:border-x-0">
+        <div class="lg:hidden px-3 py-2 border-b border-surface-800 bg-surface-900">
           <div class="grid grid-cols-2 gap-2">
-            <UiButton size="sm" variant="secondary" :disabled="opRunning" @click="applyTrim">Trim</UiButton>
-            <UiButton size="sm" variant="secondary" :disabled="opRunning" @click="applyClipOut">Clip out</UiButton>
-            <UiButton size="sm" variant="ghost" :disabled="opRunning" @click="runSimple('duplicate_clip')">Duplicate</UiButton>
-            <UiButton size="sm" variant="ghost" :disabled="opRunning" @click="runSimple('reverse_clip')">Reverse</UiButton>
-          </div>
-          <div class="grid grid-cols-2 gap-3 mt-3">
-            <UiInput v-model.number="freezeAt" label="Freeze at (s)" type="number" min="0" step="0.1" />
-            <UiInput v-model.number="freezeDuration" label="Hold (s)" type="number" min="0.1" step="0.1" />
-          </div>
-          <UiButton class="mt-2 w-full" size="sm" variant="ghost" :disabled="opRunning" @click="applyFreeze">
-            Freeze frame
-          </UiButton>
-        </UiCard>
-
-        <UiCard class="bg-surface-800/50 border border-surface-700">
-          <p class="text-sm font-medium mb-3">Transform</p>
-          <div class="grid grid-cols-2 gap-3">
-            <UiInput v-model.number="cropX" label="Crop X" type="number" min="0" />
-            <UiInput v-model.number="cropY" label="Crop Y" type="number" min="0" />
-            <UiInput v-model.number="cropW" label="Crop W" type="number" min="1" />
-            <UiInput v-model.number="cropH" label="Crop H" type="number" min="1" />
-          </div>
-          <UiButton class="mt-2 w-full" size="sm" variant="secondary" :disabled="opRunning" @click="applyCrop">Crop</UiButton>
-          <div class="grid grid-cols-2 gap-3 mt-3">
-            <UiInput v-model.number="rotateDegrees" label="Rotate°" type="number" step="1" />
-            <UiInput v-model.number="speed" label="Speed" type="number" min="0.25" max="4" step="0.05" />
-          </div>
-          <div class="grid grid-cols-2 gap-2 mt-2">
-            <UiButton size="sm" variant="ghost" :disabled="opRunning" @click="applyRotate">Rotate</UiButton>
-            <UiButton size="sm" variant="ghost" :disabled="opRunning" @click="applySpeed">Speed</UiButton>
-          </div>
-          <div class="grid grid-cols-2 gap-3 mt-3">
-            <UiInput v-model.number="canvasW" label="Canvas W" type="number" min="1" />
-            <UiInput v-model.number="canvasH" label="Canvas H" type="number" min="1" />
-          </div>
-          <div class="grid grid-cols-2 gap-2 mt-2">
-            <UiButton size="sm" variant="secondary" :disabled="opRunning" @click="applyCanvas">Canvas</UiButton>
-            <UiButton size="sm" variant="ghost" :disabled="opRunning" @click="applyMirror">Mirror</UiButton>
-          </div>
-          <p class="text-xs text-surface-500 mt-4 mb-2">Color and transitions</p>
-          <div class="grid grid-cols-2 gap-3">
-            <UiInput v-model.number="brightness" label="Brightness" type="number" step="0.05" />
-            <UiInput v-model.number="contrast" label="Contrast" type="number" min="0" step="0.05" />
-            <UiInput v-model.number="saturation" label="Saturation" type="number" min="0" step="0.05" />
-            <UiInput v-model.number="gamma" label="Gamma" type="number" min="0" step="0.05" />
-          </div>
-          <UiButton class="mt-2 w-full" size="sm" variant="ghost" :disabled="opRunning" @click="applyColor">
-            Apply color
-          </UiButton>
-          <div class="grid grid-cols-2 gap-3 mt-3">
-            <UiInput v-model.number="fadeIn" label="Fade in (s)" type="number" min="0" step="0.1" />
-            <UiInput v-model.number="fadeOut" label="Fade out (s)" type="number" min="0" step="0.1" />
-          </div>
-          <UiButton class="mt-2 w-full" size="sm" variant="ghost" :disabled="opRunning" @click="applyFade">
-            Apply fades
-          </UiButton>
-        </UiCard>
-
-        <UiCard class="bg-surface-800/50 border border-surface-700">
-          <p class="text-sm font-medium mb-3">Text & Effects</p>
-          <UiInput v-model="overlayText" label="Text" placeholder="Type overlay text" />
-          <div class="grid grid-cols-3 gap-2 mt-3">
-            <UiInput v-model.number="overlayStart" label="Start" type="number" min="0" step="0.1" />
-            <UiInput v-model.number="overlayEnd" label="End" type="number" min="0" step="0.1" />
-            <div>
-              <label class="label text-xs">Position</label>
-              <select v-model="overlayPosition" class="input w-full text-sm py-2">
-                <option value="center">Center</option>
-                <option value="top">Top</option>
-                <option value="bottom">Bottom</option>
-              </select>
-            </div>
-          </div>
-          <UiButton class="mt-2 w-full" size="sm" variant="secondary" :disabled="opRunning || !overlayText" @click="applyText">
-            Add text overlay
-          </UiButton>
-        </UiCard>
-
-        <UiCard class="bg-surface-800/50 border border-surface-700">
-          <p class="text-sm font-medium mb-3">Media Overlays</p>
-          <label class="label text-xs">Branding assets</label>
-          <div class="max-h-28 overflow-y-auto space-y-1 mb-2">
-            <button
-              v-for="asset in brandingAssets"
-              :key="asset.id"
-              type="button"
-              class="w-full text-left px-2 py-1.5 rounded text-xs border transition-colors"
-              :class="selectedAssetPath === asset.storage_path ? 'border-primary-500 bg-primary-500/10' : 'border-surface-700 bg-surface-800/40 hover:border-surface-600'"
-              @click="selectedAssetPath = asset.storage_path"
-            >
-              {{ asset.filename }}
-            </button>
-          </div>
-          <div class="grid grid-cols-2 gap-2">
-            <UiButton size="sm" variant="ghost" :disabled="opRunning || !selectedAssetPath" @click="applyInsertImage">Insert image</UiButton>
-            <UiButton size="sm" variant="ghost" :disabled="opRunning || !selectedAssetPath" @click="applySticker">Add sticker</UiButton>
-          </div>
-          <UiInput v-model="audioPath" class="mt-3" label="Audio path" placeholder="storage path or absolute server path" />
-          <UiButton class="mt-2 w-full" size="sm" variant="ghost" :disabled="opRunning || !audioPath" @click="applyInsertAudio">
-            Insert audio
-          </UiButton>
-        </UiCard>
-
-        <UiCard class="bg-surface-800/50 border border-surface-700">
-          <p class="text-sm font-medium mb-3">Presets & Export</p>
-          <div>
-            <label class="label text-xs">Platform preset</label>
-            <select v-model="platformPreset" class="input w-full text-sm py-2">
-              <option value="tiktok">TikTok</option>
-              <option value="instagram">Instagram Reels</option>
-              <option value="youtube_shorts">YouTube Shorts</option>
-              <option value="youtube">YouTube</option>
-              <option value="facebook">Facebook</option>
+            <select v-model="activeLeftSection" class="mobile-select">
+              <option value="media">Media</option>
+              <option value="text">Text</option>
+              <option value="graphics">Graphics</option>
+              <option value="transitions">Transitions</option>
+            </select>
+            <select v-model="activeRightTab" class="mobile-select">
+              <option value="fade">Fade</option>
+              <option value="filters">Filters</option>
+              <option value="adjust">Adjust</option>
+              <option value="speed">Speed</option>
+              <option value="aspect">Aspect</option>
             </select>
           </div>
-          <UiButton class="mt-2 w-full" size="sm" variant="secondary" :disabled="opRunning" @click="applyPlatformPreset">
-            Apply platform preset
-          </UiButton>
-          <div class="grid grid-cols-2 gap-3 mt-3">
-            <UiInput v-model.number="exportW" label="Export W" type="number" min="1" />
-            <UiInput v-model.number="exportH" label="Export H" type="number" min="1" />
-            <UiInput v-model.number="exportFps" label="FPS" type="number" min="1" />
-            <UiInput v-model="exportBitrate" label="Bitrate" placeholder="4M" />
-          </div>
-          <UiButton class="mt-2 w-full" size="sm" variant="primary" :disabled="opRunning" @click="applyExport">
-            Export video
-          </UiButton>
-        </UiCard>
-      </aside>
-
-      <!-- Center preview -->
-      <main class="overflow-hidden flex flex-col">
-        <div class="flex-1 bg-black/60 flex items-center justify-center p-4">
-          <div v-if="previewUrl" class="w-full h-full max-h-full flex items-center justify-center">
-            <video
-              :src="previewUrl"
-              controls
-              autoplay
-              muted
-              loop
-              class="max-w-full max-h-full rounded-lg border border-surface-700 bg-black"
-            />
-          </div>
-          <div v-else class="text-surface-500 text-sm">No preview available</div>
         </div>
-        <div class="border-t border-surface-800 p-3 bg-surface-900/70">
-          <div class="flex items-center justify-between text-xs text-surface-400 mb-1">
-            <span>Trim start: {{ trimStart.toFixed(1) }}s</span>
-            <span>Trim end: {{ trimEnd.toFixed(1) }}s</span>
-          </div>
-          <input v-model.number="trimStart" type="range" min="0" :max="durationMax" step="0.1" class="w-full mb-1" />
-          <input v-model.number="trimEnd" type="range" min="0" :max="durationMax" step="0.1" class="w-full" />
-        </div>
-      </main>
 
-      <!-- Right output panel -->
-      <aside class="border-l border-surface-800 overflow-y-auto p-4 space-y-4 bg-surface-900/60">
-        <UiCard class="bg-surface-800/50 border border-surface-700">
-          <div class="flex items-center justify-between mb-2">
-            <p class="text-sm font-medium">Operation Status</p>
-            <UiButton size="sm" variant="ghost" :disabled="opRunning" @click="refreshVideoInfo">Refresh info</UiButton>
-          </div>
-          <p v-if="opRunning" class="text-xs text-primary-300">Running operation...</p>
-          <p v-else class="text-xs text-surface-400">Ready</p>
-          <p v-if="opError" class="text-xs text-red-400 mt-2">{{ opError }}</p>
-        </UiCard>
+        <EditorPreview
+          :clips="clips"
+          :selected-clip-id="selectedClipId"
+          :current-time="playheadTime"
+          :duration="timelineDuration"
+          :playing="isPlaying"
+          @update:current-time="setPlayhead"
+          @update:playing="isPlaying = $event"
+          @update:clip="handleClipUpdate"
+          @update:clip-meta="syncClipMeta"
+          @select-clip="selectClip"
+          @split="splitSelectedClipAtPlayhead"
+          @duplicate="duplicateSelectedClipAction"
+          @delete="removeSelectedClipAction"
+        />
 
-        <UiCard class="bg-surface-800/50 border border-surface-700">
-          <p class="text-sm font-medium mb-2">Video diagnostics</p>
-          <UiButton size="sm" variant="ghost" class="mb-2" :disabled="opRunning" @click="loadVideoInfo">Get video info</UiButton>
-          <pre v-if="videoInfo" class="text-[11px] leading-relaxed text-surface-300 bg-surface-900/80 rounded p-2 overflow-x-auto">{{ videoInfo }}</pre>
-        </UiCard>
+        <EditorTimeline
+          :tracks="layerTracks"
+          :playhead="playheadTime"
+          :duration="timelineDuration"
+          :zoom="timelineZoom"
+          :selected-clip-id="selectedClipId"
+          @update:playhead="setPlayhead"
+          @update:zoom="setTimelineZoom"
+          @select-clip="selectClip"
+          @split="splitSelectedClipAtPlayhead"
+          @delete="removeSelectedClipAction"
+          @duplicate="duplicateSelectedClipAction"
+          @trim-clip="handleTimelineTrim"
+          @move-clip="handleTimelineMove"
+        />
+      </div>
 
-        <UiCard class="bg-surface-800/50 border border-surface-700">
-          <p class="text-sm font-medium mb-3">Output history</p>
-          <div v-if="history.length === 0" class="text-xs text-surface-500">No edits yet</div>
-          <div v-else class="space-y-2">
-            <div v-for="item in history" :key="item.output_path" class="p-2 rounded border border-surface-700 bg-surface-900/70">
-              <p class="text-xs font-medium">{{ item.op }}</p>
-              <div class="flex flex-wrap gap-2 mt-2">
-                <UiButton size="sm" variant="ghost" :href="item.output_url" target="_blank" rel="noopener">
-                  Open file
-                </UiButton>
-                <UiButton
-                  v-if="item.output_video_id"
-                  size="sm"
-                  variant="secondary"
-                  :to="localePath(`/videos/${item.output_video_id}`)"
-                >
-                  Open video
-                </UiButton>
-              </div>
-            </div>
-          </div>
-        </UiCard>
-      </aside>
+      <EditorRightSidebar
+        class="hidden lg:flex"
+        :active-tab="activeRightTab"
+        :selected-clip="selectedClip"
+        @update:active-tab="activeRightTab = $event"
+        @apply:fade="applyFade"
+        @apply:speed="applySpeed"
+        @apply:filter="applyFilterPreset"
+        @apply:color="applyColorAdjust"
+        @apply:aspect="applyAspectRatio"
+        @apply:shape="applyShapeStyle"
+      />
     </div>
+
+    <input
+      ref="importInputRef"
+      type="file"
+      accept="video/*,image/*"
+      class="hidden"
+      @change="onImportSelected"
+    />
+
+    <UiToast />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import type { EditorClip, EditorTrack } from '~/composables/useEditorState'
+import { useEditorState } from '~/composables/useEditorState'
 
 definePageMeta({
   layout: false,
   middleware: 'auth',
 })
 
+interface MediaLibraryItem {
+  id: string
+  name: string
+  type: 'video' | 'image' | 'audio'
+  thumbnail?: string
+  duration?: number
+  sourceId?: string
+  sourceUrl?: string
+  storagePath?: string
+}
+
+interface EditorOpResponse {
+  error?: string
+  output_url?: string
+  output_video_id?: string
+}
+
 const route = useRoute()
 const localePath = useLocalePath()
 const api = useApi()
 const toast = useToast()
+const auth = useAuthStore()
 
-const video = ref<any>(null)
-const brandingAssets = ref<any[]>([])
+const {
+  projectName,
+  tracks,
+  clips,
+  selectedClipId,
+  selectedClip,
+  playheadTime,
+  timelineZoom,
+  duration,
+  canUndo,
+  canRedo,
+  setProjectName,
+  setSourceVideoClip,
+  addClip,
+  updateClip,
+  selectClip,
+  removeSelectedClip,
+  duplicateSelectedClip,
+  splitSelectedClip,
+  setPlayhead,
+  setTimelineZoom,
+  undo,
+  redo,
+} = useEditorState()
+
+const activeLeftSection = ref('media')
+const activeRightTab = ref('fade')
+const leftCollapsed = ref(false)
 const previewUrl = ref('')
-const lastOutputUrl = ref('')
-const opRunning = ref(false)
-const opError = ref('')
-const history = ref<any[]>([])
-const videoInfo = ref('')
-
-const saveToLibrary = ref(true)
-const trimStart = ref(0)
-const trimEnd = ref(10)
-const freezeAt = ref(0)
-const freezeDuration = ref(1)
-const cropX = ref(0)
-const cropY = ref(0)
-const cropW = ref(1080)
-const cropH = ref(1920)
-const rotateDegrees = ref(90)
-const speed = ref(1)
-const canvasW = ref(1080)
-const canvasH = ref(1920)
-const brightness = ref(0)
-const contrast = ref(1)
-const saturation = ref(1)
-const gamma = ref(1)
-const fadeIn = ref(0.3)
-const fadeOut = ref(0.3)
-const overlayText = ref('')
-const overlayStart = ref(0)
-const overlayEnd = ref(3)
-const overlayPosition = ref('center')
-const selectedAssetPath = ref('')
-const audioPath = ref('')
-const platformPreset = ref('tiktok')
-const exportW = ref(1080)
-const exportH = ref(1920)
-const exportFps = ref(30)
-const exportBitrate = ref('4M')
-
-const durationMax = computed(() => {
-  const d = Number(video.value?.duration || 60)
-  return d > 0 ? d : 60
+const previewDuration = ref(0)
+const timelineDuration = computed(() => Math.max(duration.value, previewDuration.value, 1))
+const isPlaying = ref(false)
+const saveState = ref<'saved' | 'saving' | 'error'>('saved')
+const operationRunning = ref(false)
+const importInputRef = ref<HTMLInputElement | null>(null)
+const mediaItems = ref<MediaLibraryItem[]>([])
+const outputSettings = ref({
+  width: 1920,
+  height: 1080,
+  fps: 30,
+  bitrate: '8M',
 })
 
-watch(durationMax, (d) => {
-  trimEnd.value = Math.min(trimEnd.value, d)
-  overlayEnd.value = Math.min(overlayEnd.value, d)
-  freezeAt.value = Math.min(freezeAt.value, d)
+let saveStateTimer: ReturnType<typeof setTimeout> | null = null
+let playbackFrame: number | null = null
+let lastFrameTime = 0
+
+const accountInitial = computed(() => {
+  const name = auth.user?.name?.trim()
+  if (name) return name.charAt(0).toUpperCase()
+  const email = auth.user?.email?.trim()
+  if (email) return email.charAt(0).toUpperCase()
+  return 'S'
 })
 
-async function fetchVideo() {
-  const id = route.params.id as string
-  video.value = await api.videos.get(id)
-  previewUrl.value = video.value?.video_url || video.value?.thumbnail_url || ''
-  trimStart.value = 0
-  trimEnd.value = Number(video.value?.duration || 10)
-  overlayEnd.value = Math.min(3, trimEnd.value)
+const desktopGridStyle = computed(() => {
+  return {
+    gridTemplateColumns: `${leftCollapsed.value ? '56px' : 'minmax(256px, 276px)'} minmax(0, 1fr) minmax(256px, 276px)`,
+  }
+})
+
+const layerTracks = computed<EditorTrack[]>(() => {
+  const layers = new Map<number, EditorClip[]>()
+  for (const clip of tracks.value.flatMap((track) => track.clips)) {
+    const layer = clip.layer ?? 1
+    if (!layers.has(layer)) layers.set(layer, [])
+    layers.get(layer)!.push(clip)
+  }
+  const sortedLayers = Array.from(layers.keys()).sort((a, b) => b - a)
+  return sortedLayers.map((layer) => ({
+    id: `layer-${layer}`,
+    type: 'layer',
+    label: `Layer ${layer}`,
+    layer,
+    clips: layers.get(layer)!.slice().sort((a, b) => a.startTime - b.startTime),
+  }))
+})
+
+const workspaceVideoId = computed(() => String(route.params.id))
+
+watch(duration, (nextDuration) => {
+  if (playheadTime.value > nextDuration) setPlayhead(nextDuration)
+})
+
+watch(
+  () => route.params.id,
+  async () => {
+    await loadWorkspace()
+  }
+)
+
+function markLocalSaving() {
+  saveState.value = 'saving'
+  if (saveStateTimer) clearTimeout(saveStateTimer)
+  saveStateTimer = setTimeout(() => {
+    saveState.value = 'saved'
+  }, 420)
 }
 
-async function fetchBranding() {
+function handleProjectRename(nextName: string) {
+  setProjectName(nextName)
+  markLocalSaving()
+}
+
+async function loadWorkspace() {
   try {
-    const res = await api.branding.list()
-    brandingAssets.value = ((res as { items?: any[] })?.items ?? []).filter((a) => !!a.storage_path)
-  } catch {
-    brandingAssets.value = []
+    const source = await api.videos.get(workspaceVideoId.value)
+    previewUrl.value = source?.video_url || source?.thumbnail_url || ''
+    previewDuration.value = Number(source?.duration) || 1
+    setProjectName(source?.original_filename || source?.filename || 'Untitled video')
+    setSourceVideoClip({
+      sourceId: workspaceVideoId.value,
+      sourceUrl: previewUrl.value,
+      label: source?.original_filename || source?.filename || 'Source clip',
+      duration: Number(source?.duration) || 1,
+      aspectRatio: inferAspectRatio(source?.width, source?.height),
+    })
+    outputSettings.value.width = Number(source?.width) || outputSettings.value.width
+    outputSettings.value.height = Number(source?.height) || outputSettings.value.height
+    await loadMediaLibrary()
+    saveState.value = 'saved'
+  } catch (error: any) {
+    saveState.value = 'error'
+    toast.error(error?.data?.detail ?? 'Could not load editor workspace')
   }
 }
 
-async function execute(op: string, params: Record<string, unknown>, outputTitle?: string) {
-  opRunning.value = true
-  opError.value = ''
-  try {
-    const id = route.params.id as string
-    const res = await api.editorOps.execute(id, op, params, {
-      saveToLibrary: saveToLibrary.value,
-      outputTitle,
-    })
-    if (res?.error) throw new Error(res.error)
+async function loadMediaLibrary() {
+  const items: MediaLibraryItem[] = []
 
-    if (res?.output_url) {
-      previewUrl.value = res.output_url
-      lastOutputUrl.value = res.output_url
+  try {
+    const videos = await api.videos.list({ limit: 24 })
+    for (const entry of (videos?.items ?? [])) {
+      items.push({
+        id: `video-${entry.id}`,
+        name: entry.original_filename || entry.filename,
+        type: 'video',
+        thumbnail: entry.thumbnail_url || entry.video_url,
+        duration: Number(entry.duration) || undefined,
+        sourceId: String(entry.id),
+        sourceUrl: entry.video_url,
+      })
     }
-    history.value.unshift({
-      op,
-      output_path: res?.output_path,
-      output_url: res?.output_url,
-      output_video_id: res?.output_video_id,
-    })
-    toast.success(`${op} completed`)
-  } catch (e: any) {
-    const msg = e?.data?.detail ?? e?.message ?? 'Editor operation failed'
-    opError.value = msg
-    toast.error(msg)
-  } finally {
-    opRunning.value = false
+  } catch {
+    // Keep loading other media sources.
   }
-}
 
-function runSimple(op: string) {
-  execute(op, {})
-}
-
-function applyTrim() {
-  if (trimEnd.value <= trimStart.value) {
-    toast.error('Trim end must be greater than trim start')
-    return
-  }
-  execute('trim_clip', { start: trimStart.value, end: trimEnd.value }, `Trim ${video.value?.filename || ''}`.trim())
-}
-
-function applyClipOut() {
-  if (trimEnd.value <= trimStart.value) {
-    toast.error('Clip-out end must be greater than start')
-    return
-  }
-  execute('clip_out', { start: trimStart.value, end: trimEnd.value })
-}
-
-function applyFreeze() {
-  execute('freeze_frame', { at_time: freezeAt.value, duration: freezeDuration.value })
-}
-
-function applyCrop() {
-  execute('crop_clip', {
-    x: cropX.value,
-    y: cropY.value,
-    width: cropW.value,
-    height: cropH.value,
-  })
-}
-
-function applyRotate() {
-  execute('rotate_clip', { degrees: rotateDegrees.value })
-}
-
-function applyMirror() {
-  execute('mirror_clip', { horizontal: true })
-}
-
-function applyCanvas() {
-  execute('set_canvas_size', { width: canvasW.value, height: canvasH.value })
-}
-
-function applyColor() {
-  execute('adjust_color', {
-    brightness: brightness.value,
-    contrast: contrast.value,
-    saturation: saturation.value,
-    gamma: gamma.value,
-  })
-}
-
-function applyFade() {
-  execute('fade_in_out', { fade_in: fadeIn.value, fade_out: fadeOut.value })
-}
-
-function applySpeed() {
-  execute('set_clip_speed', { speed: speed.value })
-}
-
-function applyText() {
-  execute('add_text_overlay', {
-    text: overlayText.value,
-    start_time: overlayStart.value,
-    end_time: overlayEnd.value,
-    position: overlayPosition.value,
-  })
-}
-
-function applyInsertImage() {
-  execute('insert_image', {
-    image_path: selectedAssetPath.value,
-    at_time: 0,
-    duration: 3,
-    position: 'center',
-  })
-}
-
-function applySticker() {
-  execute('add_sticker', {
-    image_path: selectedAssetPath.value,
-    at_time: 0,
-    duration: 3,
-    x: 40,
-    y: 40,
-  })
-}
-
-function applyInsertAudio() {
-  execute('insert_audio', {
-    audio_path: audioPath.value,
-    at_time: 0,
-    volume: 1,
-  })
-}
-
-function applyPlatformPreset() {
-  execute('platform_preset', { platform: platformPreset.value })
-}
-
-function applyExport() {
-  execute('export_video', {
-    width: exportW.value,
-    height: exportH.value,
-    fps: exportFps.value,
-    bitrate: exportBitrate.value,
-  }, `Export ${video.value?.filename || ''}`.trim())
-}
-
-async function loadVideoInfo() {
-  const id = route.params.id as string
   try {
-    const res = await api.editorOps.execute(id, 'video_info', {}, { saveToLibrary: false })
-    videoInfo.value = JSON.stringify(res?.result || {}, null, 2)
-  } catch (e: any) {
-    videoInfo.value = ''
-    toast.error(e?.data?.detail ?? e?.message ?? 'Could not load video info')
+    const branding = await api.branding.list()
+    for (const asset of (branding?.items ?? [])) {
+      const assetType = asset.type === 'audio' ? 'audio' : 'image'
+      items.push({
+        id: `asset-${asset.id}`,
+        name: asset.filename || 'Asset',
+        type: assetType,
+        thumbnail: asset.url,
+        sourceId: String(asset.id),
+        sourceUrl: asset.url,
+        storagePath: asset.storage_path,
+      })
+    }
+  } catch {
+    // Optional source.
+  }
+
+  mediaItems.value = items
+}
+
+function syncPreviewDuration(nextDuration: number) {
+  if (!Number.isFinite(nextDuration) || nextDuration <= 0) return
+  previewDuration.value = nextDuration
+  const videoTrack = tracks.value.find((track) => track.type === 'video')
+  const audioTrack = tracks.value.find((track) => track.type === 'audio')
+  const mainVideoClip = videoTrack?.clips[0]
+  const mainAudioClip = audioTrack?.clips[0]
+  if (mainVideoClip) {
+    updateClip(mainVideoClip.id, { duration: nextDuration, trimEnd: nextDuration }, { recordHistory: false })
+  }
+  if (mainAudioClip) {
+    updateClip(mainAudioClip.id, { duration: nextDuration }, { recordHistory: false })
   }
 }
 
-async function refreshVideoInfo() {
-  await fetchVideo()
+function syncClipMeta(payload: { clipId: string; duration?: number }) {
+  const clip = tracks.value.flatMap((track) => track.clips).find((entry) => entry.id === payload.clipId)
+  if (!clip || !payload.duration || !Number.isFinite(payload.duration)) return
+  updateClip(clip.id, {
+    duration: Math.max(0.1, payload.duration),
+    trimEnd: Math.max(0.1, payload.duration),
+  }, { recordHistory: false })
+  if (clip.sourceId === workspaceVideoId.value) {
+    previewDuration.value = payload.duration
+  }
+}
+
+function openImportDialog() {
+  importInputRef.value?.click()
+}
+
+async function onImportSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  const mediaType = inferMediaType(file)
+  try {
+    saveState.value = 'saving'
+    if (mediaType === 'image') {
+      await api.branding.upload(file, 'image')
+    } else if (mediaType === 'video') {
+      await api.videos.upload(file, file.name)
+    } else {
+      throw new Error('Unsupported file type. Please upload a video or image file.')
+    }
+    await loadMediaLibrary()
+    toast.success('Media uploaded to your library')
+    saveState.value = 'saved'
+  } catch (error: any) {
+    saveState.value = 'error'
+    toast.error(error?.data?.detail ?? 'Could not upload media')
+  } finally {
+    input.value = ''
+  }
+}
+
+function handleAddText(styleName: string) {
+  const layer = selectedClip.value?.layer
+  const clip = addClip('graphics', {
+    type: 'text',
+    label: styleName,
+    text: styleName === 'Plain text' ? 'Text' : styleName,
+    startTime: playheadTime.value,
+    duration: 3,
+    layer,
+    position: { x: 28, y: 22 },
+    size: { width: 42, height: 18 },
+    style: { color: '#ffffff', outline: true },
+  })
+  if (clip) {
+    activeRightTab.value = 'shape'
+    markLocalSaving()
+  }
+}
+
+function handleAddShape(shapeName: string) {
+  const layer = selectedClip.value?.layer
+  const clip = addClip('graphics', {
+    type: 'shape',
+    label: shapeName,
+    startTime: playheadTime.value,
+    duration: 5,
+    layer,
+    position: { x: 24, y: 18 },
+    size: { width: 38, height: 38 },
+    style: { color: '#8f8cae', outline: false },
+  })
+  if (clip) {
+    activeRightTab.value = 'shape'
+    markLocalSaving()
+  }
+}
+
+function handleAddTransition(transitionName: string) {
+  if (!selectedClip.value) {
+    toast.info('Select a clip to apply a transition')
+    return
+  }
+  const isFade = transitionName.toLowerCase().includes('fade')
+  const base = isFade ? 0.6 : 0.4
+  updateClip(selectedClip.value.id, {
+    effects: {
+      ...selectedClip.value.effects,
+      fadeIn: base,
+      fadeOut: base,
+    },
+  })
+  markLocalSaving()
+  toast.success(`${transitionName} applied`)
+}
+
+async function handleAddMedia(item: MediaLibraryItem) {
+  const layer = selectedClip.value?.layer
+  if (item.type === 'video') {
+    addClip('video', {
+      type: 'video',
+      label: item.name,
+      startTime: duration.value,
+      duration: item.duration ?? 4,
+      layer,
+      sourceId: item.sourceId,
+      sourceUrl: item.sourceUrl,
+      position: { x: 0, y: 0 },
+      size: { width: 100, height: 100 },
+      effects: { speed: 1, fadeIn: 0, fadeOut: 0, filter: 'None' },
+    })
+    toast.info('Video added to the timeline')
+    markLocalSaving()
+    return
+  }
+
+  if (item.type === 'audio') {
+    addClip('audio', {
+      type: 'audio',
+      label: item.name,
+      startTime: playheadTime.value,
+      duration: 6,
+      layer,
+      sourceId: item.sourceId,
+      sourceUrl: item.sourceUrl,
+    })
+    toast.info('Audio added to the timeline')
+    markLocalSaving()
+    return
+  }
+
+  addClip('graphics', {
+    type: 'image',
+    label: item.name,
+    startTime: playheadTime.value,
+    duration: 3,
+    layer,
+    sourceId: item.sourceId,
+    sourceUrl: item.sourceUrl,
+    position: { x: 30, y: 18 },
+    size: { width: 40, height: 40 },
+    rotation: 0,
+    lockAspectRatio: true,
+  })
+  markLocalSaving()
+}
+
+const imageExtensions = new Set([
+  'jpg',
+  'jpeg',
+  'png',
+  'gif',
+  'webp',
+  'bmp',
+  'tiff',
+  'tif',
+  'heic',
+  'heif',
+  'svg',
+])
+
+const videoExtensions = new Set([
+  'mp4',
+  'mov',
+  'm4v',
+  'webm',
+  'mkv',
+  'avi',
+  'mpeg',
+  'mpg',
+  'ogv',
+  '3gp',
+  '3g2',
+  'ts',
+])
+
+function inferMediaType(file: File) {
+  if (file.type.startsWith('image/')) return 'image'
+  if (file.type.startsWith('video/')) return 'video'
+  const ext = file.name.split('.').pop()?.toLowerCase()
+  if (!ext) return null
+  if (imageExtensions.has(ext)) return 'image'
+  if (videoExtensions.has(ext)) return 'video'
+  return null
+}
+
+function handleClipUpdate(clipId: string, patch: Partial<EditorClip>) {
+  updateClip(clipId, patch, { recordHistory: false })
+  markLocalSaving()
+}
+
+function splitSelectedClipAtPlayhead() {
+  if (!splitSelectedClip(playheadTime.value)) {
+    toast.info('Move playhead inside a clip to split it')
+    return
+  }
+  markLocalSaving()
+}
+
+function duplicateSelectedClipAction() {
+  if (!duplicateSelectedClip()) {
+    toast.info('Select a clip to duplicate')
+    return
+  }
+  markLocalSaving()
+}
+
+function removeSelectedClipAction() {
+  if (!removeSelectedClip()) {
+    toast.info('Select a clip to delete')
+    return
+  }
+  markLocalSaving()
+}
+
+function handleTimelineTrim(payload: { clipId: string; startTime: number; duration: number }) {
+  const clip = tracks.value.flatMap((track) => track.clips).find((entry) => entry.id === payload.clipId)
+  if (!clip) return
+
+  updateClip(payload.clipId, {
+    startTime: payload.startTime,
+    duration: payload.duration,
+    trimStart: payload.startTime,
+    trimEnd: payload.startTime + payload.duration,
+  })
+  markLocalSaving()
+
+  if (clip.type === 'video' && clip.sourceId === workspaceVideoId.value) {
+    const trimStart = Math.max(0, payload.startTime)
+    const trimEnd = Math.max(trimStart + 0.1, trimStart + payload.duration)
+    executeEditorOp('trim_clip', {
+      start: trimStart,
+      end: trimEnd,
+    }, 'Trim applied')
+    updateClip(payload.clipId, {
+      startTime: 0,
+      duration: Math.max(0.1, trimEnd - trimStart),
+      trimStart,
+      trimEnd,
+    }, { recordHistory: false })
+  }
+}
+
+function handleTimelineMove(payload: { clipId: string; startTime: number; layer?: number }) {
+  const clip = tracks.value.flatMap((track) => track.clips).find((entry) => entry.id === payload.clipId)
+  if (!clip) return
+  updateClip(payload.clipId, {
+    startTime: payload.startTime,
+    layer: payload.layer ?? clip.layer,
+  })
+  markLocalSaving()
+}
+
+async function executeEditorOp(op: string, params: Record<string, unknown>, successMessage?: string) {
+  if (operationRunning.value) {
+    toast.info('Please wait for the current render to finish')
+    return
+  }
+  operationRunning.value = true
+  saveState.value = 'saving'
+  isPlaying.value = false
+
+  try {
+    const shouldSaveToLibrary = op === 'export_video'
+    const response = await api.editorOps.execute(workspaceVideoId.value, op, params, {
+      saveToLibrary: shouldSaveToLibrary,
+      outputTitle: shouldSaveToLibrary ? `${projectName.value} - ${op}` : undefined,
+    }) as EditorOpResponse
+    if (response?.error) throw new Error(response.error)
+
+    if (response?.output_url) {
+      previewUrl.value = response.output_url
+      const mainVideoClip = tracks.value.find((track) => track.type === 'video')?.clips[0]
+      if (mainVideoClip) {
+        updateClip(mainVideoClip.id, { sourceUrl: response.output_url }, { recordHistory: false })
+      }
+    }
+
+    saveState.value = 'saved'
+    toast.success(successMessage ?? `${op} completed`)
+    if (op === 'export_video' && response?.output_url) {
+      window.open(response.output_url, '_blank', 'noopener')
+    }
+  } catch (error: any) {
+    saveState.value = 'error'
+    toast.error(error?.data?.detail ?? error?.message ?? `Operation failed: ${op}`)
+  } finally {
+    operationRunning.value = false
+  }
+}
+
+function applyFade(payload: { fadeIn: number; fadeOut: number; commit?: boolean }) {
+  if (!selectedClip.value) return
+  updateClip(selectedClip.value.id, {
+    effects: {
+      ...selectedClip.value.effects,
+      fadeIn: payload.fadeIn,
+      fadeOut: payload.fadeOut,
+    },
+  }, { recordHistory: payload.commit === true })
+  markLocalSaving()
+}
+
+function applySpeed(payload: { speed: number; commit?: boolean }) {
+  if (!selectedClip.value) return
+  updateClip(selectedClip.value.id, {
+    effects: {
+      ...selectedClip.value.effects,
+      speed: payload.speed,
+    },
+  }, { recordHistory: payload.commit === true })
+  markLocalSaving()
+}
+
+const filterColorMap: Record<string, {
+  brightness: number
+  contrast: number
+  saturation: number
+  gamma: number
+  hue?: number
+  overlayColor?: string
+  overlayOpacity?: number
+  overlayBlend?: string
+}> = {
+  None: { brightness: 0, contrast: 1, saturation: 1, gamma: 1, hue: 0, overlayColor: 'transparent', overlayOpacity: 0, overlayBlend: 'soft-light' },
+  Retro: { brightness: -0.05, contrast: 1.1, saturation: 0.86, gamma: 1.1, hue: -5, overlayColor: '#c9a06f', overlayOpacity: 0.1, overlayBlend: 'soft-light' },
+  'Orange and teal': { brightness: 0.05, contrast: 1.2, saturation: 1.2, gamma: 1, hue: 5, overlayColor: '#2da1b0', overlayOpacity: 0.12, overlayBlend: 'overlay' },
+  'Bold and blue': { brightness: -0.03, contrast: 1.28, saturation: 1.1, gamma: 1.05, hue: -2, overlayColor: '#1d4ed8', overlayOpacity: 0.08, overlayBlend: 'soft-light' },
+  'Golden hour': { brightness: 0.08, contrast: 1.15, saturation: 1.15, gamma: 0.95, hue: 6, overlayColor: '#f59e0b', overlayOpacity: 0.12, overlayBlend: 'soft-light' },
+  'Vibrant vlogger': { brightness: 0.05, contrast: 1.25, saturation: 1.32, gamma: 1.05, hue: 0, overlayColor: '#7c3aed', overlayOpacity: 0.08, overlayBlend: 'overlay' },
+  'Purple undertone': { brightness: 0, contrast: 1.18, saturation: 1.08, gamma: 1.12, hue: 2, overlayColor: '#4c1d95', overlayOpacity: 0.1, overlayBlend: 'soft-light' },
+  'Winter sunset': { brightness: 0.04, contrast: 1.16, saturation: 1.05, gamma: 0.96, hue: -4, overlayColor: '#0ea5e9', overlayOpacity: 0.08, overlayBlend: 'soft-light' },
+  '35mm': { brightness: -0.05, contrast: 1.22, saturation: 0.8, gamma: 1.08, hue: -6, overlayColor: '#111827', overlayOpacity: 0.1, overlayBlend: 'soft-light' },
+  Contrast: { brightness: -0.02, contrast: 1.4, saturation: 1.05, gamma: 1, hue: 0, overlayColor: 'transparent', overlayOpacity: 0, overlayBlend: 'soft-light' },
+  Autumn: { brightness: 0.03, contrast: 1.2, saturation: 1.15, gamma: 0.98, hue: 8, overlayColor: '#f59e0b', overlayOpacity: 0.1, overlayBlend: 'soft-light' },
+  Winter: { brightness: 0.01, contrast: 1.22, saturation: 0.92, gamma: 1.06, hue: -8, overlayColor: '#93c5fd', overlayOpacity: 0.08, overlayBlend: 'soft-light' },
+}
+
+function applyFilterPreset(payload: { preset: string; commit?: boolean }) {
+  const config = filterColorMap[payload.preset] ?? filterColorMap.None
+  if (!selectedClip.value) return
+  updateClip(selectedClip.value.id, {
+    effects: {
+      ...selectedClip.value.effects,
+      filter: payload.preset,
+      brightness: config.brightness,
+      contrast: config.contrast,
+      saturation: config.saturation,
+      gamma: config.gamma,
+      hue: config.hue ?? 0,
+      overlayColor: config.overlayColor,
+      overlayOpacity: config.overlayOpacity ?? 0,
+      overlayBlend: config.overlayBlend ?? 'soft-light',
+    },
+  }, { recordHistory: payload.commit === true })
+  markLocalSaving()
+}
+
+function applyColorAdjust(payload: { brightness: number; contrast: number; saturation: number; gamma: number; commit?: boolean }) {
+  if (!selectedClip.value) return
+  updateClip(selectedClip.value.id, {
+    effects: {
+      ...selectedClip.value.effects,
+      brightness: payload.brightness,
+      contrast: payload.contrast,
+      saturation: payload.saturation,
+      gamma: payload.gamma,
+    },
+  }, { recordHistory: payload.commit === true })
+  markLocalSaving()
+}
+
+function applyAspectRatio(payload: { ratio: string; fitMode: 'fit' | 'fill' | 'stretch'; width: number; height: number; commit?: boolean }) {
+  if (!selectedClip.value) return
+  updateClip(selectedClip.value.id, {
+    aspectRatio: payload.ratio,
+    fitMode: payload.fitMode,
+  }, { recordHistory: payload.commit === true })
+  markLocalSaving()
+}
+
+function applyShapeStyle(payload: { color: string; outline: boolean; commit?: boolean }) {
+  if (!selectedClip.value || selectedClip.value.type !== 'shape') {
+    toast.info('Select a shape clip first')
+    return
+  }
+  updateClip(selectedClip.value.id, {
+    style: {
+      ...selectedClip.value.style,
+      color: payload.color,
+      outline: payload.outline,
+    },
+  }, { recordHistory: payload.commit === true })
+  markLocalSaving()
+}
+
+function exportVideo() {
+  executeEditorOp('export_video', {
+    width: outputSettings.value.width,
+    height: outputSettings.value.height,
+    fps: outputSettings.value.fps,
+    bitrate: outputSettings.value.bitrate,
+  }, 'Export completed')
+}
+
+function inferAspectRatio(width?: number, height?: number) {
+  const w = Number(width)
+  const h = Number(height)
+  if (!w || !h) return '16:9'
+  const ratio = w / h
+  const known = [
+    { key: '16:9', value: 16 / 9 },
+    { key: '9:16', value: 9 / 16 },
+    { key: '1:1', value: 1 },
+    { key: '4:5', value: 4 / 5 },
+    { key: '4:3', value: 4 / 3 },
+    { key: '21:9', value: 21 / 9 },
+  ]
+  let best = known[0]
+  let score = Number.POSITIVE_INFINITY
+  for (const option of known) {
+    const delta = Math.abs(option.value - ratio)
+    if (delta < score) {
+      score = delta
+      best = option
+    }
+  }
+  return best.key
 }
 
 onMounted(async () => {
-  await Promise.all([fetchVideo(), fetchBranding()])
+  await auth.initialize()
+  await loadWorkspace()
+})
+
+function stopPlaybackLoop() {
+  if (playbackFrame) {
+    cancelAnimationFrame(playbackFrame)
+    playbackFrame = null
+  }
+  lastFrameTime = 0
+}
+
+function startPlaybackLoop() {
+  if (playbackFrame) return
+  playbackFrame = requestAnimationFrame(function step(now: number) {
+    if (!isPlaying.value) {
+      stopPlaybackLoop()
+      return
+    }
+    if (!lastFrameTime) lastFrameTime = now
+    const delta = (now - lastFrameTime) / 1000
+    lastFrameTime = now
+    const next = playheadTime.value + delta
+    if (next >= timelineDuration.value) {
+      setPlayhead(timelineDuration.value)
+      isPlaying.value = false
+      stopPlaybackLoop()
+      return
+    }
+    setPlayhead(next)
+    playbackFrame = requestAnimationFrame(step)
+  })
+}
+
+watch(isPlaying, (playing) => {
+  if (playing) {
+    startPlaybackLoop()
+  } else {
+    stopPlaybackLoop()
+  }
+})
+
+onBeforeUnmount(() => {
+  stopPlaybackLoop()
 })
 </script>
+
+<style scoped>
+.mobile-select {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid #2b2a25;
+  background: #121310;
+  color: #f5f5f5;
+  font-size: 0.82rem;
+  padding: 0.42rem 0.6rem;
+}
+</style>

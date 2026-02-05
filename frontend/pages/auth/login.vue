@@ -1,9 +1,9 @@
 <template>
   <NuxtLayout name="auth">
-    <UiCard class="backdrop-blur-xl bg-surface-900/80 border-surface-700/50">
+    <UiCard class="backdrop-blur-xl bg-accent-100/70 dark:bg-surface-900/80 border-surface-300/70 dark:border-surface-700/50">
       <div class="text-center mb-8">
-        <h1 class="text-xl lg:text-2xl font-mono font-normal text-surface-100">Welcome back</h1>
-        <p class="text-surface-400 mt-1 text-sm">Sign in to your ElevoAI account</p>
+        <h1 class="text-xl lg:text-2xl font-mono font-normal text-surface-900 dark:text-surface-100">Welcome back</h1>
+        <p class="text-surface-600 dark:text-surface-400 mt-1 text-sm">Sign in to your ElevoAI account</p>
       </div>
 
       <form @submit.prevent="handleLogin" class="space-y-5">
@@ -48,10 +48,10 @@
 
       <div class="relative my-6">
         <div class="absolute inset-0 flex items-center">
-          <div class="w-full border-t border-surface-700"></div>
+          <div class="w-full border-t border-surface-300 dark:border-surface-700"></div>
         </div>
         <div class="relative flex justify-center text-sm">
-          <span class="px-4 bg-surface-900 text-surface-500">or continue with</span>
+          <span class="px-4 bg-accent-100/80 dark:bg-surface-900 text-surface-600 dark:text-surface-500">or continue with</span>
         </div>
       </div>
 
@@ -71,7 +71,7 @@
         </UiButton>
       </div>
 
-      <p class="text-center text-surface-400 text-sm mt-6">
+      <p class="text-center text-surface-600 dark:text-surface-400 text-sm mt-6">
         Don't have an account?
         <NuxtLink to="/auth/register" class="text-primary-400 hover:text-primary-300 font-medium">
           Sign up

@@ -5,13 +5,13 @@
     :class="cardClasses"
     v-bind="$attrs"
   >
-    <div v-if="$slots.header" class="px-6 py-4 border-b border-surface-800">
+    <div v-if="$slots.header" class="px-6 py-4 border-b border-surface-200 dark:border-surface-800">
       <slot name="header" />
     </div>
     <div :class="bodyClass">
       <slot />
     </div>
-    <div v-if="$slots.footer" class="px-6 py-4 border-t border-surface-800 bg-surface-900/50">
+    <div v-if="$slots.footer" class="px-6 py-4 border-t border-surface-200 bg-accent-100/60 dark:border-surface-800 dark:bg-surface-900/50">
       <slot name="footer" />
     </div>
   </NuxtLink>
@@ -20,13 +20,13 @@
     :class="cardClasses"
     v-bind="$attrs"
   >
-    <div v-if="$slots.header" class="px-6 py-4 border-b border-surface-800">
+    <div v-if="$slots.header" class="px-6 py-4 border-b border-surface-200 dark:border-surface-800">
       <slot name="header" />
     </div>
     <div :class="bodyClass">
       <slot />
     </div>
-    <div v-if="$slots.footer" class="px-6 py-4 border-t border-surface-800 bg-surface-900/50">
+    <div v-if="$slots.footer" class="px-6 py-4 border-t border-surface-200 bg-accent-100/60 dark:border-surface-800 dark:bg-surface-900/50">
       <slot name="footer" />
     </div>
   </div>

@@ -2,13 +2,13 @@
   <UiCard :class="cardClass">
     <div class="flex items-center gap-3">
       <div
-        class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+        class="card-icon w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
         :class="iconBg"
       >
         <UiIcon :name="icon" :size="20" :class="iconColor" />
       </div>
       <div class="min-w-0 flex-1">
-        <p class="text-surface-500 dark:text-surface-100 text-xs mb-0.5">{{ label }}</p>
+        <p class="text-surface-900 dark:text-surface-100 text-xs mb-0.5">{{ label }}</p>
         <p class="text-lg font-mono font-normal text-surface-900 dark:text-surface-50 truncate">{{ value }}</p>
         <p
           v-if="change !== undefined"

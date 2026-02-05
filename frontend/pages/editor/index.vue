@@ -43,7 +43,7 @@
     </div>
 
     <!-- Timeline + ops (CapCut-like minimal UI) -->
-    <UiCard class="border border-accent-500/20 bg-surface-700/30 dark:bg-surface-700/40 rounded-2xl mb-8">
+    <UiCard class="border border-accent-500/30 bg-accent-100/70 dark:bg-surface-700/40 rounded-2xl mb-8">
       <div v-if="!selectedVideoId" class="min-h-[260px] flex flex-col items-center justify-center gap-5 text-center px-4">
         <div class="w-12 h-12 rounded-xl bg-accent-500/20 flex items-center justify-center">
           <UiIcon name="Scissors" :size="24" class="text-accent-400" />
@@ -76,7 +76,7 @@
         <!-- Single-track timeline -->
         <div class="mb-5">
           <h3 class="text-xs font-mono font-medium text-surface-400 mb-1.5">Track 1</h3>
-          <div class="h-12 rounded-xl bg-surface-600/30 dark:bg-surface-600/40 border border-surface-600/60 flex items-center px-3 overflow-x-auto">
+          <div class="h-12 rounded-xl bg-surface-50/70 dark:bg-surface-600/40 border border-surface-300/70 dark:border-surface-600/60 flex items-center px-3 overflow-x-auto">
             <div
               class="h-8 rounded-lg flex items-center gap-2 flex-shrink-0 px-3 font-medium text-surface-200 text-sm"
               :style="{ minWidth: clipWidth + 'px' }"
@@ -122,7 +122,7 @@
     </UiCard>
 
     <!-- Edit templates (content library) -->
-    <UiCard class="border-l-4 border-l-accent-500 border border-accent-500/20 bg-surface-700/30 dark:bg-surface-700/40 rounded-2xl">
+    <UiCard class="border-l-4 border-l-accent-500 border border-accent-500/30 bg-accent-100/70 dark:bg-surface-700/40 rounded-2xl">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
         <h2 class="text-base font-mono font-medium text-surface-100">Edit templates</h2>
         <UiButton variant="secondary" size="sm" class="rounded-xl" @click="showCreateTemplate = true">
@@ -150,7 +150,7 @@
         <div
           v-for="t in editTemplates"
           :key="t.id"
-          class="p-4 rounded-xl bg-surface-600/25 dark:bg-surface-600/30 border border-surface-600/50 flex flex-col"
+          class="p-4 rounded-xl bg-surface-50/70 dark:bg-surface-600/30 border border-surface-300/70 dark:border-surface-600/50 flex flex-col"
         >
           <div class="flex items-center gap-3 mb-2">
             <div class="w-9 h-9 rounded-lg bg-accent-500/20 flex items-center justify-center flex-shrink-0">
