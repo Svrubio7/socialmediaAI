@@ -26,7 +26,20 @@ logger = logging.getLogger(__name__)
 storage = LocalStorageService()
 
 # Allowed video formats
-ALLOWED_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
+ALLOWED_EXTENSIONS = {
+    ".mp4",
+    ".mov",
+    ".m4v",
+    ".avi",
+    ".mkv",
+    ".webm",
+    ".mpeg",
+    ".mpg",
+    ".ogv",
+    ".3gp",
+    ".3g2",
+    ".ts",
+}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
 
 

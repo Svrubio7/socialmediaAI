@@ -375,9 +375,9 @@ function emitShape(commit = false) {
 .panel-action {
   width: 100%;
   border-radius: 0.5rem;
-  border: 1px solid #556152;
-  background: #697565;
-  color: #f5f5f5;
+  border: 1px solid var(--cream-border);
+  background: var(--cream-ui);
+  color: #1a1b18;
   font-size: 0.82rem;
   font-weight: 400;
   padding: 0.58rem 0.75rem;
@@ -385,8 +385,8 @@ function emitShape(commit = false) {
 }
 
 .panel-action:hover {
-  filter: brightness(1.05);
-  border-color: #7d9a7d;
+  filter: brightness(0.97);
+  border-color: #a79b89;
 }
 
 .panel-container {

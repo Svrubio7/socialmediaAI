@@ -1,5 +1,5 @@
 <template>
-  <section class="relative min-h-[90vh] flex items-center justify-center overflow-hidden bg-white dark:bg-surface-950">
+  <section class="relative min-h-[90vh] flex items-center justify-center overflow-hidden bg-transparent">
     <!-- Subtle gradient background (dark mode only for glow) -->
     <div class="absolute inset-0 bg-gradient-radial-top opacity-0 dark:opacity-100" aria-hidden="true" />
     

@@ -22,7 +22,7 @@
         <h2 class="text-base font-normal text-surface-100 tracking-tight">{{ sectionTitle }}</h2>
         <button
           type="button"
-          class="h-8 w-8 rounded-md border border-surface-800 text-surface-400 hover:text-surface-100 hover:border-primary-400 transition-colors"
+          class="h-8 w-8 rounded-md cream-btn transition-colors"
           aria-label="Panel options"
         >
           <UiIcon name="PanelLeft" :size="15" class="mx-auto" />
@@ -45,7 +45,7 @@
         <template v-if="activeSection === 'media'">
           <button
             type="button"
-            class="w-full inline-flex items-center justify-center gap-2 rounded-md bg-primary-500 px-3 py-2.5 text-sm font-normal text-surface-50 hover:bg-primary-400 transition-colors"
+            class="w-full inline-flex items-center justify-center gap-2 rounded-md cream-btn px-3 py-2.5 text-sm font-normal transition-colors"
             @click="$emit('import-media')"
           >
             <UiIcon name="Upload" :size="15" />

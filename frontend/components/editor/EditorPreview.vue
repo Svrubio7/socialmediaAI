@@ -2,21 +2,25 @@
   <section class="flex-1 min-h-0 flex flex-col bg-surface-900">
     <div class="flex-1 min-h-0 p-2 lg:p-3">
       <div ref="frameRef" class="relative h-full w-full rounded-xl border border-surface-800 bg-surface-950/70 overflow-hidden">
-        <div class="absolute left-1/2 top-2 z-20 -translate-x-1/2 flex items-center gap-1 rounded-md border border-surface-800 bg-surface-900/90 p-1">
-          <button type="button" class="overlay-tool" aria-label="Crop mode">
-            <UiIcon name="Crop" :size="14" />
-          </button>
-          <button type="button" class="overlay-tool" aria-label="Fit mode">
-            <UiIcon name="Ratio" :size="14" />
-          </button>
-          <button type="button" class="overlay-tool" aria-label="More options">
-            <UiIcon name="MoreHorizontal" :size="14" />
-          </button>
-        </div>
-
         <div class="absolute inset-0">
           <div v-if="renderClips.length === 0" class="absolute inset-0 flex items-center justify-center text-sm text-surface-400">
-            No preview available
+            <template v-if="fallbackMedia">
+              <video
+                v-if="fallbackMedia.type === 'video'"
+                :src="fallbackMedia.src"
+                :poster="fallbackPoster || ''"
+                class="h-full w-full rounded-md border border-surface-700 bg-black object-contain"
+                preload="auto"
+                playsinline
+              />
+              <img
+                v-else
+                :src="fallbackMedia.src"
+                alt="Preview"
+                class="h-full w-full rounded-md border border-surface-700 bg-black object-contain"
+              />
+            </template>
+            <span v-else>No preview available</span>
           </div>
 
           <template v-else>
@@ -29,13 +33,23 @@
               @pointerdown.stop="onClipPointerDown($event, clip)"
             >
               <video
-                v-if="clip.type === 'video'"
+                v-if="clip.type === 'video' && hasPlayableVideo(clip)"
                 :ref="(el) => setVideoRef(clip.id, el as HTMLVideoElement | null)"
+                :key="`${clip.id}-${clip.sourceUrl ?? ''}`"
                 :src="clip.sourceUrl || ''"
+                :poster="clip.posterUrl || ''"
                 class="h-full w-full rounded-md border border-surface-700 bg-black"
                 :style="mediaStyle(clip)"
+                preload="auto"
                 playsinline
                 @loadedmetadata="onVideoMetaLoaded(clip)"
+              />
+              <img
+                v-else-if="clip.type === 'video'"
+                :src="clipPosterSource(clip)"
+                :alt="clip.label"
+                class="h-full w-full rounded-md border border-surface-700 bg-black object-contain"
+                :style="mediaStyle(clip)"
               />
               <img
                 v-else-if="clip.type === 'image'"
@@ -65,7 +79,7 @@
               <button
                 v-if="clip.id === selectedClipId"
                 type="button"
-                class="absolute -bottom-2 -right-2 h-4 w-4 rounded-full border border-surface-50 bg-primary-400"
+                class="absolute -bottom-2 -right-2 h-4 w-4 rounded-full border border-surface-50 bg-[var(--cream-ui)]"
                 aria-label="Resize clip"
                 @pointerdown.stop="onClipPointerDown($event, clip, 'resize')"
               />
@@ -73,18 +87,18 @@
           </template>
         </div>
 
-        <button
-          type="button"
-          class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-16 w-16 rounded-full bg-surface-900/70 border border-surface-50/20 text-surface-50 hover:bg-surface-800 transition-colors"
-          @click="togglePlay"
-          aria-label="Play or pause"
-        >
+    <button
+      type="button"
+      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-16 w-16 rounded-full cream-btn transition-colors"
+      @click="togglePlay"
+      aria-label="Play or pause"
+    >
           <UiIcon :name="playing ? 'Pause' : 'Play'" :size="24" class="mx-auto" />
         </button>
       </div>
     </div>
 
-    <div class="border-t border-surface-800 bg-surface-900 px-3 py-2">
+    <div v-if="showControls" class="border-t border-surface-800 bg-surface-900 px-3 py-2">
       <div class="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
         <button type="button" class="control-btn" @click="seekToStart" aria-label="Skip to start">
           <UiIcon name="ChevronsLeft" :size="16" />
@@ -93,7 +107,7 @@
           <UiIcon name="ChevronLeft" :size="16" />
           <span class="text-[10px] leading-none">5</span>
         </button>
-        <button type="button" class="h-10 w-10 rounded-full bg-primary-500 text-surface-950 hover:bg-primary-400 transition-colors" @click="togglePlay" aria-label="Play or pause">
+        <button type="button" class="h-10 w-10 rounded-full cream-btn transition-colors" @click="togglePlay" aria-label="Play or pause">
           <UiIcon :name="playing ? 'Pause' : 'Play'" :size="18" class="mx-auto" />
         </button>
         <button type="button" class="control-btn" @click="seekBy(5)" aria-label="Seek forward 5 seconds">
@@ -119,7 +133,7 @@
         </div>
         <div class="hidden md:flex items-center gap-2 ml-2">
           <UiIcon name="Volume2" :size="14" class="text-surface-400" />
-          <input v-model.number="volume" type="range" min="0" max="1" step="0.01" class="w-24 accent-primary-500" />
+          <input :value="volumeValue" type="range" min="0" max="1" step="0.01" class="w-24 accent-primary-500" @input="onVolumeInput" />
           <button type="button" class="control-btn" @click="toggleFullscreen" aria-label="Fullscreen">
             <UiIcon name="Maximize" :size="14" />
           </button>
@@ -139,10 +153,18 @@ interface Props {
   currentTime: number
   duration: number
   playing: boolean
+  volume?: number
+  showControls?: boolean
+  fallbackUrl?: string
+  fallbackPoster?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   selectedClipId: null,
+  volume: 1,
+  showControls: true,
+  fallbackUrl: '',
+  fallbackPoster: '',
 })
 
 const {
@@ -156,6 +178,7 @@ const {
 const emit = defineEmits<{
   'update:currentTime': [value: number]
   'update:playing': [value: boolean]
+  'update:volume': [value: number]
   'update:clip': [clipId: string, patch: Partial<EditorClip>]
   'update:clip-meta': [{ clipId: string; duration?: number }]
   'select-clip': [clipId: string]
@@ -165,7 +188,8 @@ const emit = defineEmits<{
 }>()
 
 const frameRef = ref<HTMLDivElement | null>(null)
-const volume = ref(1)
+const volumeValue = computed(() => props.volume ?? 1)
+const fallbackPoster = computed(() => props.fallbackPoster || '')
 
 const videoRefs = new Map<string, HTMLVideoElement>()
 function setVideoRef(id: string, el: HTMLVideoElement | null) {
@@ -174,10 +198,21 @@ function setVideoRef(id: string, el: HTMLVideoElement | null) {
     return
   }
   videoRefs.set(id, el)
-  el.volume = volume.value
+  el.volume = volumeValue.value
+  el.muted = volumeValue.value <= 0
 }
 
 const visualClips = computed(() => clips.value.filter((clip) => clip.type !== 'audio'))
+const fallbackMedia = computed(() => {
+  if (props.fallbackUrl) {
+    if (isLikelyImage(props.fallbackUrl)) {
+      return { type: 'image' as const, src: props.fallbackUrl }
+    }
+    return { type: 'video' as const, src: props.fallbackUrl }
+  }
+  if (props.fallbackPoster) return { type: 'image' as const, src: props.fallbackPoster }
+  return null
+})
 const activeClips = computed(() => {
   const now = currentTime.value
   return visualClips.value.filter((clip) => now >= clip.startTime && now <= clip.startTime + clip.duration)
@@ -192,8 +227,18 @@ const holdFrameClip = computed(() => {
   const sorted = pastVideos.sort((a, b) => (a.startTime + a.duration) - (b.startTime + b.duration))
   return sorted.length ? sorted[sorted.length - 1] : null
 })
+const fallbackVideoClip = computed(() => {
+  if (activeVideoClips.value.length > 0 || holdFrameClip.value) return null
+  return visualClips.value.find((clip) => clip.type === 'video') ?? null
+})
 const renderClips = computed(() => {
-  const base = activeVideoClips.value.length > 0 ? activeVideoClips.value : holdFrameClip.value ? [holdFrameClip.value] : []
+  const base = activeVideoClips.value.length > 0
+    ? activeVideoClips.value
+    : holdFrameClip.value
+      ? [holdFrameClip.value]
+      : fallbackVideoClip.value
+        ? [fallbackVideoClip.value]
+        : []
   const combined = [...base, ...activeNonVideoClips.value]
   return combined.sort((a, b) => (a.layer ?? 1) - (b.layer ?? 1))
 })
@@ -234,10 +279,43 @@ function clipOverlayStyle(clip: EditorClip) {
   }
 }
 
+const imageExtensions = [
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.gif',
+  '.webp',
+  '.bmp',
+  '.svg',
+  '.tiff',
+  '.tif',
+  '.heic',
+  '.heif',
+]
+
+function isLikelyImage(url?: string) {
+  if (!url) return false
+  const clean = url.split('?')[0].toLowerCase()
+  return imageExtensions.some((ext) => clean.endsWith(ext))
+}
+
+function hasPlayableVideo(clip: EditorClip) {
+  if (!clip.sourceUrl) return false
+  return !isLikelyImage(clip.sourceUrl)
+}
+
+function clipPosterSource(clip: EditorClip) {
+  if (clip.posterUrl) return clip.posterUrl
+  if (clip.sourceUrl && isLikelyImage(clip.sourceUrl)) return clip.sourceUrl
+  return fallbackPoster.value
+}
+
 function clipBoxStyle(clip: EditorClip) {
   const position = clip.position ?? { x: 0, y: 0 }
   const size = clip.size ?? { width: 100, height: 100 }
   const rotation = clip.rotation ?? 0
+  const group = clip.layerGroup ?? (clip.type === 'video' ? 'video' : clip.type === 'audio' ? 'audio' : 'graphics')
+  const groupOffset = group === 'graphics' ? 100 : 0
   return {
     left: `${position.x}%`,
     top: `${position.y}%`,
@@ -245,7 +323,7 @@ function clipBoxStyle(clip: EditorClip) {
     height: `${size.height}%`,
     transform: `rotate(${rotation}deg)`,
     opacity: clipOpacity(clip),
-    zIndex: clip.layer ?? 1,
+    zIndex: groupOffset + (clip.layer ?? 1),
     filter: clipFilter(clip),
   }
 }
@@ -272,7 +350,7 @@ function getClipMediaTime(clip: EditorClip) {
   return Math.min(Math.max(trimStart, local), trimEnd)
 }
 
-watch([currentTime, activeVideoClips, holdFrameClip], () => {
+watch([currentTime, activeVideoClips, holdFrameClip, fallbackVideoClip], () => {
   activeVideoClips.value.forEach((clip) => {
     const video = videoRefs.get(clip.id)
     if (!video) return
@@ -290,6 +368,14 @@ watch([currentTime, activeVideoClips, holdFrameClip], () => {
       const trimEnd = holdFrameClip.value.trimEnd ?? holdFrameClip.value.duration
       if (Number.isFinite(trimEnd)) video.currentTime = trimEnd
       video.pause()
+    }
+  }
+
+  if (fallbackVideoClip.value) {
+    const video = videoRefs.get(fallbackVideoClip.value.id)
+    if (video) {
+      const trimStart = fallbackVideoClip.value.trimStart ?? 0
+      if (Number.isFinite(trimStart)) video.currentTime = trimStart
     }
   }
 })
@@ -319,9 +405,10 @@ watch([playing, activeVideoClips], () => {
   syncActiveVideoPlayback()
 })
 
-watch(volume, (next) => {
+watch(volumeValue, (next) => {
   for (const video of videoRefs.values()) {
     video.volume = next
+    video.muted = next <= 0
   }
 })
 
@@ -358,6 +445,12 @@ async function toggleFullscreen() {
     return
   }
   await target.requestFullscreen()
+}
+
+function onVolumeInput(event: Event) {
+  const target = event.target as HTMLInputElement | null
+  const next = Number(target?.value ?? 1)
+  emit('update:volume', Number.isFinite(next) ? next : 1)
 }
 
 type DragMode = 'move' | 'resize'
@@ -437,6 +530,10 @@ function formatTime(seconds: number) {
 onBeforeUnmount(() => {
   onClipPointerUp()
 })
+
+defineExpose({
+  toggleFullscreen,
+})
 </script>
 
 <style scoped>
@@ -444,9 +541,9 @@ onBeforeUnmount(() => {
   height: 1.95rem;
   min-width: 1.95rem;
   border-radius: 0.5rem;
-  border: 1px solid #2b2a25;
-  background: #1a1b18;
-  color: #d4d4d4;
+  border: 1px solid var(--cream-border);
+  background: var(--cream-ui);
+  color: #1a1b18;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -455,9 +552,9 @@ onBeforeUnmount(() => {
 }
 
 .control-btn:hover {
-  color: #f5f5f5;
-  border-color: #7d9a7d;
-  background: #252622;
+  filter: brightness(0.97);
+  border-color: #a79b89;
+  background: var(--cream-ui);
 }
 
 .overlay-tool {

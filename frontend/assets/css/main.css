@@ -4,12 +4,16 @@
 
 @layer base {
   :root {
-    --grid-size: 36px;
+    --grid-size: 64px;
     --grid-line: rgba(0, 0, 0, 0.045);
+    --cream-ui: #bfb5a6;
+    --cream-border: #b1a695;
   }
 
   .dark {
-    --grid-line: rgba(105, 117, 101, 0.08);
+    --grid-line: rgba(105, 117, 101, 0.096);
+    --cream-ui: #bfb5a6;
+    --cream-border: #b1a695;
   }
 
   html {
@@ -17,7 +21,7 @@
   }
 
   body {
-    @apply bg-white text-surface-900 min-h-screen font-mono dark:bg-surface-950 dark:text-surface-200;
+    @apply bg-surface-50 text-surface-900 min-h-screen font-mono dark:bg-surface-950 dark:text-surface-200;
     font-feature-settings: 'kern' 1, 'liga' 1;
     background-image:
       linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
@@ -109,26 +113,32 @@
   }
 
   .btn-primary {
-    @apply btn bg-primary-500 text-white
-           hover:bg-primary-400 hover:-translate-y-0.5 hover:shadow-glow-sm
+    @apply btn
+           hover:-translate-y-0.5 hover:shadow-glow-sm
            active:translate-y-0 active:shadow-none
            focus-visible:ring-primary-500;
+    background-color: var(--cream-ui);
+    color: #1a1b18;
+    border: 1px solid var(--cream-border);
   }
 
   .btn-secondary {
-    @apply btn bg-surface-200 text-surface-900 border border-surface-300
-           hover:bg-surface-300 hover:border-surface-400 hover:text-surface-950
-           dark:bg-surface-800 dark:text-surface-200 dark:border-surface-700
-           dark:hover:bg-surface-700 dark:hover:border-surface-600 dark:hover:text-surface-50
+    @apply btn
            active:translate-y-0
            focus-visible:ring-surface-500;
+    background-color: var(--cream-ui);
+    color: #1a1b18;
+    border: 1px solid var(--cream-border);
   }
 
   .btn-accent {
-    @apply btn bg-accent-200 text-surface-950
-           hover:bg-accent-100 hover:-translate-y-0.5 hover:shadow-glow-accent
+    @apply btn
+           hover:-translate-y-0.5 hover:shadow-glow-accent
            active:translate-y-0 active:shadow-none
            focus-visible:ring-accent-300;
+    background-color: var(--cream-ui);
+    color: #1a1b18;
+    border: 1px solid var(--cream-border);
   }
 
   .btn-ghost {
@@ -149,6 +159,46 @@
     @apply btn bg-transparent text-primary-400 border border-primary-500/50
            hover:bg-primary-500/10 hover:border-primary-400
            focus-visible:ring-primary-500;
+  }
+
+  .btn-primary:hover,
+  .btn-secondary:hover,
+  .btn-accent:hover {
+    filter: brightness(0.97);
+    border-color: #a79b89;
+    background-color: var(--cream-ui);
+  }
+
+  .cream-btn {
+    background-color: var(--cream-ui);
+    color: #1a1b18;
+    border: 1px solid var(--cream-border);
+  }
+
+  .cream-btn:hover {
+    filter: brightness(0.97);
+    border-color: #a79b89;
+  }
+
+  .dark .editor-header button {
+    background-color: var(--cream-ui);
+    color: #1a1b18;
+    border-color: var(--cream-border);
+  }
+
+  .dark .editor-header button:hover {
+    filter: brightness(0.97);
+    border-color: #a79b89;
+  }
+
+  .dark .btn {
+    background-color: var(--cream-ui);
+    color: #1a1b18;
+    border-color: var(--cream-border);
+  }
+
+  .dark .btn:hover {
+    filter: brightness(0.97);
   }
 
   /* Size variants */
@@ -182,10 +232,15 @@
   /* Input styles - match card background (no light boxes) */
   .input {
     @apply w-full px-4 py-3 rounded-xl bg-surface-100 border border-surface-200
-           text-surface-900 placeholder-surface-500 dark:bg-surface-800/50 dark:border-surface-700/60 dark:text-surface-100 dark:placeholder-surface-400 font-sans
+           text-surface-900 placeholder-surface-500 dark:bg-surface-800/50 dark:border-surface-700/60 dark:placeholder-surface-400 font-sans
            transition-all duration-200
            focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:border-primary-500
            disabled:opacity-50 disabled:cursor-not-allowed;
+    color: #121310;
+  }
+
+  .dark .input {
+    color: #e8e8e8;
   }
 
   .input-error {
@@ -198,17 +253,32 @@
 
   /* Card styles */
   .card {
-    @apply bg-accent-100/60 border border-surface-300 rounded-xl p-6 text-surface-900
+    @apply border border-surface-300 rounded-xl p-6
            transition-all duration-300
-           dark:bg-surface-900 dark:border-surface-500/80 dark:text-surface-100;
+           dark:bg-surface-900 dark:border-surface-500/80;
+    background-color: var(--cream-ui);
+    color: #121310;
+  }
+
+  .dark .card {
+    color: #e8e8e8;
+    border-color: rgba(191, 181, 166, 0.35);
   }
 
   .card .text-surface-100 {
-    @apply text-surface-900 dark:text-surface-100;
+    color: #121310;
+  }
+
+  .dark .card .text-surface-100 {
+    color: #e8e8e8;
   }
 
   .card .text-surface-200 {
-    @apply text-surface-800 dark:text-surface-200;
+    color: #1a1b18;
+  }
+
+  .dark .card .text-surface-200 {
+    color: #d4d4d4;
   }
 
   .card-icon {
@@ -221,18 +291,27 @@
 
   .card-hover {
     @apply card
-           hover:border-surface-400 hover:bg-accent-100/80
+           hover:border-surface-400
            hover:-translate-y-1 hover:shadow-xl hover:shadow-surface-900/10
            dark:hover:border-surface-500/90 dark:hover:bg-surface-900/90 dark:hover:shadow-surface-950/60;
+    transition: filter 200ms ease, box-shadow 200ms ease, border-color 200ms ease, transform 200ms ease;
+  }
+
+  .card-hover:hover {
+    filter: brightness(1.03);
   }
 
   .card-interactive {
     @apply card cursor-pointer
-           hover:border-primary-500/40 hover:bg-accent-100/80
+           hover:border-primary-500/40
            hover:-translate-y-1 hover:shadow-xl hover:shadow-black/10
            active:scale-[0.98]
            transition-all duration-200
            dark:hover:bg-surface-800/70 dark:hover:border-primary-400/40;
+  }
+
+  .card-interactive:hover {
+    filter: brightness(1.03);
   }
 
   /* Badge styles */
@@ -293,7 +372,7 @@
 
   /* Section divider - contained within content, not edge-to-edge */
   .section-divider {
-    @apply max-w-4xl mx-auto h-px bg-surface-200 dark:bg-surface-800;
+    @apply max-w-4xl mx-auto h-px bg-transparent;
   }
 
   /* Skeleton loading */
@@ -471,8 +550,3 @@
     transform: translateY(0) scale(1);
   }
 }
-
-
-
-
-

@@ -62,13 +62,19 @@
 
         <div class="flex-1 min-h-0">
           <EditorPreview
+            ref="previewRef"
             :clips="clips"
             :selected-clip-id="selectedClipId"
             :current-time="playheadTime"
             :duration="timelineDuration"
             :playing="isPlaying"
+            :volume="previewVolume"
+            :show-controls="false"
+            :fallback-url="previewUrl"
+            :fallback-poster="previewPoster"
             @update:current-time="setPlayhead"
             @update:playing="isPlaying = $event"
+            @update:volume="previewVolume = $event"
             @update:clip="handleClipUpdate"
             @update:clip-meta="syncClipMeta"
             @select-clip="selectClip"
@@ -79,6 +85,47 @@
         </div>
 
         <div class="hidden lg:block editor-resizer editor-resizer-horizontal" @pointerdown.prevent="startResize('timeline', $event)" />
+
+        <div ref="controlsRef" class="editor-controls">
+          <button type="button" class="editor-btn" @click="seekToStart" aria-label="Skip to start">
+            <UiIcon name="ChevronsLeft" :size="16" />
+          </button>
+          <button type="button" class="editor-btn" @click="seekBy(-5)" aria-label="Seek backward 5 seconds">
+            <UiIcon name="ChevronLeft" :size="16" />
+            <span class="text-[10px] leading-none">5</span>
+          </button>
+          <button type="button" class="editor-btn editor-btn-primary" @click="togglePlay" aria-label="Play or pause">
+            <UiIcon :name="isPlaying ? 'Pause' : 'Play'" :size="18" class="mx-auto" />
+          </button>
+          <button type="button" class="editor-btn" @click="seekBy(5)" aria-label="Seek forward 5 seconds">
+            <span class="text-[10px] leading-none">5</span>
+            <UiIcon name="ChevronRight" :size="16" />
+          </button>
+          <button type="button" class="editor-btn" @click="seekToEnd" aria-label="Skip to end">
+            <UiIcon name="ChevronsRight" :size="16" />
+          </button>
+          <span class="mx-2 text-sm font-normal text-surface-100 tabular-nums">
+            {{ formatTime(playheadTime) }} / {{ formatTime(timelineDuration) }}
+          </span>
+          <div class="hidden lg:flex items-center gap-2">
+            <button type="button" class="editor-btn" @click="splitSelectedClipAtPlayhead" aria-label="Split clip">
+              <UiIcon name="Scissors" :size="14" />
+            </button>
+            <button type="button" class="editor-btn" @click="duplicateSelectedClipAction" aria-label="Duplicate clip">
+              <UiIcon name="Copy" :size="14" />
+            </button>
+            <button type="button" class="editor-btn" @click="removeSelectedClipAction" aria-label="Delete clip">
+              <UiIcon name="Trash2" :size="14" />
+            </button>
+          </div>
+          <div class="hidden md:flex items-center gap-2 ml-2">
+            <UiIcon name="Volume2" :size="14" class="text-surface-400" />
+            <input v-model.number="previewVolume" type="range" min="0" max="1" step="0.01" class="w-24 accent-primary-500" />
+            <button type="button" class="editor-btn" @click="togglePreviewFullscreen" aria-label="Fullscreen">
+              <UiIcon name="Maximize" :size="14" />
+            </button>
+          </div>
+        </div>
 
         <div class="min-h-0" :style="{ height: `${timelineHeight}px` }">
           <EditorTimeline
@@ -96,6 +143,7 @@
             @duplicate="duplicateSelectedClipAction"
             @trim-clip="handleTimelineTrim"
             @move-clip="handleTimelineMove"
+            @add-layer="handleAddLayer"
           />
         </div>
       </div>
@@ -133,7 +181,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { EditorClip, EditorTrack } from '~/composables/useEditorState'
+import type { EditorClip, EditorLayerGroup, EditorTrack } from '~/composables/useEditorState'
 import { useEditorState } from '~/composables/useEditorState'
 
 definePageMeta({
@@ -194,11 +242,15 @@ const activeRightTab = ref('fade')
 const leftCollapsed = ref(false)
 const gridRef = ref<HTMLDivElement | null>(null)
 const centerRef = ref<HTMLDivElement | null>(null)
-const leftWidth = ref(260)
-const rightWidth = ref(260)
+const previewRef = ref<{ toggleFullscreen?: () => void } | null>(null)
+const controlsRef = ref<HTMLDivElement | null>(null)
+const previewVolume = ref(1)
+const leftWidth = ref(220)
+const rightWidth = ref(220)
 const timelineHeight = ref(280)
 const resizerSize = 6
 const previewUrl = ref('')
+const previewPoster = ref('')
 const previewDuration = ref(0)
 const timelineDuration = computed(() => Math.max(duration.value, previewDuration.value, 1))
 const isPlaying = ref(false)
@@ -211,6 +263,12 @@ const outputSettings = ref({
   height: 1080,
   fps: 30,
   bitrate: '8M',
+})
+
+const extraLayers = ref<Record<EditorLayerGroup, number[]>>({
+  video: [],
+  graphics: [],
+  audio: [],
 })
 
 let saveStateTimer: ReturnType<typeof setTimeout> | null = null
@@ -236,20 +294,48 @@ const desktopGridStyle = computed(() => {
 })
 
 const layerTracks = computed<EditorTrack[]>(() => {
-  const layers = new Map<number, EditorClip[]>()
+  const groupOrder: EditorLayerGroup[] = ['video', 'graphics', 'audio']
+  const grouped = new Map<EditorLayerGroup, Map<number, EditorClip[]>>()
+  groupOrder.forEach((group) => grouped.set(group, new Map()))
+
   for (const clip of tracks.value.flatMap((track) => track.clips)) {
+    const group = clip.layerGroup ?? (clip.type === 'audio' ? 'audio' : clip.type === 'video' ? 'video' : 'graphics')
     const layer = clip.layer ?? 1
-    if (!layers.has(layer)) layers.set(layer, [])
-    layers.get(layer)!.push(clip)
+    const groupLayers = grouped.get(group)!
+    if (!groupLayers.has(layer)) groupLayers.set(layer, [])
+    groupLayers.get(layer)!.push(clip)
   }
-  const sortedLayers = Array.from(layers.keys()).sort((a, b) => b - a)
-  return sortedLayers.map((layer) => ({
-    id: `layer-${layer}`,
-    type: 'layer',
-    label: `Layer ${layer}`,
-    layer,
-    clips: layers.get(layer)!.slice().sort((a, b) => a.startTime - b.startTime),
-  }))
+
+  const results: EditorTrack[] = []
+  for (const group of groupOrder) {
+    const groupLayers = grouped.get(group)!
+    const extra = extraLayers.value[group] ?? []
+    extra.forEach((layer) => {
+      if (!groupLayers.has(layer)) groupLayers.set(layer, [])
+    })
+    if (groupLayers.size === 0) groupLayers.set(1, [])
+
+    const sortedLayers = Array.from(groupLayers.keys()).sort((a, b) => b - a)
+    results.push({
+      id: `${group}-header`,
+      type: 'layer',
+      label: `${group.charAt(0).toUpperCase()}${group.slice(1)} layers`,
+      clips: [],
+      group,
+      isHeader: true,
+    })
+    sortedLayers.forEach((layer) => {
+      results.push({
+        id: `${group}-layer-${layer}`,
+        type: 'layer',
+        label: `Layer ${layer}`,
+        layer,
+        group,
+        clips: groupLayers.get(layer)!.slice().sort((a, b) => a.startTime - b.startTime),
+      })
+    })
+  }
+  return results
 })
 
 const workspaceVideoId = computed(() => String(route.params.id))
@@ -308,8 +394,9 @@ function startResize(type: 'left' | 'right' | 'timeline', event: PointerEvent) {
       return
     }
 
-    const pointerOffset = e.clientY - centerRect.top
-    const available = centerRect.height
+    const controlsHeight = controlsRef.value?.getBoundingClientRect().height ?? 0
+    const pointerOffset = e.clientY - centerRect.top - controlsHeight - resizerSize
+    const available = centerRect.height - controlsHeight - resizerSize
     const maxTimeline = Math.max(minTimeline, available - minPreview)
     timelineHeight.value = clamp(available - pointerOffset, minTimeline, maxTimeline)
   }
@@ -330,25 +417,31 @@ function syncTimelineHeight() {
   const center = centerRef.value
   if (!center) return
   const rect = center.getBoundingClientRect()
+  const controlsHeight = controlsRef.value?.getBoundingClientRect().height ?? 0
   const minTimeline = 200
   const minPreview = 240
-  const maxTimeline = Math.max(minTimeline, rect.height - minPreview)
+  const maxTimeline = Math.max(minTimeline, rect.height - controlsHeight - resizerSize - minPreview)
   timelineHeight.value = clamp(timelineHeight.value, minTimeline, maxTimeline)
 }
 
 async function loadWorkspace() {
   try {
     const source = await api.videos.get(workspaceVideoId.value)
-    previewUrl.value = source?.video_url || source?.thumbnail_url || ''
+    const videoUrl = source?.video_url || ''
+    const posterUrl = source?.thumbnail_url || ''
+    previewUrl.value = videoUrl
+    previewPoster.value = posterUrl || ''
     previewDuration.value = Number(source?.duration) || 1
     setProjectName(source?.original_filename || source?.filename || 'Untitled video')
     setSourceVideoClip({
       sourceId: workspaceVideoId.value,
-      sourceUrl: previewUrl.value,
+      sourceUrl: videoUrl,
+      posterUrl,
       label: source?.original_filename || source?.filename || 'Source clip',
       duration: Number(source?.duration) || 1,
       aspectRatio: inferAspectRatio(source?.width, source?.height),
     })
+    extraLayers.value = { video: [], graphics: [], audio: [] }
     outputSettings.value.width = Number(source?.width) || outputSettings.value.width
     outputSettings.value.height = Number(source?.height) || outputSettings.value.height
     await loadMediaLibrary()
@@ -457,7 +550,7 @@ async function onImportSelected(event: Event) {
 }
 
 function handleAddText(styleName: string) {
-  const layer = selectedClip.value?.layer
+  const layer = resolveLayerForGroup('graphics')
   const clip = addClip('graphics', {
     type: 'text',
     label: styleName,
@@ -465,6 +558,7 @@ function handleAddText(styleName: string) {
     startTime: playheadTime.value,
     duration: 3,
     layer,
+    layerGroup: 'graphics',
     position: { x: 28, y: 22 },
     size: { width: 42, height: 18 },
     lockAspectRatio: false,
@@ -477,13 +571,14 @@ function handleAddText(styleName: string) {
 }
 
 function handleAddShape(shapeName: string) {
-  const layer = selectedClip.value?.layer
+  const layer = resolveLayerForGroup('graphics')
   const clip = addClip('graphics', {
     type: 'shape',
     label: shapeName,
     startTime: playheadTime.value,
     duration: 5,
     layer,
+    layerGroup: 'graphics',
     position: { x: 24, y: 18 },
     size: { width: 38, height: 38 },
     lockAspectRatio: false,
@@ -514,7 +609,11 @@ function handleAddTransition(transitionName: string) {
 }
 
 async function handleAddMedia(item: MediaLibraryItem) {
-  const layer = selectedClip.value?.layer
+  const layer = item.type === 'audio'
+    ? resolveLayerForGroup('audio')
+    : item.type === 'video'
+      ? resolveLayerForGroup('video')
+      : resolveLayerForGroup('graphics')
   if (item.type === 'video') {
     addClip('video', {
       type: 'video',
@@ -522,8 +621,10 @@ async function handleAddMedia(item: MediaLibraryItem) {
       startTime: duration.value,
       duration: item.duration ?? 4,
       layer,
+      layerGroup: 'video',
       sourceId: item.sourceId,
       sourceUrl: item.sourceUrl,
+      posterUrl: item.thumbnail ?? item.sourceUrl,
       position: { x: 0, y: 0 },
       size: { width: 100, height: 100 },
       effects: { speed: 1, fadeIn: 0, fadeOut: 0, filter: 'None' },
@@ -540,6 +641,7 @@ async function handleAddMedia(item: MediaLibraryItem) {
       startTime: playheadTime.value,
       duration: 6,
       layer,
+      layerGroup: 'audio',
       sourceId: item.sourceId,
       sourceUrl: item.sourceUrl,
     })
@@ -554,6 +656,7 @@ async function handleAddMedia(item: MediaLibraryItem) {
     startTime: playheadTime.value,
     duration: 3,
     layer,
+    layerGroup: 'graphics',
     sourceId: item.sourceId,
     sourceUrl: item.sourceUrl,
     position: { x: 30, y: 18 },
@@ -660,14 +763,69 @@ function handleTimelineTrim(payload: { clipId: string; startTime: number; durati
   }
 }
 
-function handleTimelineMove(payload: { clipId: string; startTime: number; layer?: number }) {
+function handleTimelineMove(payload: { clipId: string; startTime: number; layer?: number; group?: EditorLayerGroup; createLayer?: boolean }) {
   const clip = tracks.value.flatMap((track) => track.clips).find((entry) => entry.id === payload.clipId)
   if (!clip) return
+  let nextLayer = payload.layer ?? clip.layer
+  if (payload.createLayer && payload.group) {
+    nextLayer = addLayer(payload.group)
+  }
   updateClip(payload.clipId, {
     startTime: payload.startTime,
-    layer: payload.layer ?? clip.layer,
+    layer: nextLayer ?? clip.layer,
   })
   markLocalSaving()
+}
+
+function addLayer(group: EditorLayerGroup) {
+  const existing = layerTracks.value.filter((track) => track.group === group && !track.isHeader).map((track) => track.layer ?? 0)
+  const next = Math.max(0, ...existing) + 1
+  const current = new Set(extraLayers.value[group] ?? [])
+  current.add(next)
+  extraLayers.value[group] = Array.from(current)
+  markLocalSaving()
+  return next
+}
+
+function resolveLayerForGroup(group: EditorLayerGroup) {
+  const clip = selectedClip.value
+  if (!clip) return undefined
+  const clipGroup = clip.layerGroup ?? (clip.type === 'audio' ? 'audio' : clip.type === 'video' ? 'video' : 'graphics')
+  if (clipGroup !== group) return undefined
+  return clip.layer
+}
+
+function handleAddLayer(payload: { group: EditorLayerGroup }) {
+  addLayer(payload.group)
+}
+
+function togglePlay() {
+  isPlaying.value = !isPlaying.value
+}
+
+function seekBy(seconds: number) {
+  const next = Math.min(Math.max(0, playheadTime.value + seconds), timelineDuration.value)
+  setPlayhead(next)
+}
+
+function seekToStart() {
+  setPlayhead(0)
+}
+
+function seekToEnd() {
+  setPlayhead(timelineDuration.value)
+}
+
+function formatTime(seconds: number) {
+  if (!Number.isFinite(seconds)) return '0:00.00'
+  const min = Math.floor(seconds / 60)
+  const sec = Math.floor(seconds % 60)
+  const hundredths = Math.floor((seconds % 1) * 100)
+  return `${min}:${sec.toString().padStart(2, '0')}.${hundredths.toString().padStart(2, '0')}`
+}
+
+function togglePreviewFullscreen() {
+  previewRef.value?.toggleFullscreen?.()
 }
 
 async function executeEditorOp(op: string, params: Record<string, unknown>, successMessage?: string) {
@@ -929,4 +1087,54 @@ onBeforeUnmount(() => {
   cursor: row-resize;
   height: 6px;
 }
+
+.editor-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-top: 1px solid var(--cream-border);
+  background: rgba(191, 181, 166, 0.72);
+}
+
+.editor-btn {
+  height: 1.95rem;
+  min-width: 1.95rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--cream-border);
+  background: var(--cream-ui);
+  color: #1a1b18;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  padding: 0 0.35rem;
+  font-size: 0.72rem;
+  transition: color 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.editor-btn:hover {
+  filter: brightness(0.97);
+  border-color: #a79b89;
+  background: var(--cream-ui);
+}
+
+.dark .editor-controls {
+  border-top: 1px solid #2b2a25;
+  background: rgba(18, 19, 16, 0.9);
+}
+
+.editor-btn-primary {
+  background: var(--cream-ui);
+  color: #1a1b18;
+  border-color: var(--cream-border);
+}
+
+.editor-btn-primary:hover {
+  filter: brightness(0.97);
+  background: var(--cream-ui);
+}
+
 </style>

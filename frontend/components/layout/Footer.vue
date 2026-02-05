@@ -1,5 +1,5 @@
 <template>
-  <footer class="border-t border-surface-200 bg-surface-100 dark:border-surface-800 dark:bg-surface-950">
+  <footer class="bg-surface-50 dark:bg-surface-950">
     <div class="container-wide">
       <!-- Main Footer -->
       <div class="py-16 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8 lg:gap-12">
@@ -90,7 +90,7 @@
       </div>
       
       <!-- Bottom Bar -->
-      <div class="border-t border-surface-200 dark:border-surface-800 py-6">
+      <div class="py-6">
         <div class="flex flex-col md:flex-row items-center justify-between gap-4">
           <p class="font-mono text-surface-600 text-sm dark:text-surface-600">
             © {{ new Date().getFullYear() }} {{ $t('footer.copyright') }}

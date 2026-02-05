@@ -3,7 +3,6 @@
     <!-- Hero Section -->
     <section class="relative pt-32 pb-20 lg:pt-40 lg:pb-24">
       <!-- Background -->
-      <div class="absolute inset-0 bg-surface-950" />
       <div class="absolute inset-0 bg-gradient-radial-top" />
       
       <div class="relative container-wide">
@@ -12,7 +11,7 @@
           <h1 class="text-3xl sm:text-4xl lg:text-5xl font-mono tracking-tight text-balance mb-4">
             Get in <span class="gradient-text">touch</span>
           </h1>
-          <p class="text-lg text-surface-400 leading-relaxed font-mono">
+          <p class="text-lg text-surface-600 dark:text-surface-400 leading-relaxed font-mono">
             Have questions about ElevoAI? We'd love to hear from you.
           </p>
         </div>
@@ -28,7 +27,7 @@
         <div class="grid lg:grid-cols-2 gap-12 lg:gap-16 max-w-5xl mx-auto">
           <!-- Form -->
           <div class="card p-8">
-            <h2 class="text-xl font-mono text-surface-50 mb-6">Send us a message</h2>
+            <h2 class="text-xl font-mono text-surface-900 dark:text-surface-50 mb-6">Send us a message</h2>
             <form @submit.prevent="handleSubmit" class="space-y-5">
               <div class="grid sm:grid-cols-2 gap-5">
                 <UiInput
@@ -73,8 +72,8 @@
           <!-- Contact Info -->
           <div class="space-y-8">
             <div>
-              <h2 class="text-xl font-mono text-surface-50 mb-3">Contact Information</h2>
-              <p class="text-surface-500 text-sm leading-relaxed font-mono">
+              <h2 class="text-xl font-mono text-surface-900 dark:text-surface-50 mb-3">Contact Information</h2>
+              <p class="text-surface-600 dark:text-surface-500 text-sm leading-relaxed font-mono">
                 Reach out through any of these channels. We typically respond within 24 hours.
               </p>
             </div>
@@ -85,8 +84,8 @@
                   <UiIcon name="Mail" :size="20" class="text-primary-400" />
                 </div>
                 <div>
-                  <h3 class="font-mono text-surface-200 mb-1 text-sm">Email</h3>
-                  <p class="text-surface-500 text-sm font-mono">hello@elevoai.com</p>
+                  <h3 class="font-mono text-surface-900 dark:text-surface-200 mb-1 text-sm">Email</h3>
+                  <p class="text-surface-600 dark:text-surface-500 text-sm font-mono">hello@elevoai.com</p>
                 </div>
               </div>
               
@@ -95,8 +94,8 @@
                   <UiIcon name="MessageCircle" :size="20" class="text-accent-200" />
                 </div>
                 <div>
-                  <h3 class="font-mono text-surface-200 mb-1 text-sm">Live Chat</h3>
-                  <p class="text-surface-500 text-sm font-mono">Mon-Fri, 9am-6pm EST</p>
+                  <h3 class="font-mono text-surface-900 dark:text-surface-200 mb-1 text-sm">Live Chat</h3>
+                  <p class="text-surface-600 dark:text-surface-500 text-sm font-mono">Mon-Fri, 9am-6pm EST</p>
                 </div>
               </div>
               
@@ -105,23 +104,23 @@
                   <UiIcon name="MapPin" :size="20" class="text-emerald-400" />
                 </div>
                 <div>
-                  <h3 class="font-mono text-surface-200 mb-1 text-sm">Location</h3>
-                  <p class="text-surface-500 text-sm font-mono">San Francisco, CA</p>
+                  <h3 class="font-mono text-surface-900 dark:text-surface-200 mb-1 text-sm">Location</h3>
+                  <p class="text-surface-600 dark:text-surface-500 text-sm font-mono">San Francisco, CA</p>
                 </div>
               </div>
             </div>
             
             <!-- Social Links -->
             <div>
-              <h3 class="font-mono text-surface-200 mb-3 text-sm">Follow Us</h3>
+              <h3 class="font-mono text-surface-900 dark:text-surface-200 mb-3 text-sm">Follow Us</h3>
               <div class="flex items-center gap-2">
-                <a href="#" class="p-2.5 rounded-lg bg-surface-800 text-surface-500 hover:text-surface-200 transition-colors">
+                <a href="#" class="p-2.5 rounded-lg bg-surface-200 dark:bg-surface-800 text-surface-600 dark:text-surface-500 hover:text-surface-900 dark:hover:text-surface-200 transition-colors">
                   <UiIcon name="Twitter" :size="18" />
                 </a>
-                <a href="#" class="p-2.5 rounded-lg bg-surface-800 text-surface-500 hover:text-surface-200 transition-colors">
+                <a href="#" class="p-2.5 rounded-lg bg-surface-200 dark:bg-surface-800 text-surface-600 dark:text-surface-500 hover:text-surface-900 dark:hover:text-surface-200 transition-colors">
                   <UiIcon name="Linkedin" :size="18" />
                 </a>
-                <a href="#" class="p-2.5 rounded-lg bg-surface-800 text-surface-500 hover:text-surface-200 transition-colors">
+                <a href="#" class="p-2.5 rounded-lg bg-surface-200 dark:bg-surface-800 text-surface-600 dark:text-surface-500 hover:text-surface-900 dark:hover:text-surface-200 transition-colors">
                   <UiIcon name="Github" :size="18" />
                 </a>
               </div>

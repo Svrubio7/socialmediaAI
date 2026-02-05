@@ -57,38 +57,57 @@
             :key="track.id"
             class="relative flex items-center gap-2"
             :class="hoverLayerId === track.id ? 'bg-primary-500/5 rounded-lg' : ''"
+            :ref="(el) => setTrackRowRef(track.id, el as HTMLElement | null)"
           >
             <div
-              class="w-20 shrink-0 px-2 text-xs uppercase tracking-wide text-surface-100"
-              @wheel.prevent="onLabelWheel"
+              v-if="track.isHeader"
+              class="w-full px-2 text-xs uppercase tracking-widest text-surface-400"
+              :class="hoverCreateGroup === track.group ? 'text-primary-200' : ''"
             >
               {{ track.label }}
             </div>
-            <div class="relative flex-1 h-14 rounded-lg border border-surface-800 bg-surface-950/80">
-              <button
-                v-for="clip in track.clips"
-                :key="clip.id"
-                type="button"
-                class="group absolute top-1 h-12 rounded-md border text-left transition-all cursor-grab active:cursor-grabbing"
-                :class="clip.id === selectedClipId ? 'border-primary-500 bg-primary-500/15 text-surface-100 shadow-[0_0_0_1px_rgba(105,117,101,.3)]' : 'border-surface-700 bg-surface-800 text-surface-100 hover:border-primary-400'"
-                :style="clipStyle(clip)"
-                @pointerdown.stop="startClipDrag($event, clip.id)"
+            <template v-else>
+              <div
+                class="w-20 shrink-0 px-2 text-xs uppercase tracking-wide text-surface-100 flex items-center gap-1 group"
+                @wheel.prevent="onLabelWheel"
+                @contextmenu.prevent="emit('add-layer', { group: track.group ?? 'graphics' })"
               >
-                <span class="block truncate px-3 pt-1 text-xs font-normal">{{ clip.label }}</span>
-                <span class="block px-3 text-[11px] text-surface-300/80">{{ formatDuration(clip.duration) }}</span>
+                <span class="flex-1">{{ track.label }}</span>
+                <button
+                  type="button"
+                  class="opacity-0 group-hover:opacity-100 transition-opacity text-surface-400 hover:text-surface-100"
+                  @click.stop="emit('add-layer', { group: track.group ?? 'graphics' })"
+                  aria-label="Add layer"
+                >
+                  <UiIcon name="Plus" :size="12" />
+                </button>
+              </div>
+              <div class="relative flex-1 h-14 rounded-lg border border-surface-800 bg-surface-950/80">
+                <button
+                  v-for="clip in track.clips"
+                  :key="clip.id"
+                  type="button"
+                  class="group absolute top-1 h-12 rounded-md border text-left transition-all cursor-grab active:cursor-grabbing"
+                  :class="clip.id === selectedClipId ? 'border-primary-500 bg-primary-500/15 text-surface-100 shadow-[0_0_0_1px_rgba(105,117,101,.3)]' : 'border-surface-700 bg-surface-800 text-surface-100 hover:border-primary-400'"
+                  :style="clipStyle(clip)"
+                  @pointerdown.stop="startClipDrag($event, clip.id)"
+                >
+                  <span class="block truncate px-3 pt-1 text-xs font-normal">{{ clip.label }}</span>
+                  <span class="block px-3 text-[11px] text-surface-300/80">{{ formatDuration(clip.duration) }}</span>
 
-                <span
-                  v-if="clip.id === selectedClipId"
-                  class="trim-handle left-0"
-                  @pointerdown.stop="startTrim($event, clip.id, 'start')"
-                />
-                <span
-                  v-if="clip.id === selectedClipId"
-                  class="trim-handle right-0"
-                  @pointerdown.stop="startTrim($event, clip.id, 'end')"
-                />
-              </button>
-            </div>
+                  <span
+                    v-if="clip.id === selectedClipId"
+                    class="trim-handle left-0"
+                    @pointerdown.stop="startTrim($event, clip.id, 'start')"
+                  />
+                  <span
+                    v-if="clip.id === selectedClipId"
+                    class="trim-handle right-0"
+                    @pointerdown.stop="startTrim($event, clip.id, 'end')"
+                  />
+                </button>
+              </div>
+            </template>
           </div>
         </div>
 
@@ -112,7 +131,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, toRefs } from 'vue'
-import type { EditorClip, EditorTrack } from '~/composables/useEditorState'
+import type { EditorClip, EditorLayerGroup, EditorTrack } from '~/composables/useEditorState'
 
 interface Props {
   tracks: EditorTrack[]
@@ -142,13 +161,16 @@ const emit = defineEmits<{
   delete: []
   duplicate: []
   'trim-clip': [{ clipId: string; startTime: number; duration: number }]
-  'move-clip': [{ clipId: string; startTime: number; layer?: number }]
+  'move-clip': [{ clipId: string; startTime: number; layer?: number; group?: EditorLayerGroup; createLayer?: boolean }]
+  'add-layer': [{ group: EditorLayerGroup }]
 }>()
 
 const viewportRef = ref<HTMLDivElement | null>(null)
 const tracksRef = ref<HTMLDivElement | null>(null)
 const temporaryClipBounds = ref<Record<string, { startTime: number; duration: number }>>({})
 const hoverLayerId = ref<string | null>(null)
+const hoverCreateGroup = ref<EditorLayerGroup | null>(null)
+const trackRowRefs = new Map<string, HTMLElement>()
 
 const labelWidth = 80
 
@@ -254,6 +276,7 @@ const clipDragState = ref<{
   startY: number
   originStart: number
   originLayer?: number
+  originGroup?: EditorLayerGroup
   duration: number
   pointerId: number
 } | null>(null)
@@ -261,6 +284,7 @@ const clipDragState = ref<{
 function startClipDrag(event: PointerEvent, clipId: string) {
   const clip = props.tracks.flatMap((track) => track.clips).find((item) => item.id === clipId)
   if (!clip) return
+  const group = clip.layerGroup ?? (clip.type === 'audio' ? 'audio' : clip.type === 'video' ? 'video' : 'graphics')
   emit('select-clip', clipId)
   clipDragState.value = {
     clipId,
@@ -268,6 +292,7 @@ function startClipDrag(event: PointerEvent, clipId: string) {
     startY: event.clientY,
     originStart: clip.startTime,
     originLayer: clip.layer,
+    originGroup: group,
     duration: clip.duration,
     pointerId: event.pointerId,
   }
@@ -276,15 +301,33 @@ function startClipDrag(event: PointerEvent, clipId: string) {
   window.addEventListener('pointerup', onClipDragEnd)
 }
 
+function setTrackRowRef(id: string, el: HTMLElement | null) {
+  if (!el) {
+    trackRowRefs.delete(id)
+    return
+  }
+  trackRowRefs.set(id, el)
+}
+
 function getTrackAtPointer(clientY: number) {
-  const container = tracksRef.value
-  const viewport = viewportRef.value
-  if (!container || !viewport) return null
-  const rect = container.getBoundingClientRect()
-  const relativeY = clientY - rect.top + viewport.scrollTop
-  const rowHeight = 64
-  const index = Math.max(0, Math.min(props.tracks.length - 1, Math.floor(relativeY / rowHeight)))
-  return props.tracks[index] ?? null
+  for (const track of props.tracks) {
+    if (track.isHeader) continue
+    const el = trackRowRefs.get(track.id)
+    if (!el) continue
+    const rect = el.getBoundingClientRect()
+    if (clientY >= rect.top && clientY <= rect.bottom) return track
+  }
+  return null
+}
+
+function getGroupTopRect(group: EditorLayerGroup) {
+  for (const track of props.tracks) {
+    if (track.isHeader) continue
+    if (track.group !== group) continue
+    const el = trackRowRefs.get(track.id)
+    if (el) return el.getBoundingClientRect()
+  }
+  return null
 }
 
 function onClipDragMove(event: PointerEvent) {
@@ -297,7 +340,18 @@ function onClipDragMove(event: PointerEvent) {
     duration: state.duration,
   }
   const targetTrack = getTrackAtPointer(event.clientY)
-  hoverLayerId.value = targetTrack?.id ?? null
+  if (targetTrack && targetTrack.group === state.originGroup) {
+    hoverLayerId.value = targetTrack.id
+  } else {
+    hoverLayerId.value = null
+  }
+
+  const topRect = state.originGroup ? getGroupTopRect(state.originGroup) : null
+  if (topRect && event.clientY < topRect.top - 6) {
+    hoverCreateGroup.value = state.originGroup ?? null
+  } else {
+    hoverCreateGroup.value = null
+  }
 }
 
 function onClipDragEnd() {
@@ -308,14 +362,25 @@ function onClipDragEnd() {
     ? props.tracks.find((track) => track.id === hoverLayerId.value)
     : null
   if (finalBounds) {
-    emit('move-clip', {
-      clipId: state.clipId,
-      startTime: finalBounds.startTime,
-      layer: targetTrack?.layer ?? state.originLayer,
-    })
+    if (hoverCreateGroup.value && hoverCreateGroup.value === state.originGroup) {
+      emit('move-clip', {
+        clipId: state.clipId,
+        startTime: finalBounds.startTime,
+        group: state.originGroup,
+        createLayer: true,
+      })
+    } else {
+      emit('move-clip', {
+        clipId: state.clipId,
+        startTime: finalBounds.startTime,
+        layer: targetTrack?.layer ?? state.originLayer,
+        group: state.originGroup,
+      })
+    }
   }
   clipDragState.value = null
   hoverLayerId.value = null
+  hoverCreateGroup.value = null
   temporaryClipBounds.value = {}
   window.removeEventListener('pointermove', onClipDragMove)
   window.removeEventListener('pointerup', onClipDragEnd)
@@ -398,9 +463,9 @@ onBeforeUnmount(() => {
 .tool-btn {
   height: 1.9rem;
   border-radius: 0.45rem;
-  border: 1px solid #2b2a25;
-  background: #1a1b18;
-  color: #d4d4d4;
+  border: 1px solid var(--cream-border);
+  background: var(--cream-ui);
+  color: #1a1b18;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -410,9 +475,9 @@ onBeforeUnmount(() => {
 }
 
 .tool-btn:hover {
-  color: #f5f5f5;
-  border-color: #7d9a7d;
-  background: #252622;
+  filter: brightness(0.97);
+  border-color: #a79b89;
+  background: var(--cream-ui);
 }
 
 .trim-handle {

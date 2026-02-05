@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 
 export type EditorTrackType = 'video' | 'graphics' | 'audio' | 'layer'
 export type EditorClipType = 'video' | 'text' | 'image' | 'shape' | 'audio'
+export type EditorLayerGroup = 'video' | 'graphics' | 'audio'
 export type EditorFitMode = 'fit' | 'fill' | 'stretch'
 
 export interface EditorClip {
@@ -11,8 +12,10 @@ export interface EditorClip {
   startTime: number
   duration: number
   layer?: number
+  layerGroup?: EditorLayerGroup
   sourceId?: string
   sourceUrl?: string
+  posterUrl?: string
   trimStart?: number
   trimEnd?: number
   aspectRatio?: string
@@ -49,6 +52,8 @@ export interface EditorTrack {
   label: string
   clips: EditorClip[]
   layer?: number
+  group?: EditorLayerGroup
+  isHeader?: boolean
 }
 
 interface EditorSnapshot {
@@ -140,9 +145,16 @@ export function useEditorState() {
     redoStack.value = []
   }
 
-  function nextLayerIndex() {
+  function inferLayerGroup(type: EditorClipType): EditorLayerGroup {
+    if (type === 'audio') return 'audio'
+    if (type === 'video') return 'video'
+    return 'graphics'
+  }
+
+  function nextLayerIndex(group: EditorLayerGroup) {
     const maxLayer = tracks.value
       .flatMap((track) => track.clips)
+      .filter((clip) => (clip.layerGroup ?? inferLayerGroup(clip.type)) === group)
       .reduce((max, clip) => Math.max(max, clip.layer ?? 0), 0)
     return maxLayer + 1
   }
@@ -158,6 +170,7 @@ export function useEditorState() {
   function setSourceVideoClip(payload: {
     sourceId: string
     sourceUrl?: string
+    posterUrl?: string
     label: string
     duration: number
     aspectRatio?: string
@@ -170,11 +183,13 @@ export function useEditorState() {
       label: payload.label || 'Video clip',
       startTime: 0,
       duration: Math.max(MIN_DURATION, payload.duration || 1),
-      layer: 2,
+      layer: 1,
+      layerGroup: 'video',
       position: { x: 0, y: 0 },
       size: { width: 100, height: 100 },
       sourceId: payload.sourceId,
       sourceUrl: payload.sourceUrl,
+      posterUrl: payload.posterUrl,
       trimStart: 0,
       trimEnd: Math.max(MIN_DURATION, payload.duration || 1),
       aspectRatio: payload.aspectRatio ?? '16:9',
@@ -203,6 +218,7 @@ export function useEditorState() {
       startTime: 0,
       duration: Math.max(MIN_DURATION, payload.duration || 1),
       layer: 1,
+      layerGroup: 'audio',
       sourceId: payload.sourceId,
     }
 
@@ -234,15 +250,20 @@ export function useEditorState() {
       overlayBlend: 'soft-light',
     }
 
+    const resolvedType = (clipInput.type ?? (trackType === 'audio' ? 'audio' : trackType === 'video' ? 'video' : 'shape')) as EditorClipType
+    const resolvedGroup = clipInput.layerGroup ?? inferLayerGroup(resolvedType)
+
     const clip: EditorClip = {
       id: clipInput.id ?? nextClipId(trackType),
-      type: (clipInput.type ?? (trackType === 'audio' ? 'audio' : trackType === 'video' ? 'video' : 'shape')) as EditorClipType,
+      type: resolvedType,
       label: clipInput.label ?? 'Clip',
       startTime: Math.max(0, clipInput.startTime ?? playheadTime.value),
       duration: Math.max(MIN_DURATION, clipInput.duration ?? 3),
-      layer: clipInput.layer ?? nextLayerIndex(),
+      layer: clipInput.layer ?? nextLayerIndex(resolvedGroup),
+      layerGroup: resolvedGroup,
       sourceId: clipInput.sourceId,
       sourceUrl: clipInput.sourceUrl,
+      posterUrl: clipInput.posterUrl,
       trimStart: clipInput.trimStart,
       trimEnd: clipInput.trimEnd,
       aspectRatio: clipInput.aspectRatio,
@@ -304,7 +325,9 @@ export function useEditorState() {
     const clip = deepClone(selectedClip.value)
     clip.id = nextClipId('dup')
     clip.startTime = clip.startTime + 0.35
-    clip.layer = selectedClip.value?.layer ?? clip.layer ?? nextLayerIndex()
+    const group = clip.layerGroup ?? inferLayerGroup(clip.type)
+    clip.layerGroup = group
+    clip.layer = selectedClip.value?.layer ?? clip.layer ?? nextLayerIndex(group)
 
     const track = tracks.value.find((item) => {
       if (clip.type === 'audio') return item.type === 'audio'

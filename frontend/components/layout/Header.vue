@@ -2,7 +2,7 @@
   <header 
     class="fixed top-0 left-0 right-0 z-50 transition-colors duration-200"
     :class="isScrolled 
-      ? 'bg-white/90 dark:bg-surface-950/90 backdrop-blur-[24px] border-b border-surface-200/80 dark:border-white/10 shadow-sm dark:shadow-black/20' 
+      ? 'bg-surface-50/90 dark:bg-surface-950/90 backdrop-blur-[24px] border-b border-surface-200/80 dark:border-white/10 shadow-sm dark:shadow-black/20' 
       : 'bg-transparent'"
   >
     <div class="container-wide">

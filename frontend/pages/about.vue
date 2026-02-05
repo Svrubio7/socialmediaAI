@@ -3,7 +3,6 @@
     <!-- Hero Section -->
     <section class="relative pt-32 pb-16 lg:pt-40 lg:pb-20">
       <!-- Background -->
-      <div class="absolute inset-0 bg-surface-950" />
       <div class="absolute inset-0 bg-gradient-radial-top" />
       
       <div class="relative container-wide">
@@ -13,7 +12,7 @@
             {{ $t('about.title') }}
             <span class="gradient-text">{{ $t('about.titleHighlight') }}</span>
           </h1>
-          <p class="text-lg text-surface-400 leading-relaxed font-mono">
+          <p class="text-lg text-surface-600 dark:text-surface-400 leading-relaxed font-mono">
             {{ $t('about.subtitle') }}
           </p>
         </div>
@@ -27,10 +26,10 @@
         <div class="section-divider mb-12" />
         
         <div class="max-w-2xl mx-auto">
-          <h2 class="text-2xl font-mono text-surface-50 mb-6">
+          <h2 class="text-2xl font-mono text-surface-900 dark:text-surface-50 mb-6">
             {{ $t('about.story.title') }}
           </h2>
-          <div class="space-y-4 text-surface-400 leading-relaxed font-mono">
+          <div class="space-y-4 text-surface-700 dark:text-surface-400 leading-relaxed font-mono">
             <p>{{ $t('about.story.p1') }}</p>
             <p>{{ $t('about.story.p2') }}</p>
             <p>{{ $t('about.story.p3') }}</p>
@@ -50,10 +49,10 @@
             <div class="w-14 h-14 rounded-xl bg-primary-500/15 flex items-center justify-center mx-auto mb-6">
               <UiIcon name="Target" :size="28" class="text-primary-400" />
             </div>
-            <h2 class="text-2xl font-mono text-surface-50 mb-4">
+            <h2 class="text-2xl font-mono text-surface-900 dark:text-surface-50 mb-4">
               {{ $t('about.mission.title') }}
             </h2>
-            <p class="text-surface-400 max-w-xl mx-auto leading-relaxed font-mono">
+            <p class="text-surface-700 dark:text-surface-400 max-w-xl mx-auto leading-relaxed font-mono">
               {{ $t('about.mission.description') }}
             </p>
           </div>
@@ -67,7 +66,7 @@
     <!-- Values -->
     <section class="py-12 md:py-16">
       <div class="container-wide">
-        <h2 class="text-2xl font-mono text-surface-50 text-center mb-10">
+        <h2 class="text-2xl font-mono text-surface-900 dark:text-surface-50 text-center mb-10">
           {{ $t('about.values.title') }}
         </h2>
         
@@ -79,10 +78,10 @@
             >
               <UiIcon :name="value.icon" :size="24" :class="value.iconColor" />
             </div>
-            <h3 class="text-lg font-mono text-surface-50 mb-2">
+            <h3 class="text-lg font-mono text-surface-900 dark:text-surface-50 mb-2">
               {{ $t(value.titleKey) }}
             </h3>
-            <p class="text-surface-400 text-sm leading-relaxed font-mono">
+            <p class="text-surface-700 dark:text-surface-400 text-sm leading-relaxed font-mono">
               {{ $t(value.descKey) }}
             </p>
           </div>
@@ -98,8 +97,8 @@
       <div class="container-wide">
         <div class="image-placeholder aspect-[2/1] max-w-4xl mx-auto p-8">
           <div class="flex flex-col items-center gap-3">
-            <UiIcon name="Users" :size="48" class="text-surface-600" />
-            <span class="text-sm text-surface-500 font-mono">Team Photo Placeholder</span>
+            <UiIcon name="Users" :size="48" class="text-surface-600 dark:text-surface-500" />
+            <span class="text-sm text-surface-600 dark:text-surface-500 font-mono">Team Photo Placeholder</span>
           </div>
         </div>
       </div>

@@ -19,7 +19,19 @@ from app.services.storage_service import LocalStorageService
 router = APIRouter()
 storage = LocalStorageService()
 
-ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
+ALLOWED_EXTENSIONS = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".bmp",
+    ".tiff",
+    ".tif",
+    ".heic",
+    ".heif",
+}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 ASSET_TYPES = ["logo", "image", "watermark"]
 
