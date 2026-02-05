@@ -2,8 +2,8 @@
   <div class="container-wide py-8 lg:py-10">
     <!-- Header -->
     <div class="mb-6 lg:mb-8">
-      <h1 class="text-xl lg:text-2xl font-mono font-normal text-surface-100">Dashboard</h1>
-      <p class="text-surface-400 mt-1 text-sm">Welcome back! Here's an overview of your content.</p>
+      <h1 class="text-xl lg:text-2xl font-mono font-normal text-surface-900 dark:text-surface-50">Dashboard</h1>
+      <p class="text-surface-600 dark:text-surface-400 mt-1 text-sm">Welcome back! Here's an overview of your content.</p>
     </div>
 
     <!-- Stats Grid -->

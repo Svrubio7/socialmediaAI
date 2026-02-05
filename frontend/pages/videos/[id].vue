@@ -27,7 +27,9 @@
           <UiButton
             variant="secondary"
             size="sm"
-            :to="localePath(`/editor?video=${video.id}`)"
+            :href="localePath(`/editor/${video.id}`)"
+            target="_blank"
+            rel="noopener"
           >
             <template #icon-left><UiIcon name="Scissors" :size="14" /></template>
             Edit

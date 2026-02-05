@@ -103,7 +103,7 @@ const { locale, locales, setLocale } = useI18n()
 const localePath = useLocalePath()
 const user = useSupabaseUser()
 const supabase = useSupabaseClient()
-const theme = import.meta.client ? useThemeStore() : null
+const theme = useThemeStore()
 
 const mobileMenuOpen = ref(false)
 const isScrolled = ref(false)

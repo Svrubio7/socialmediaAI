@@ -18,7 +18,7 @@
         <!-- Content -->
         <div class="relative px-8 py-16 sm:px-12 lg:px-16 lg:py-20 text-center">
           <h2 
-            class="text-2xl sm:text-3xl lg:text-4xl font-mono text-balance mb-4 transition-all duration-500"
+            class="text-2xl sm:text-3xl lg:text-4xl font-mono text-balance text-surface-50 mb-4 transition-all duration-500"
             :class="isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'"
             :style="{ transitionDelay: '200ms' }"
           >

@@ -11,6 +11,7 @@ interface ApiOptions {
 export const useApi = () => {
   const config = useRuntimeConfig()
   const supabase = useSupabaseClient()
+  const baseUrl = (config.public.apiUrl || '').replace(/\/$/, '')
 
   const getAuthHeaders = async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -26,12 +27,13 @@ export const useApi = () => {
     const { method = 'GET', body, headers = {} } = options
     
     const authHeaders = await getAuthHeaders()
+    const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
     
-    const response = await $fetch<T>(`${config.public.apiUrl}${endpoint}`, {
+    const response = await $fetch<T>(`${baseUrl}${endpoint}`, {
       method,
-      body: body ? JSON.stringify(body) : undefined,
+      body: body ?? undefined,
       headers: {
-        'Content-Type': 'application/json',
+        ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
         ...authHeaders,
         ...headers,
       },
@@ -77,7 +79,7 @@ export const useApi = () => {
       if (title) formData.append('title', title)
       
       const authHeaders = await getAuthHeaders()
-      return $fetch(`${config.public.apiUrl}/videos/upload`, {
+      return $fetch(`${baseUrl}/videos/upload`, {
         method: 'POST',
         body: formData,
         headers: authHeaders,
@@ -164,7 +166,7 @@ export const useApi = () => {
       formData.append('file', file)
       formData.append('asset_type', assetType)
       const authHeaders = await getAuthHeaders()
-      return $fetch(`${config.public.apiUrl}/branding/upload`, {
+      return $fetch(`${baseUrl}/branding/upload`, {
         method: 'POST',
         body: formData,
         headers: authHeaders,
@@ -175,10 +177,27 @@ export const useApi = () => {
 
   // Editor ops (foundation clip/transform/export)
   const editorOps = {
-    execute: (videoId: string, op: string, params: Record<string, unknown> = {}) =>
-      post<{ op: string; output_path?: string; result?: Record<string, unknown>; error?: string }>(
+    execute: (
+      videoId: string,
+      op: string,
+      params: Record<string, unknown> = {},
+      options?: { saveToLibrary?: boolean; outputTitle?: string }
+    ) =>
+      post<{
+        op: string
+        output_path?: string
+        output_url?: string
+        output_video_id?: string
+        result?: Record<string, unknown>
+        error?: string
+      }>(
         `/editor/${videoId}/op`,
-        { op, params }
+        {
+          op,
+          params,
+          save_to_library: options?.saveToLibrary ?? true,
+          output_title: options?.outputTitle,
+        }
       ),
   }
 

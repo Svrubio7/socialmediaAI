@@ -46,8 +46,8 @@ class Video(Base, TimestampMixin):
     status = Column(SQLEnum(VideoStatus), default=VideoStatus.UPLOADED, nullable=False, index=True)
     error_message = Column(String(500), nullable=True)
     
-    # Additional metadata (renamed from 'metadata' to avoid SQLAlchemy reserved word conflict)
-    video_metadata = Column(JSONB, nullable=True, default=dict)
+    # Additional metadata (DB column stays "metadata"; Python attr avoids reserved name).
+    video_metadata = Column("metadata", JSONB, nullable=True, default=dict)
     tags = Column(JSONB, nullable=True, default=list)
     
     # Relationships

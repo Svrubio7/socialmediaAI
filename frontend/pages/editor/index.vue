@@ -10,8 +10,8 @@
 
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
       <div>
-        <h1 class="text-xl lg:text-2xl font-mono font-normal text-surface-100">Video Editor</h1>
-        <p class="text-surface-400 mt-1 text-sm">Edit and generate videos with timelines, layers, and templates</p>
+        <h1 class="text-xl lg:text-2xl font-mono font-normal text-surface-100">Editor Hub</h1>
+        <p class="text-surface-400 mt-1 text-sm">Pick a video, then open the full-screen workspace in a new tab</p>
       </div>
       <div class="flex flex-wrap items-center gap-3">
         <select
@@ -29,6 +29,16 @@
           <template #icon-left><UiIcon name="Upload" :size="16" /></template>
           Upload
         </UiButton>
+        <UiButton
+          v-if="selectedVideoId"
+          variant="secondary"
+          :href="localePath(`/editor/${selectedVideoId}`)"
+          target="_blank"
+          rel="noopener"
+        >
+          <template #icon-left><UiIcon name="ExternalLink" :size="16" /></template>
+          Open Workspace
+        </UiButton>
       </div>
     </div>
 
@@ -45,6 +55,24 @@
         </UiButton>
       </div>
       <template v-else>
+        <UiCard class="mb-4 border border-primary-500/30 bg-primary-500/5">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <p class="font-medium text-surface-100">Full-screen editor workspace</p>
+              <p class="text-xs text-surface-400 mt-1">Opens in a new tab with a dedicated layout and complete tool panel.</p>
+            </div>
+            <UiButton
+              variant="primary"
+              size="sm"
+              :href="localePath(`/editor/${selectedVideoId}`)"
+              target="_blank"
+              rel="noopener"
+            >
+              <template #icon-left><UiIcon name="ExternalLink" :size="14" /></template>
+              Launch workspace
+            </UiButton>
+          </div>
+        </UiCard>
         <!-- Single-track timeline -->
         <div class="mb-5">
           <h3 class="text-xs font-mono font-medium text-surface-400 mb-1.5">Track 1</h3>

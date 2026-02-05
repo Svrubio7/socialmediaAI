@@ -34,7 +34,8 @@ AI-powered social media marketing hub for video pattern analysis, strategy gener
 ### Infrastructure
 - **Docker** – Local development (frontend, backend, Redis, Celery; no nginx)
 - **Render** – Production hosting
-- **Supabase** – Database and Auth only (no local Postgres)
+- **Supabase** – Auth and production database
+- **PostgreSQL (local fallback)** – Included in Docker development stack
 - **GitHub Actions** – CI/CD pipelines
 
 ## Project Structure
@@ -76,7 +77,7 @@ socialmediaAI/
 
 ## Getting Started
 
-**Database**: Supabase only (no local Postgres). **Production**: Render.  
+**Database**: Supabase (recommended) or local Postgres fallback in Docker dev. **Production**: Render + Supabase.  
 For full setup (development vs production), see **[SETUP.md](SETUP.md)**.
 
 There are two ways to run this project locally:

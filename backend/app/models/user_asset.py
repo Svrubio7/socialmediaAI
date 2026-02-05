@@ -20,7 +20,8 @@ class UserAsset(Base, TimestampMixin):
     filename = Column(String(255), nullable=False)
     storage_path = Column(String(500), nullable=False)
     url = Column(String(500), nullable=True)  # public URL if using storage bucket
-    metadata = Column(JSONB, nullable=True, default=dict)
+    # Use a non-reserved Python attribute name; keep DB column name as "metadata".
+    asset_metadata = Column("metadata", JSONB, nullable=True, default=dict)
 
     def __repr__(self):
         return f"<UserAsset(id={self.id}, type={self.type}, filename={self.filename})>"

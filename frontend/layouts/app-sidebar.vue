@@ -104,14 +104,14 @@
         </div>
         <nav class="flex-1 overflow-y-auto py-4">
           <div class="px-3 mb-4">
-            <span class="text-xs font-mono font-medium uppercase tracking-wider text-surface-500 dark:text-surface-500">Dashboard</span>
+            <span class="text-xs font-mono font-medium uppercase tracking-wider text-surface-500 dark:text-surface-300">Dashboard</span>
           </div>
           <ul class="space-y-0.5 px-3">
             <li>
               <NuxtLink
                 :to="localePath('/dashboard')"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                :class="isActive('/dashboard') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-100' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-400 dark:hover:text-surface-100 dark:hover:bg-surface-800'"
+                :class="isActive('/dashboard') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-50' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-200 dark:hover:text-surface-50 dark:hover:bg-surface-800'"
                 @click="sidebarOpen = false"
               >
                 <UiIcon name="LayoutDashboard" :size="18" class="flex-shrink-0" />
@@ -121,14 +121,14 @@
           </ul>
 
           <div class="px-3 mt-6 mb-4">
-            <span class="text-xs font-mono font-medium uppercase tracking-wider text-surface-500 dark:text-surface-500">Content</span>
+            <span class="text-xs font-mono font-medium uppercase tracking-wider text-surface-500 dark:text-surface-300">Content</span>
           </div>
           <ul class="space-y-0.5 px-3">
             <li>
               <NuxtLink
                 :to="localePath('/account/branding')"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                :class="isActive('/account/branding') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-100' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-400 dark:hover:text-surface-100 dark:hover:bg-surface-800'"
+                :class="isActive('/account/branding') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-50' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-200 dark:hover:text-surface-50 dark:hover:bg-surface-800'"
                 @click="sidebarOpen = false"
               >
                 <UiIcon name="Image" :size="18" class="flex-shrink-0" />
@@ -139,7 +139,7 @@
               <NuxtLink
                 :to="localePath('/strategies')"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                :class="isActive('/strategies') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-100' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-400 dark:hover:text-surface-100 dark:hover:bg-surface-800'"
+                :class="isActive('/strategies') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-50' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-200 dark:hover:text-surface-50 dark:hover:bg-surface-800'"
                 @click="sidebarOpen = false"
               >
                 <UiIcon name="Target" :size="18" class="flex-shrink-0" />
@@ -150,7 +150,7 @@
               <NuxtLink
                 :to="localePath('/publish')"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                :class="isActive('/publish') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-100' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-400 dark:hover:text-surface-100 dark:hover:bg-surface-800'"
+                :class="isActive('/publish') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-50' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-200 dark:hover:text-surface-50 dark:hover:bg-surface-800'"
                 @click="sidebarOpen = false"
               >
                 <UiIcon name="Send" :size="18" class="flex-shrink-0" />
@@ -161,7 +161,7 @@
               <NuxtLink
                 :to="localePath('/schedule')"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                :class="isActive('/schedule') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-100' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-400 dark:hover:text-surface-100 dark:hover:bg-surface-800'"
+                :class="isActive('/schedule') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-50' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-200 dark:hover:text-surface-50 dark:hover:bg-surface-800'"
                 @click="sidebarOpen = false"
               >
                 <UiIcon name="Calendar" :size="18" class="flex-shrink-0" />
@@ -172,7 +172,7 @@
               <NuxtLink
                 :to="localePath('/videos')"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                :class="isActive('/videos') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-100' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-400 dark:hover:text-surface-100 dark:hover:bg-surface-800'"
+                :class="isActive('/videos') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-50' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-200 dark:hover:text-surface-50 dark:hover:bg-surface-800'"
                 @click="sidebarOpen = false"
               >
                 <UiIcon name="Video" :size="18" class="flex-shrink-0" />
@@ -183,7 +183,7 @@
               <NuxtLink
                 :to="localePath('/editor')"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                :class="isActive('/editor') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-100' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-400 dark:hover:text-surface-100 dark:hover:bg-surface-800'"
+                :class="isActive('/editor') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-50' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-200 dark:hover:text-surface-50 dark:hover:bg-surface-800'"
                 @click="sidebarOpen = false"
               >
                 <UiIcon name="Scissors" :size="18" class="flex-shrink-0" />
@@ -194,7 +194,7 @@
               <NuxtLink
                 :to="localePath('/analytics')"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                :class="isActive('/analytics') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-100' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-400 dark:hover:text-surface-100 dark:hover:bg-surface-800'"
+                :class="isActive('/analytics') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-50' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-200 dark:hover:text-surface-50 dark:hover:bg-surface-800'"
                 @click="sidebarOpen = false"
               >
                 <UiIcon name="BarChart3" :size="18" class="flex-shrink-0" />
@@ -204,14 +204,14 @@
           </ul>
 
           <div class="px-3 mt-6 mb-4">
-            <span class="text-xs font-mono font-medium uppercase tracking-wider text-surface-500 dark:text-surface-500">Account</span>
+            <span class="text-xs font-mono font-medium uppercase tracking-wider text-surface-500 dark:text-surface-300">Account</span>
           </div>
           <ul class="space-y-0.5 px-3">
             <li>
               <NuxtLink
                 :to="localePath('/account/profile')"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                :class="isActive('/account/profile') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-100' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-400 dark:hover:text-surface-100 dark:hover:bg-surface-800'"
+                :class="isActive('/account/profile') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-50' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-200 dark:hover:text-surface-50 dark:hover:bg-surface-800'"
                 @click="sidebarOpen = false"
               >
                 <UiIcon name="User" :size="18" class="flex-shrink-0" />
@@ -222,7 +222,7 @@
               <NuxtLink
                 :to="localePath('/account/preferences')"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                :class="isActive('/account/preferences') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-100' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-400 dark:hover:text-surface-100 dark:hover:bg-surface-800'"
+                :class="isActive('/account/preferences') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-50' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-200 dark:hover:text-surface-50 dark:hover:bg-surface-800'"
                 @click="sidebarOpen = false"
               >
                 <UiIcon name="Settings" :size="18" class="flex-shrink-0" />
@@ -233,7 +233,7 @@
               <NuxtLink
                 :to="localePath('/account/connected-platforms')"
                 class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                :class="isActive('/account/connected-platforms') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-100' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-400 dark:hover:text-surface-100 dark:hover:bg-surface-800'"
+                :class="isActive('/account/connected-platforms') ? 'bg-surface-200 text-surface-900 border-l-2 border-primary-500 -ml-px pl-[11px] dark:bg-surface-800 dark:text-surface-50' : 'text-surface-600 hover:text-surface-900 hover:bg-surface-200 dark:text-surface-200 dark:hover:text-surface-50 dark:hover:bg-surface-800'"
                 @click="sidebarOpen = false"
               >
                 <UiIcon name="Link2" :size="18" class="flex-shrink-0" />
@@ -259,7 +259,7 @@ import { ref, onMounted } from 'vue'
 const localePath = useLocalePath()
 const route = useRoute()
 const auth = useAuthStore()
-const theme = import.meta.client ? useThemeStore() : null
+const theme = useThemeStore()
 
 const sidebarOpen = ref(false)
 

@@ -2,15 +2,16 @@
 Celery tasks for publishing and analytics.
 """
 
-from celery import shared_task
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import logging
 
+from app.workers.celery_app import celery_app
+
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=120)
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=120)
 def publish_to_platform(
     self,
     post_id: str,
@@ -57,7 +58,7 @@ def publish_to_platform(
         raise self.retry(exc=exc)
 
 
-@shared_task
+@celery_app.task
 def process_scheduled_posts() -> Dict[str, Any]:
     """
     Process scheduled posts that are due for publishing.
@@ -79,7 +80,7 @@ def process_scheduled_posts() -> Dict[str, Any]:
     }
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=300)
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=300)
 def collect_post_analytics(
     self,
     post_id: str,
@@ -126,7 +127,7 @@ def collect_post_analytics(
         raise self.retry(exc=exc)
 
 
-@shared_task
+@celery_app.task
 def collect_analytics() -> Dict[str, Any]:
     """
     Collect analytics for all published posts (scheduled task).
@@ -147,7 +148,7 @@ def collect_analytics() -> Dict[str, Any]:
     }
 
 
-@shared_task
+@celery_app.task
 def refresh_expiring_tokens() -> Dict[str, Any]:
     """
     Refresh OAuth tokens that are about to expire (scheduled task).
@@ -169,7 +170,7 @@ def refresh_expiring_tokens() -> Dict[str, Any]:
     }
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
 def update_pattern_scores(
     self,
     video_id: str,

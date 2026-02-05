@@ -4,10 +4,15 @@ Security utilities for authentication and authorization.
 
 from datetime import datetime, timedelta
 from typing import Optional, Any
+import logging
+
+import httpx
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -113,14 +118,66 @@ def verify_supabase_token(token: str) -> Optional[dict]:
     Returns:
         Decoded token payload or None if invalid
     """
-    try:
-        # Supabase tokens use HS256 with the JWT secret
-        payload = jwt.decode(
-            token,
-            settings.SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            audience="authenticated",
-        )
-        return payload
-    except JWTError:
-        return None
+    jwt_secret = (settings.SUPABASE_JWT_SECRET or "").strip()
+
+    # First try local JWT verification when a real JWT secret is configured.
+    if jwt_secret and jwt_secret not in {"your-jwt-secret", "changeme"}:
+        try:
+            # Supabase legacy tokens use HS256 + project JWT secret.
+            payload = jwt.decode(
+                token,
+                jwt_secret,
+                algorithms=["HS256"],
+                audience="authenticated",
+            )
+            return payload
+        except JWTError:
+            pass
+
+    # Fallback for modern Supabase (asymmetric signing) or missing JWT secret:
+    # ask Supabase Auth to validate the bearer token and return user claims.
+    supabase_url = (settings.SUPABASE_URL or "").rstrip("/")
+    supabase_key = (settings.SUPABASE_KEY or "").strip()
+    if supabase_url and supabase_key:
+        try:
+            resp = httpx.get(
+                f"{supabase_url}/auth/v1/user",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "apikey": supabase_key,
+                },
+                timeout=5.0,
+            )
+            if resp.status_code == 200:
+                user = resp.json()
+                if isinstance(user, dict) and user.get("id"):
+                    user_metadata = user.get("user_metadata")
+                    if not isinstance(user_metadata, dict):
+                        user_metadata = {}
+
+                    app_metadata = user.get("app_metadata")
+                    if not isinstance(app_metadata, dict):
+                        app_metadata = {}
+
+                    return {
+                        "sub": user.get("id"),
+                        "email": user.get("email"),
+                        "aud": user.get("aud") or "authenticated",
+                        "role": user.get("role") or app_metadata.get("role"),
+                        "user_metadata": user_metadata,
+                        "name": user_metadata.get("name"),
+                        "picture": user_metadata.get("avatar_url") or user_metadata.get("picture"),
+                        "iss": f"{supabase_url}/auth/v1",
+                    }
+        except Exception as exc:
+            logger.warning("Supabase token validation fallback failed: %s", exc)
+    # Last-resort development fallback to reduce local setup friction.
+    # Never used in production when DEBUG=false.
+    if settings.DEBUG:
+        try:
+            claims = jwt.get_unverified_claims(token)
+            if isinstance(claims, dict) and claims.get("sub"):
+                return claims
+        except Exception:
+            pass
+    return None

@@ -7,7 +7,8 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
+import logging
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.deps import get_db, get_current_user
@@ -18,6 +19,7 @@ from app.models.post import Post, PostStatus as PostStatusEnum
 from app.workers.publish_tasks import publish_to_platform
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class PublishRequest(BaseModel):
@@ -87,6 +89,18 @@ class PostListResponse(BaseModel):
     total: int
 
 
+def _queue_publish_task(**kwargs):
+    """Queue publishing task and return task object or a 503-safe HTTP error."""
+    try:
+        return publish_to_platform.delay(**kwargs)
+    except Exception as exc:
+        logger.exception("Failed to queue publish task: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Background worker unavailable. Please ensure Redis/Celery are running.",
+        )
+
+
 @router.post("/publish", response_model=PublishResponse)
 async def publish_video(
     request: PublishRequest,
@@ -152,7 +166,7 @@ async def publish_video(
         
         if request.publish_now:
             # Queue publishing task
-            task = publish_to_platform.delay(
+            task = _queue_publish_task(
                 post_id=str(post.id),
                 video_path=video.storage_path,
                 platform=platform,
@@ -198,12 +212,24 @@ async def schedule_post(
         )
     
     # Validate scheduled time is in the future
-    if request.scheduled_at <= datetime.utcnow():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Scheduled time must be in the future",
-        )
-    
+    scheduled_at = request.scheduled_at
+    if scheduled_at.tzinfo is not None and scheduled_at.utcoffset() is not None:
+        now_utc = datetime.now(timezone.utc)
+        if scheduled_at.astimezone(timezone.utc) <= now_utc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Scheduled time must be in the future",
+            )
+        # Store as naive UTC to match DB DateTime schema.
+        scheduled_at_db = scheduled_at.astimezone(timezone.utc).replace(tzinfo=None)
+    else:
+        if scheduled_at <= datetime.utcnow():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Scheduled time must be in the future",
+            )
+        scheduled_at_db = scheduled_at
+
     # Get connected accounts
     accounts = db.query(SocialAccount).filter(
         SocialAccount.user_id == current_user.id,
@@ -233,7 +259,7 @@ async def schedule_post(
             caption=request.caption,
             hashtags=request.hashtags,
             status=PostStatusEnum.SCHEDULED,
-            scheduled_at=request.scheduled_at,
+            scheduled_at=scheduled_at_db,
         )
         
         db.add(post)
@@ -246,7 +272,7 @@ async def schedule_post(
         id=str(first_post_id),
         video_id=request.video_id,
         platforms=request.platforms,
-        scheduled_at=request.scheduled_at,
+        scheduled_at=scheduled_at_db,
         status="scheduled",
     )
 
@@ -397,7 +423,7 @@ async def retry_failed_post(
     post.status = PostStatusEnum.PUBLISHING
     post.error_message = None
     
-    task = publish_to_platform.delay(
+    task = _queue_publish_task(
         post_id=str(post.id),
         video_path=video.storage_path,
         platform=post.platform,

@@ -138,12 +138,14 @@ async function save() {
       avatar_url: form.value.avatar_url || undefined,
     })
     profile.value = res
-    auth.setUser({
-      id: auth.user!.id,
-      email: auth.user!.email,
-      name: res.name,
-      avatar_url: res.avatar_url,
-    })
+    if (auth.user) {
+      auth.setUser({
+        id: auth.user.id,
+        email: auth.user.email,
+        name: res.name,
+        avatar_url: res.avatar_url,
+      })
+    }
   } catch (e: any) {
     error.value = e?.data?.detail?.message ?? e?.message ?? 'Failed to save profile'
   } finally {

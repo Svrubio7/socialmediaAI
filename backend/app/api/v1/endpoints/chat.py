@@ -50,6 +50,13 @@ SYSTEM_PROMPT = """You are a marketing strategist assistant for ElevoAI. The use
 Use the available tools to perform actions. When you use a tool, summarize what you did in a short reply. Be concise and helpful. Do not use emojis."""
 
 
+def _looks_like_placeholder_key(api_key: str) -> bool:
+    key = (api_key or "").strip().lower()
+    if not key:
+        return True
+    return key in {"your-openai-key", "your-openai-api-key"} or key.startswith("your-")
+
+
 def _openai_tool_definitions() -> List[Dict[str, Any]]:
     """Convert TOOL_DEFINITIONS to OpenAI API format."""
     return [
@@ -76,7 +83,7 @@ async def chat(
     Returns the assistant message and any result cards (schedule, script, strategy, oauth).
     """
     api_key = (settings.OPENAI_API_KEY or "").strip()
-    if not api_key:
+    if _looks_like_placeholder_key(api_key):
         return ChatResponse(
             message="Chat is not configured. Set OPENAI_API_KEY to use the assistant.",
             cards=[],
@@ -101,6 +108,11 @@ async def chat(
                 tool_choice="auto",
             )
         except Exception as e:
+            if "invalid_api_key" in str(e).lower() or "incorrect api key" in str(e).lower():
+                return ChatResponse(
+                    message="Chat is not configured. Set a valid OPENAI_API_KEY to use the assistant.",
+                    cards=[],
+                )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"LLM request failed: {str(e)}",

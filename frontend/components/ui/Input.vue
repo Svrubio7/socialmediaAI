@@ -46,7 +46,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, useAttrs, useId } from 'vue'
 
 interface Props {
   modelValue?: string | number
@@ -70,7 +70,9 @@ defineEmits<{
   (e: 'update:modelValue', value: string | number): void
 }>()
 
-const inputId = computed(() => `input-${Math.random().toString(36).substr(2, 9)}`)
+const attrs = useAttrs()
+const fallbackId = `input-${useId()}`
+const inputId = computed(() => String(attrs.id ?? fallbackId))
 
 const inputComponent = computed(() => {
   return props.type === 'textarea' ? 'textarea' : 'input'

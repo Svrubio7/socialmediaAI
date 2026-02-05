@@ -12,7 +12,7 @@
           :class="isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'"
           :style="{ transitionDelay: `${index * 100}ms` }"
         >
-          <div class="text-3xl lg:text-4xl text-surface-50 mb-2">
+          <div class="text-3xl lg:text-4xl text-surface-900 dark:text-surface-50 mb-2">
             <span ref="valueRefs" class="tabular-nums">{{ isVisible ? stat.value : '0' }}</span>
           </div>
           <div class="text-sm text-surface-500 font-mono">

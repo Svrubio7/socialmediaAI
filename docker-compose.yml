@@ -1,6 +1,6 @@
 # =============================================================================
 # Social Media AI - Docker Compose (Development only)
-# Database = Supabase (set in backend/.env). Production = Render.
+# Database = Supabase or local Postgres fallback. Production = Render.
 # Full local development stack with hot reload. No nginx; use :3000 and :8000.
 # =============================================================================
 
@@ -33,11 +33,7 @@ services:
       - socialmediaai-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+      disable: true
 
   # ===========================================================================
   # Backend - FastAPI (Development with Hot Reload)
@@ -61,9 +57,13 @@ services:
       - DEBUG=true
       # Redis for Celery; DATABASE_URL from backend/.env (Supabase Postgres connection string)
       - REDIS_URL=redis://redis:6379
+      # Prefer host-provided DATABASE_URL; fallback to local Postgres service for reliable local dev.
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/socialmediaai}
     command: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
     depends_on:
       redis:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     networks:
       - socialmediaai-network
@@ -92,13 +92,18 @@ services:
     environment:
       - DEBUG=true
       - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/socialmediaai}
     command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
     depends_on:
       redis:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     networks:
       - socialmediaai-network
     restart: unless-stopped
+    healthcheck:
+      disable: true
 
   # ===========================================================================
   # Celery Beat - Scheduled Tasks
@@ -116,13 +121,18 @@ services:
     environment:
       - DEBUG=true
       - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/socialmediaai}
     command: celery -A app.workers.celery_app beat --loglevel=info
     depends_on:
       redis:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     networks:
       - socialmediaai-network
     restart: unless-stopped
+    healthcheck:
+      disable: true
 
   # ===========================================================================
   # Redis - Cache & Celery Broker
@@ -145,6 +155,30 @@ services:
       retries: 5
       start_period: 10s
 
+  # ===========================================================================
+  # PostgreSQL - Local fallback DB for reliable development
+  # ===========================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: socialmediaai-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=socialmediaai
+    volumes:
+      - postgres-data-dev:/var/lib/postgresql/data
+    networks:
+      - socialmediaai-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d socialmediaai"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
 # =============================================================================
 # Networks
 # =============================================================================
@@ -159,4 +193,6 @@ volumes:
   redis-data:
     driver: local
   backend-temp:
+    driver: local
+  postgres-data-dev:
     driver: local

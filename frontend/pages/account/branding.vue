@@ -51,7 +51,8 @@
           class="p-4 rounded-xl bg-surface-600/25 dark:bg-surface-600/30 border border-surface-600/50 flex flex-col items-center"
         >
           <div class="w-20 h-20 rounded-xl bg-surface-600/40 flex items-center justify-center mb-3 overflow-hidden">
-            <UiIcon name="Image" :size="32" class="text-surface-500" />
+            <img v-if="asset.url" :src="asset.url" :alt="asset.filename" class="w-full h-full object-cover" />
+            <UiIcon v-else name="Image" :size="32" class="text-surface-500" />
           </div>
           <p class="font-medium text-surface-100 text-sm truncate w-full text-center">{{ asset.filename }}</p>
           <p class="text-surface-500 text-xs mt-0.5">{{ asset.type }}</p>

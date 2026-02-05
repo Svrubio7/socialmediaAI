@@ -47,7 +47,9 @@
         <UiButton 
           variant="ghost" 
           size="sm" 
-          :to="localePath(`/editor?video=${video.id}`)"
+          :href="localePath(`/editor/${video.id}`)"
+          target="_blank"
+          rel="noopener"
           class="flex-1 rounded-xl"
         >
           <template #icon-left><UiIcon name="Scissors" :size="14" /></template>

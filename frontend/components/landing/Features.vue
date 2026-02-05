@@ -34,7 +34,7 @@
           >
             <UiIcon :name="feature.icon" :size="24" :class="feature.iconColor" />
           </div>
-          <h3 class="text-lg font-mono text-surface-50 mb-2">
+          <h3 class="text-lg font-mono text-surface-900 dark:text-surface-50 mb-2">
             {{ $t(feature.titleKey) }}
           </h3>
           <p class="text-surface-400 text-sm leading-relaxed font-mono">

@@ -118,12 +118,20 @@ export default defineNuxtConfig({
         },
         {
           children: `
-            document.fonts.ready.then(function() {
-              document.body.classList.add('fonts-loaded');
-            });
-            setTimeout(function() {
-              document.body.classList.add('fonts-loaded');
-            }, 500);
+            (function () {
+              function markFontsLoaded() {
+                if (!document.body) return false;
+                document.body.classList.add('fonts-loaded');
+                return true;
+              }
+              if (!markFontsLoaded()) {
+                document.addEventListener('DOMContentLoaded', markFontsLoaded, { once: true });
+              }
+              if (document.fonts && document.fonts.ready) {
+                document.fonts.ready.then(markFontsLoaded).catch(function () {});
+              }
+              setTimeout(markFontsLoaded, 500);
+            })();
           `,
           type: 'text/javascript',
         },

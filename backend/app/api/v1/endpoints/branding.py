@@ -6,7 +6,7 @@ import os
 from typing import List, Optional
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request, status
 from pydantic import BaseModel
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -14,8 +14,10 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_db, get_current_user
 from app.models.user import User
 from app.models.user_asset import UserAsset
+from app.services.storage_service import LocalStorageService
 
 router = APIRouter()
+storage = LocalStorageService()
 
 ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
@@ -27,6 +29,7 @@ class BrandingAssetResponse(BaseModel):
     id: str
     type: str
     filename: str
+    storage_path: Optional[str] = None
     url: Optional[str] = None
     metadata: dict = {}
     created_at: datetime
@@ -56,8 +59,15 @@ def validate_asset_file(file: UploadFile, asset_type: str) -> None:
         )
 
 
+def _asset_url(asset: UserAsset, request: Request) -> Optional[str]:
+    if asset.storage_path:
+        return storage.build_public_url(asset.storage_path, request)
+    return asset.url
+
+
 @router.get("", response_model=BrandingAssetListResponse)
 async def list_branding_assets(
+    request: Request,
     type_filter: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -74,8 +84,9 @@ async def list_branding_assets(
                 id=str(a.id),
                 type=a.type,
                 filename=a.filename,
-                url=a.url,
-                metadata=a.metadata or {},
+                storage_path=a.storage_path,
+                url=_asset_url(a, request),
+                metadata=a.asset_metadata or {},
                 created_at=a.created_at,
                 updated_at=a.updated_at,
             )
@@ -87,8 +98,9 @@ async def list_branding_assets(
 
 @router.post("/upload", response_model=BrandingAssetResponse)
 async def upload_branding_asset(
+    request: Request,
     file: UploadFile = File(...),
-    asset_type: str = "image",
+    asset_type: str = Form("image"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -106,9 +118,9 @@ async def upload_branding_asset(
             detail=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024 * 1024)} MB",
         )
 
-    # TODO: Upload to Supabase Storage and set url
-    # For now we only persist metadata; url can be derived or stored when storage is wired.
-    url = None
+    # Persist to local storage and expose through /storage.
+    storage.save_bytes(storage_path, content)
+    url = storage.build_public_url(storage_path, request)
 
     asset = UserAsset(
         id=asset_id,
@@ -117,7 +129,7 @@ async def upload_branding_asset(
         filename=file.filename or storage_filename,
         storage_path=storage_path,
         url=url,
-        metadata={"original_filename": file.filename},
+        asset_metadata={"original_filename": file.filename},
     )
     db.add(asset)
     db.commit()
@@ -126,8 +138,9 @@ async def upload_branding_asset(
         id=str(asset.id),
         type=asset.type,
         filename=asset.filename,
+        storage_path=asset.storage_path,
         url=asset.url,
-        metadata=asset.metadata or {},
+        metadata=asset.asset_metadata or {},
         created_at=asset.created_at,
         updated_at=asset.updated_at,
     )
@@ -136,6 +149,7 @@ async def upload_branding_asset(
 @router.get("/{asset_id}", response_model=BrandingAssetResponse)
 async def get_branding_asset(
     asset_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -150,8 +164,9 @@ async def get_branding_asset(
         id=str(asset.id),
         type=asset.type,
         filename=asset.filename,
-        url=asset.url,
-        metadata=asset.metadata or {},
+        storage_path=asset.storage_path,
+        url=_asset_url(asset, request),
+        metadata=asset.asset_metadata or {},
         created_at=asset.created_at,
         updated_at=asset.updated_at,
     )
@@ -170,6 +185,7 @@ async def delete_branding_asset(
     ).first()
     if not asset:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Branding asset not found")
+    storage.delete(asset.storage_path)
     db.delete(asset)
     db.commit()
     return {"ok": True}

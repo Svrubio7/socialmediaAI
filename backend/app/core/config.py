@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379"
 
+    # File storage (local fallback for development/self-hosted)
+    LOCAL_STORAGE_DIR: str = "temp/storage"
+    STORAGE_PUBLIC_BASE_URL: str = ""
+
     # Supabase
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""

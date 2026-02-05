@@ -10,7 +10,7 @@ There are two setup methods:
 
 ## Docker Setup (Recommended)
 
-Docker is the easiest way to get the full stack running locally. The stack uses **Supabase as the only database** (no local Postgres container, no nginx). Use **http://localhost:3000** (frontend) and **http://localhost:8000** (backend) directly.
+Docker is the easiest way to get the full stack running locally. The stack supports **Supabase** and includes a **local Postgres fallback** for development (no nginx). Use **http://localhost:3000** (frontend) and **http://localhost:8000** (backend) directly.
 
 ### Prerequisites
 

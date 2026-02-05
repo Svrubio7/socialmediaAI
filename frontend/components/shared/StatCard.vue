@@ -8,8 +8,8 @@
         <UiIcon :name="icon" :size="20" :class="iconColor" />
       </div>
       <div class="min-w-0 flex-1">
-        <p class="text-surface-400 text-xs mb-0.5">{{ label }}</p>
-        <p class="text-lg font-mono font-normal text-surface-100 truncate">{{ value }}</p>
+        <p class="text-surface-500 dark:text-surface-100 text-xs mb-0.5">{{ label }}</p>
+        <p class="text-lg font-mono font-normal text-surface-900 dark:text-surface-50 truncate">{{ value }}</p>
         <p
           v-if="change !== undefined"
           class="text-xs mt-1.5 flex items-center gap-1"

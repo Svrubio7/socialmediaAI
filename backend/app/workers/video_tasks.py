@@ -2,7 +2,7 @@
 Celery tasks for video processing with 0.2s interval frame extraction.
 """
 
-from celery import shared_task
+from app.workers.celery_app import celery_app
 from typing import Dict, Any, Optional, List, Tuple
 import logging
 import subprocess
@@ -206,7 +206,7 @@ def extract_audio_segments(
     return audio_path, segments
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
 def extract_frames_task(
     self,
     video_id: str,
@@ -255,7 +255,7 @@ def extract_frames_task(
         raise self.retry(exc=exc)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
 def extract_audio_task(
     self,
     video_id: str,
@@ -303,7 +303,7 @@ def extract_audio_task(
         raise self.retry(exc=exc)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
 def analyze_video_patterns(
     self,
     video_id: str,
@@ -381,7 +381,7 @@ def analyze_video_patterns(
         raise self.retry(exc=exc)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
 def generate_thumbnail(
     self,
     video_id: str,
@@ -441,7 +441,7 @@ def generate_thumbnail(
         raise self.retry(exc=exc)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=120)
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=120)
 def edit_video(
     self,
     video_id: str,
@@ -484,7 +484,7 @@ def edit_video(
         raise self.retry(exc=exc)
 
 
-@shared_task(bind=True, max_retries=2, default_retry_delay=60)
+@celery_app.task(bind=True, max_retries=2, default_retry_delay=60)
 def execute_editor_op(
     self,
     video_id: str,
@@ -542,7 +542,7 @@ def execute_editor_op(
         raise self.retry(exc=exc)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
 def extract_video_metadata(
     self,
     video_id: str,
@@ -600,3 +600,4 @@ def cleanup_video_temp_files(video_id: str) -> bool:
     except Exception as e:
         logger.error(f"Failed to cleanup temp files for video {video_id}: {e}")
         return False
+
