@@ -1,9 +1,9 @@
 <template>
   <aside class="h-full min-h-0 flex border-l border-surface-800 bg-surface-900">
-    <section class="w-[200px] xl:w-[220px] min-h-0 flex flex-col">
+    <section class="flex-1 min-w-0 min-h-0 flex flex-col">
       <div class="px-4 pt-4 pb-3 border-b border-surface-800">
         <div class="flex items-center justify-between">
-          <h2 class="text-lg font-normal text-surface-100 tracking-tight">{{ panelTitle }}</h2>
+          <h2 class="text-base font-normal text-surface-100 tracking-tight">{{ panelTitle }}</h2>
           <span class="text-xs text-surface-400 max-w-[140px] truncate" :title="selectedClip?.label">
             {{ selectedClip?.label || 'Clip' }}
           </span>

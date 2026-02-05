@@ -11,7 +11,7 @@
     <h1 class="text-xl lg:text-2xl font-mono font-normal text-surface-100">Branding</h1>
     <p class="text-surface-400 mt-1 text-sm mb-6">Logos and brand assets for your content</p>
 
-    <UiCard class="mb-8 border-l-4 border-l-primary-500 bg-surface-700/30 dark:bg-surface-700/40 rounded-2xl">
+    <UiCard class="mb-8 border-l-4 border-l-primary-500 bg-accent-100/70 dark:bg-surface-700/40 rounded-2xl">
       <div class="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
         <label class="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-500/20 text-primary-300 border border-primary-500/30 cursor-pointer hover:bg-primary-500/25 transition-colors">
           <UiIcon name="Upload" :size="16" />

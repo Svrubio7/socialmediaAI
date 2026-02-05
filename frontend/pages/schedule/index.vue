@@ -35,7 +35,7 @@
     </div>
 
     <!-- Calendar (Notion-like, lighter) -->
-    <UiCard class="border-l-4 border-l-amber-500 border border-amber-500/20 bg-surface-700/30 dark:bg-surface-700/40 mb-5 pl-4 rounded-2xl">
+    <UiCard class="border-l-4 border-l-amber-500 border border-amber-500/20 bg-accent-100/70 dark:bg-surface-700/40 mb-5 pl-4 rounded-2xl">
       <h3 class="text-xs font-mono font-medium text-surface-400 mb-2">Calendar</h3>
       <div class="grid grid-cols-7 gap-px bg-surface-600/20 dark:bg-surface-600/30 rounded-xl overflow-hidden text-center text-xs font-medium max-w-2xl">
         <div v-for="d in weekDayLabels" :key="d" class="py-2 text-surface-500 bg-surface-600/30 dark:bg-surface-600/40">{{ d }}</div>
@@ -50,7 +50,7 @@
     </UiCard>
 
     <!-- Scheduled posts list -->
-    <UiCard class="border-l-4 border-l-primary-500/50 border border-primary-500/20 bg-surface-700/30 dark:bg-surface-700/40 pl-4 rounded-2xl">
+    <UiCard class="border-l-4 border-l-primary-500/50 border border-primary-500/20 bg-accent-100/70 dark:bg-surface-700/40 pl-4 rounded-2xl">
       <h3 class="text-xs font-mono font-medium text-surface-400 mb-3">Scheduled posts</h3>
       <div v-if="loading" class="py-12 flex justify-center">
         <div class="flex flex-col items-center gap-3">

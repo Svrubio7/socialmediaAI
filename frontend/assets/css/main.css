@@ -200,7 +200,7 @@
   .card {
     @apply bg-accent-100/60 border border-surface-300 rounded-xl p-6 text-surface-900
            transition-all duration-300
-           dark:bg-surface-900 dark:border-surface-600/80 dark:text-surface-100;
+           dark:bg-surface-900 dark:border-surface-500/80 dark:text-surface-100;
   }
 
   .card .text-surface-100 {
@@ -471,7 +471,6 @@
     transform: translateY(0) scale(1);
   }
 }
-
 
 
 

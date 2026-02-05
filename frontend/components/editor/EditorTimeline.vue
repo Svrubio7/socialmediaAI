@@ -1,5 +1,5 @@
 <template>
-  <section class="h-[40vh] min-h-[240px] max-h-[420px] border-t border-surface-800 bg-surface-900/70 flex flex-col">
+  <section class="h-full min-h-0 border-t border-surface-800 bg-surface-900/70 flex flex-col">
     <div class="px-4 pt-2 pb-1">
       <div class="relative h-3 rounded-full bg-surface-800 overflow-hidden">
         <div class="absolute inset-y-0 left-0 bg-primary-500/40" :style="{ width: `${progressPercent}%` }" />
@@ -59,7 +59,7 @@
             :class="hoverLayerId === track.id ? 'bg-primary-500/5 rounded-lg' : ''"
           >
             <div
-              class="w-20 shrink-0 px-2 text-xs uppercase tracking-wide text-surface-300"
+              class="w-20 shrink-0 px-2 text-xs uppercase tracking-wide text-surface-100"
               @wheel.prevent="onLabelWheel"
             >
               {{ track.label }}
@@ -359,10 +359,7 @@ function onTrimEnd() {
   window.removeEventListener('pointerup', onTrimEnd)
 }
 
-const playheadDragState = ref<{ pointerId: number } | null>(null)
-
 function startPlayheadDrag(event: PointerEvent) {
-  playheadDragState.value = { pointerId: event.pointerId }
   window.addEventListener('pointermove', onPlayheadDragMove)
   window.addEventListener('pointerup', stopPlayheadDrag)
   onPlayheadDragMove(event)
@@ -378,7 +375,6 @@ function onPlayheadDragMove(event: PointerEvent) {
 }
 
 function stopPlayheadDrag() {
-  playheadDragState.value = null
   window.removeEventListener('pointermove', onPlayheadDragMove)
   window.removeEventListener('pointerup', stopPlayheadDrag)
 }

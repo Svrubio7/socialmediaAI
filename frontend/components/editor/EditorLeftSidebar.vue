@@ -16,10 +16,10 @@
 
     <section
       v-if="!collapsed"
-      class="w-[200px] xl:w-[220px] min-h-0 flex flex-col"
+      class="flex-1 min-w-0 min-h-0 flex flex-col"
     >
       <div class="flex items-center justify-between px-4 pt-4 pb-3">
-        <h2 class="text-lg font-normal text-surface-100 tracking-tight">{{ sectionTitle }}</h2>
+        <h2 class="text-base font-normal text-surface-100 tracking-tight">{{ sectionTitle }}</h2>
         <button
           type="button"
           class="h-8 w-8 rounded-md border border-surface-800 text-surface-400 hover:text-surface-100 hover:border-primary-400 transition-colors"

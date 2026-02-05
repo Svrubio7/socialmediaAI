@@ -18,6 +18,7 @@
     />
 
     <div
+      ref="gridRef"
       class="h-[calc(100vh-56px)] flex flex-col lg:grid"
       :style="desktopGridStyle"
     >
@@ -34,7 +35,13 @@
         @add-transition="handleAddTransition"
       />
 
-      <div class="min-h-0 flex flex-col border-x border-surface-800 lg:border-x-0">
+      <div
+        v-show="!leftCollapsed"
+        class="hidden lg:block editor-resizer editor-resizer-vertical"
+        @pointerdown.prevent="startResize('left', $event)"
+      />
+
+      <div ref="centerRef" class="min-h-0 flex flex-col border-x border-surface-800 lg:border-x-0">
         <div class="lg:hidden px-3 py-2 border-b border-surface-800 bg-surface-900">
           <div class="grid grid-cols-2 gap-2">
             <select v-model="activeLeftSection" class="mobile-select">
@@ -53,38 +60,50 @@
           </div>
         </div>
 
-        <EditorPreview
-          :clips="clips"
-          :selected-clip-id="selectedClipId"
-          :current-time="playheadTime"
-          :duration="timelineDuration"
-          :playing="isPlaying"
-          @update:current-time="setPlayhead"
-          @update:playing="isPlaying = $event"
-          @update:clip="handleClipUpdate"
-          @update:clip-meta="syncClipMeta"
-          @select-clip="selectClip"
-          @split="splitSelectedClipAtPlayhead"
-          @duplicate="duplicateSelectedClipAction"
-          @delete="removeSelectedClipAction"
-        />
+        <div class="flex-1 min-h-0">
+          <EditorPreview
+            :clips="clips"
+            :selected-clip-id="selectedClipId"
+            :current-time="playheadTime"
+            :duration="timelineDuration"
+            :playing="isPlaying"
+            @update:current-time="setPlayhead"
+            @update:playing="isPlaying = $event"
+            @update:clip="handleClipUpdate"
+            @update:clip-meta="syncClipMeta"
+            @select-clip="selectClip"
+            @split="splitSelectedClipAtPlayhead"
+            @duplicate="duplicateSelectedClipAction"
+            @delete="removeSelectedClipAction"
+          />
+        </div>
 
-        <EditorTimeline
-          :tracks="layerTracks"
-          :playhead="playheadTime"
-          :duration="timelineDuration"
-          :zoom="timelineZoom"
-          :selected-clip-id="selectedClipId"
-          @update:playhead="setPlayhead"
-          @update:zoom="setTimelineZoom"
-          @select-clip="selectClip"
-          @split="splitSelectedClipAtPlayhead"
-          @delete="removeSelectedClipAction"
-          @duplicate="duplicateSelectedClipAction"
-          @trim-clip="handleTimelineTrim"
-          @move-clip="handleTimelineMove"
-        />
+        <div class="hidden lg:block editor-resizer editor-resizer-horizontal" @pointerdown.prevent="startResize('timeline', $event)" />
+
+        <div class="min-h-0" :style="{ height: `${timelineHeight}px` }">
+          <EditorTimeline
+            class="h-full"
+            :tracks="layerTracks"
+            :playhead="playheadTime"
+            :duration="timelineDuration"
+            :zoom="timelineZoom"
+            :selected-clip-id="selectedClipId"
+            @update:playhead="setPlayhead"
+            @update:zoom="setTimelineZoom"
+            @select-clip="selectClip"
+            @split="splitSelectedClipAtPlayhead"
+            @delete="removeSelectedClipAction"
+            @duplicate="duplicateSelectedClipAction"
+            @trim-clip="handleTimelineTrim"
+            @move-clip="handleTimelineMove"
+          />
+        </div>
       </div>
+
+      <div
+        class="hidden lg:block editor-resizer editor-resizer-vertical"
+        @pointerdown.prevent="startResize('right', $event)"
+      />
 
       <EditorRightSidebar
         class="hidden lg:flex"
@@ -380,6 +399,7 @@ function handleAddText(styleName: string) {
     layer,
     position: { x: 28, y: 22 },
     size: { width: 42, height: 18 },
+    lockAspectRatio: false,
     style: { color: '#ffffff', outline: true },
   })
   if (clip) {
@@ -398,6 +418,7 @@ function handleAddShape(shapeName: string) {
     layer,
     position: { x: 24, y: 18 },
     size: { width: 38, height: 38 },
+    lockAspectRatio: false,
     style: { color: '#8f8cae', outline: false },
   })
   if (clip) {
