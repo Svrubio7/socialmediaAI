@@ -25,6 +25,7 @@ class User(Base, TimestampMixin):
     
     # Relationships
     videos = relationship("Video", back_populates="user", cascade="all, delete-orphan")
+    projects = relationship("EditorProject", back_populates="user", cascade="all, delete-orphan")
     strategies = relationship("Strategy", back_populates="user", cascade="all, delete-orphan")
     scripts = relationship("Script", back_populates="user", cascade="all, delete-orphan")
     social_accounts = relationship("SocialAccount", back_populates="user", cascade="all, delete-orphan")

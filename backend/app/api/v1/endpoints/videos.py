@@ -10,20 +10,26 @@ import logging
 import subprocess
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Request, status, Header
+from fastapi.responses import Response
+from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
+import httpx
 from pydantic import BaseModel
 from datetime import datetime
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db, get_current_user
+from app.core.deps import get_db, get_current_user, get_current_user_optional
+from app.core.security import decode_token, verify_supabase_token
+from app.core.config import settings
 from app.models.user import User
 from app.models.video import Video, VideoStatus
-from app.services.storage_service import LocalStorageService
+from app.services.storage_service import get_storage_service
 from app.workers.video_tasks import analyze_video_patterns, edit_video as edit_video_task
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-storage = LocalStorageService()
+storage = get_storage_service()
 
 # Allowed video formats
 ALLOWED_EXTENSIONS = {
@@ -60,6 +66,7 @@ class VideoResponse(BaseModel):
     filename: str
     original_filename: Optional[str] = None
     storage_path: Optional[str] = None
+    thumbnail_storage_path: Optional[str] = None
     video_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
     status: str
@@ -89,6 +96,21 @@ class VideoUploadResponse(BaseModel):
     filename: str
     status: str
     created_at: datetime
+
+
+class VideoRegisterRequest(BaseModel):
+    """Register a video that already exists in storage (direct upload)."""
+    storage_path: str
+    thumbnail_storage_path: Optional[str] = None
+    filename: Optional[str] = None
+    original_filename: Optional[str] = None
+    file_size: Optional[int] = None
+    duration: Optional[float] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    fps: Optional[float] = None
+    codec: Optional[str] = None
+    bitrate: Optional[int] = None
 
 
 class TaskResponse(BaseModel):
@@ -151,6 +173,78 @@ def _extract_video_metadata(video_path: str) -> dict:
     }
 
 
+def _extract_stream_codecs(video_path: str) -> dict:
+    cmd = [
+        "ffprobe",
+        "-v",
+        "quiet",
+        "-print_format",
+        "json",
+        "-show_streams",
+        video_path,
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        data = json.loads(result.stdout)
+    except Exception:
+        return {"video": None, "audio": None}
+
+    streams = data.get("streams", [])
+    video_stream = next((s for s in streams if s.get("codec_type") == "video"), {})
+    audio_stream = next((s for s in streams if s.get("codec_type") == "audio"), {})
+    return {
+        "video": video_stream.get("codec_name"),
+        "audio": audio_stream.get("codec_name"),
+    }
+
+
+def _normalize_video_for_playback(video_path: str) -> str:
+    """
+    Ensure uploads are browser-playable:
+    - For H.264/AAC (or no audio) MP4/M4V/MOV, apply faststart (moov atom).
+    - Otherwise transcode to H.264/AAC with faststart.
+    Falls back to original file on failure.
+    """
+    ext = Path(video_path).suffix.lower()
+    if ext not in {".mp4", ".m4v", ".mov"}:
+        return video_path
+
+    codecs = _extract_stream_codecs(video_path)
+    video_codec = (codecs.get("video") or "").lower()
+    audio_codec = (codecs.get("audio") or "").lower()
+    needs_reencode = video_codec != "h264" or (audio_codec not in {"", "aac", "mp3"})
+
+    tmp_path = str(Path(video_path).with_suffix(f".normalized{ext}"))
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        video_path,
+        "-map",
+        "0:v",
+        "-map",
+        "0:a?",
+    ]
+    if needs_reencode:
+        cmd += ["-c:v", "libx264", "-preset", "fast", "-c:a", "aac"]
+    else:
+        cmd += ["-c", "copy"]
+    cmd += ["-movflags", "+faststart", tmp_path]
+
+    try:
+        subprocess.run(cmd, capture_output=True, check=True)
+        Path(tmp_path).replace(video_path)
+    except Exception as exc:
+        logger.warning("Playback normalization failed for %s: %s", video_path, exc)
+        try:
+            Path(tmp_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+        return video_path
+
+    return video_path
+
+
 def _generate_thumbnail(video_path: str, user_id: str, video_id: str) -> Optional[str]:
     thumb_storage_path = f"thumbnails/{user_id}/{video_id}.jpg"
     thumb_abs = storage.absolute_path(thumb_storage_path)
@@ -183,17 +277,85 @@ def _thumbnail_url(video: Video, request: Request) -> Optional[str]:
     meta = video.video_metadata or {}
     thumb_path = meta.get("thumbnail_storage_path")
     if thumb_path:
-        return storage.build_public_url(thumb_path, request)
+        signed = storage.build_public_url(thumb_path, request)
+        return signed or video.thumbnail_url
     return video.thumbnail_url
 
 
 def _video_url(video: Video, request: Request) -> Optional[str]:
-    return storage.build_public_url(video.storage_path, request) if video.storage_path else None
+    if not video.storage_path:
+        return None
+    if (settings.STORAGE_BACKEND or "").lower() == "supabase":
+        base = str(request.base_url).rstrip("/")
+        return f"{base}{settings.API_V1_STR}/videos/{video.id}/stream"
+    return storage.build_public_url(video.storage_path, request)
+
+
+async def _head_remote(url: str, range_header: Optional[str]) -> Response:
+    headers: dict = {}
+    if range_header:
+        headers["Range"] = range_header
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.head(url, headers=headers, follow_redirects=True)
+
+    if resp.status_code not in (200, 206):
+        raise HTTPException(status_code=resp.status_code, detail="Failed to fetch video headers")
+
+    response = Response(status_code=resp.status_code)
+    for header in ("content-length", "content-range", "accept-ranges", "content-type"):
+        if header in resp.headers:
+            response.headers[header] = resp.headers[header]
+    return response
+
+
+async def _stream_remote(url: str, range_header: Optional[str]) -> StreamingResponse:
+    headers: dict = {}
+    if range_header:
+        headers["Range"] = range_header
+
+    client = httpx.AsyncClient(timeout=60.0)
+    resp = await client.get(url, headers=headers, follow_redirects=True)
+
+    if resp.status_code not in (200, 206):
+        await resp.aclose()
+        await client.aclose()
+        raise HTTPException(status_code=resp.status_code, detail="Failed to fetch video stream")
+
+    async def iterator():
+        async for chunk in resp.aiter_bytes():
+            yield chunk
+
+    async def close():
+        await resp.aclose()
+        await client.aclose()
+
+    response = StreamingResponse(
+        iterator(),
+        status_code=resp.status_code,
+        media_type=resp.headers.get("content-type", "video/mp4"),
+        background=BackgroundTask(close),
+    )
+    for header in ("content-length", "content-range", "accept-ranges"):
+        if header in resp.headers:
+            response.headers[header] = resp.headers[header]
+    return response
 
 
 def _absolute_video_path(video: Video) -> str:
     path = storage.resolve_for_processing(video.storage_path)
     return str(Path(path))
+
+
+def _validate_user_storage_path(path: str, user_id: str, prefixes: Optional[List[str]] = None) -> str:
+    rel = path.replace("\\", "/").lstrip("/")
+    allowed = prefixes or [f"videos/{user_id}/", f"thumbnails/{user_id}/", f"editor/outputs/{user_id}/"]
+    if not any(rel.startswith(prefix) for prefix in allowed):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Storage path is not under the current user's namespace",
+        )
+    return rel
 
 
 def _queue_task(task_callable, *args, **kwargs):
@@ -205,6 +367,14 @@ def _queue_task(task_callable, *args, **kwargs):
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Background worker unavailable. Please ensure Redis/Celery are running.",
         )
+
+
+def _storage_exists_soft(path: str) -> Optional[bool]:
+    try:
+        return storage.exists(path)
+    except Exception as exc:
+        logger.warning("Storage existence check failed for %s: %s", path, exc)
+        return None
 
 
 def validate_video_file(file: UploadFile) -> None:
@@ -257,6 +427,7 @@ async def list_videos(
                 filename=v.filename,
                 original_filename=v.original_filename,
                 storage_path=v.storage_path,
+                thumbnail_storage_path=(v.video_metadata or {}).get("thumbnail_storage_path"),
                 video_url=_video_url(v, request),
                 thumbnail_url=_thumbnail_url(v, request),
                 status=v.status.value,
@@ -276,6 +447,41 @@ async def list_videos(
     )
 
 
+@router.api_route("/{video_id}/stream", methods=["GET", "HEAD"])
+async def stream_video(
+    video_id: str,
+    request: Request,
+    range_header: Optional[str] = Header(None, alias="Range"),
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    token: Optional[str] = None,
+):
+    user = current_user
+    if user is None and token:
+        payload = decode_token(token) or verify_supabase_token(token)
+        if payload:
+            user = await get_current_user(db=db, token_payload=payload)
+
+    if user is None and not settings.DEBUG:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    query = db.query(Video).filter(Video.id == UUID(video_id))
+    if user is not None:
+        query = query.filter(Video.user_id == user.id)
+    video = query.first()
+
+    if video is None or not video.storage_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+
+    url = storage.build_public_url(video.storage_path, request)
+    if not url:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video file not available")
+
+    if request.method == "HEAD":
+        return await _head_remote(url, range_header)
+    return await _stream_remote(url, range_header)
+
+
 @router.post("/upload", response_model=VideoUploadResponse)
 async def upload_video(
     request: Request,
@@ -287,6 +493,11 @@ async def upload_video(
     """
     Upload a new video file.
     """
+    if (settings.STORAGE_BACKEND or "").lower() == "supabase":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Direct uploads are handled by Supabase Storage. Use /videos/register instead.",
+        )
     # Validate file
     validate_video_file(file)
     
@@ -310,16 +521,25 @@ async def upload_video(
     # Persist to local storage
     stored_file = storage.save_bytes(storage_path, content)
 
+    # Normalize for browser playback (faststart / optional transcode)
+    normalized_path = _normalize_video_for_playback(str(stored_file))
+
     # Extract metadata from uploaded file
-    metadata = _extract_video_metadata(str(stored_file))
+    metadata = _extract_video_metadata(normalized_path)
 
     # Generate thumbnail synchronously (fast, avoids queue dependency for upload flow)
     thumb_storage_path = _generate_thumbnail(
-        video_path=str(stored_file),
+        video_path=normalized_path,
         user_id=str(current_user.id),
         video_id=str(video_id),
     )
     thumbnail_url = storage.build_public_url(thumb_storage_path, request) if thumb_storage_path else None
+
+    # Update file size after normalization
+    try:
+        file_size = Path(normalized_path).stat().st_size
+    except Exception:
+        file_size = len(content)
     
     # Create video record
     video = Video(
@@ -352,6 +572,58 @@ async def upload_video(
     )
 
 
+@router.post("/register", response_model=VideoUploadResponse)
+async def register_video(
+    payload: VideoRegisterRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Register a video that was uploaded directly to storage (Supabase).
+    """
+    user_id = str(current_user.supabase_user_id or current_user.id)
+    storage_path = _validate_user_storage_path(payload.storage_path, user_id, [f"videos/{user_id}/"])
+    thumb_path = None
+    if payload.thumbnail_storage_path:
+        thumb_path = _validate_user_storage_path(payload.thumbnail_storage_path, user_id, [f"thumbnails/{user_id}/", f"videos/{user_id}/"])
+
+    # Optional existence check to avoid broken records
+    exists = _storage_exists_soft(storage_path)
+    if exists is False:
+        if (settings.STORAGE_BACKEND or "").lower() != "supabase":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video file not found in storage")
+        # Supabase storage list checks can be blocked by RLS or bucket policies; don't fail registration.
+        logger.warning("Video %s not found via storage API; continuing registration", storage_path)
+
+    filename = payload.filename or payload.original_filename or Path(storage_path).name
+    video = Video(
+        id=uuid4(),
+        user_id=current_user.id,
+        filename=filename,
+        original_filename=payload.original_filename or payload.filename,
+        storage_path=storage_path,
+        file_size=payload.file_size,
+        duration=payload.duration,
+        width=payload.width,
+        height=payload.height,
+        fps=payload.fps,
+        codec=payload.codec,
+        bitrate=payload.bitrate,
+        video_metadata={"thumbnail_storage_path": thumb_path} if thumb_path else {},
+        status=VideoStatus.UPLOADED,
+    )
+    db.add(video)
+    db.commit()
+    db.refresh(video)
+
+    return VideoUploadResponse(
+        id=str(video.id),
+        filename=video.filename,
+        status=video.status.value,
+        created_at=video.created_at,
+    )
+
+
 @router.get("/{video_id}", response_model=VideoResponse)
 async def get_video(
     video_id: str,
@@ -372,12 +644,40 @@ async def get_video(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Video not found",
         )
+
+    # Backfill metadata if missing (older uploads or failed probe).
+    # For Supabase-backed storage this can be slow because it downloads the full asset,
+    # which makes page reloads appear to "hang". Keep this best-effort for local storage only.
+    if (video.duration is None or video.width is None or video.height is None) and video.storage_path:
+        storage_backend = (settings.STORAGE_BACKEND or "").lower()
+        if storage_backend == "local":
+            try:
+                abs_path = _absolute_video_path(video)
+                if Path(abs_path).exists():
+                    meta = _extract_video_metadata(abs_path)
+                    if meta.get("duration") is not None:
+                        video.duration = meta.get("duration")
+                    if meta.get("width") is not None:
+                        video.width = meta.get("width")
+                    if meta.get("height") is not None:
+                        video.height = meta.get("height")
+                    if meta.get("bitrate") is not None:
+                        video.bitrate = meta.get("bitrate")
+                    if meta.get("codec") is not None:
+                        video.codec = meta.get("codec")
+                    if meta.get("fps") is not None:
+                        video.fps = meta.get("fps")
+                    db.commit()
+            except Exception:
+                # Best-effort: keep existing values if probing fails.
+                db.rollback()
     
     return VideoResponse(
         id=str(video.id),
         filename=video.filename,
         original_filename=video.original_filename,
         storage_path=video.storage_path,
+        thumbnail_storage_path=(video.video_metadata or {}).get("thumbnail_storage_path"),
         video_url=_video_url(video, request),
         thumbnail_url=_thumbnail_url(video, request),
         status=video.status.value,
@@ -453,18 +753,28 @@ async def analyze_video(
     video.status = VideoStatus.PROCESSING
     db.commit()
 
-    video_path = _absolute_video_path(video)
-    if not Path(video_path).exists():
-        video.status = VideoStatus.FAILED
-        video.error_message = "Video file not found in storage"
-        db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Video file missing from storage",
-        )
-
-    # Trigger analysis task
-    task = _queue_task(analyze_video_patterns, str(video.id), video_path)
+    if (settings.STORAGE_BACKEND or "").lower() == "supabase":
+        if not storage.exists(video.storage_path):
+            video.status = VideoStatus.FAILED
+            video.error_message = "Video file not found in storage"
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Video file missing from storage",
+            )
+        task = _queue_task(analyze_video_patterns, str(video.id), video.storage_path)
+    else:
+        video_path = _absolute_video_path(video)
+        if not Path(video_path).exists():
+            video.status = VideoStatus.FAILED
+            video.error_message = "Video file not found in storage"
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Video file missing from storage",
+            )
+        # Trigger analysis task
+        task = _queue_task(analyze_video_patterns, str(video.id), video_path)
     
     return TaskResponse(
         task_id=str(task.id),
@@ -495,12 +805,20 @@ async def edit_video(
         )
     
     # Trigger editing task
-    video_path = _absolute_video_path(video)
-    if not Path(video_path).exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Video file missing from storage",
-        )
+    if (settings.STORAGE_BACKEND or "").lower() == "supabase":
+        if not storage.exists(video.storage_path):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Video file missing from storage",
+            )
+        video_path = video.storage_path
+    else:
+        video_path = _absolute_video_path(video)
+        if not Path(video_path).exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Video file missing from storage",
+            )
 
     task = _queue_task(
         edit_video_task,

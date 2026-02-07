@@ -23,6 +23,10 @@ export interface EditorClip {
   effects?: {
     fadeIn?: number
     fadeOut?: number
+    transition?: string
+    transitionDuration?: number
+    audioFadeIn?: number
+    audioFadeOut?: number
     speed?: number
     filter?: string
     brightness?: number
@@ -31,6 +35,9 @@ export interface EditorClip {
     gamma?: number
     hue?: number
     blur?: number
+    opacity?: number
+    volume?: number
+    blendMode?: string
     overlayColor?: string
     overlayOpacity?: number
     overlayBlend?: string
@@ -43,7 +50,15 @@ export interface EditorClip {
   style?: {
     color?: string
     outline?: boolean
+    opacity?: number
   }
+  keyframes?: Array<{
+    time: number
+    position?: { x: number; y: number }
+    size?: { width: number; height: number }
+    rotation?: number
+    opacity?: number
+  }>
 }
 
 export interface EditorTrack {
@@ -97,7 +112,7 @@ function findClip(tracks: EditorTrack[], clipId: string) {
 }
 
 export function useEditorState() {
-  const projectName = ref('Untitled video')
+  const projectName = ref('Untitled project')
   const tracks = ref<EditorTrack[]>(createInitialTracks())
   const selectedClipId = ref<string | null>(null)
   const playheadTime = ref(0)
@@ -164,7 +179,31 @@ export function useEditorState() {
   }
 
   function setProjectName(value: string) {
-    projectName.value = value.trim() || 'Untitled video'
+    projectName.value = value.trim() || 'Untitled project'
+  }
+
+  function exportState(): EditorSnapshot {
+    return snapshot()
+  }
+
+  function loadState(state: Partial<EditorSnapshot>) {
+    projectName.value = state.projectName ?? projectName.value
+    tracks.value = state.tracks ? deepClone(state.tracks) : createInitialTracks()
+    selectedClipId.value = state.selectedClipId ?? null
+    playheadTime.value = state.playheadTime ?? 0
+    timelineZoom.value = state.timelineZoom ?? 1
+    undoStack.value = []
+    redoStack.value = []
+  }
+
+  function resetState() {
+    loadState({
+      projectName: projectName.value,
+      tracks: createInitialTracks(),
+      selectedClipId: null,
+      playheadTime: 0,
+      timelineZoom: 1,
+    })
   }
 
   function setSourceVideoClip(payload: {
@@ -197,6 +236,10 @@ export function useEditorState() {
       effects: {
         fadeIn: 0,
         fadeOut: 0,
+        transition: undefined,
+        transitionDuration: undefined,
+        audioFadeIn: 0,
+        audioFadeOut: 0,
         speed: 1,
         filter: 'None',
         brightness: 0,
@@ -205,6 +248,9 @@ export function useEditorState() {
         gamma: 1,
         hue: 0,
         blur: 0,
+        opacity: 1,
+        volume: 1,
+        blendMode: 'normal',
         overlayColor: 'transparent',
         overlayOpacity: 0,
         overlayBlend: 'soft-light',
@@ -237,6 +283,10 @@ export function useEditorState() {
     const baseEffects = {
       fadeIn: 0,
       fadeOut: 0,
+      transition: undefined,
+      transitionDuration: undefined,
+      audioFadeIn: 0,
+      audioFadeOut: 0,
       speed: 1,
       filter: 'None',
       brightness: 0,
@@ -245,6 +295,9 @@ export function useEditorState() {
       gamma: 1,
       hue: 0,
       blur: 0,
+      opacity: 1,
+      volume: 1,
+      blendMode: 'normal',
       overlayColor: 'transparent',
       overlayOpacity: 0,
       overlayBlend: 'soft-light',
@@ -423,6 +476,9 @@ export function useEditorState() {
     canUndo,
     canRedo,
     setProjectName,
+    exportState,
+    loadState,
+    resetState,
     setSourceVideoClip,
     addClip,
     updateClip,

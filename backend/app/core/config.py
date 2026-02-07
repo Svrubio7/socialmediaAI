@@ -3,16 +3,20 @@ Application configuration using Pydantic Settings.
 """
 
 from functools import lru_cache
+from pathlib import Path
 from typing import List, Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000,https://social-media-ai-frontend.onrender.com"
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=[str(BASE_DIR / ".env"), ".env"],
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
@@ -30,12 +34,15 @@ class Settings(BaseSettings):
     ENCRYPTION_KEY: str = "your-32-byte-encryption-key-here"  # Must be 32 bytes for AES-256
 
     # CORS: comma-separated env (e.g. CORS_ORIGINS=https://app.example.com,...) or default list
-    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,https://social-media-ai-frontend.onrender.com"
+    CORS_ORIGINS: str = DEFAULT_CORS_ORIGINS
 
     @property
     def cors_origins_list(self) -> List[str]:
         """Parse CORS_ORIGINS string into list (stripped, non-empty)."""
-        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        origins = [o.strip() for o in (self.CORS_ORIGINS or "").split(",") if o.strip()]
+        if origins:
+            return origins
+        return [o.strip() for o in DEFAULT_CORS_ORIGINS.split(",") if o.strip()]
 
     # Database
     DATABASE_URL: str = "postgresql://user:password@localhost:5432/socialmediaai"
@@ -43,9 +50,14 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379"
 
-    # File storage (local fallback for development/self-hosted)
+    # File storage: "local" or "supabase"
+    # With supabase, one bucket holds videos/, thumbnails/, editor/outputs/, branding/
+    STORAGE_BACKEND: str = "local"
     LOCAL_STORAGE_DIR: str = "temp/storage"
     STORAGE_PUBLIC_BASE_URL: str = ""
+    SUPABASE_STORAGE_BUCKET: str = "videos"
+    SUPABASE_STORAGE_PRIVATE: bool = True
+    SUPABASE_STORAGE_SIGNED_URL_TTL: int = 3600
 
     # Supabase
     SUPABASE_URL: str = ""

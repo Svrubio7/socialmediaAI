@@ -26,7 +26,46 @@
             </div>
             <input v-model.number="fadeOut" type="range" min="0" max="5" step="0.1" class="w-full accent-primary-500" />
           </div>
+          <div>
+            <label class="text-sm text-surface-100 block mb-1">Transition</label>
+            <select v-model="transitionName" class="w-full rounded bg-surface-950/60 border border-surface-800 px-2 py-2 text-sm text-surface-100">
+              <option v-for="option in transitionOptions" :key="option" :value="option">{{ option }}</option>
+            </select>
+          </div>
+          <div>
+            <div class="mb-1 flex items-center justify-between text-sm text-surface-100">
+              <span>Transition duration</span>
+              <input v-model.number="transitionDuration" type="number" min="0" step="0.1" class="w-16 rounded bg-surface-950/60 border border-surface-800 px-2 py-1 text-right text-xs text-surface-100" />
+            </div>
+            <input v-model.number="transitionDuration" type="range" min="0" max="2" step="0.05" class="w-full accent-primary-500" />
+          </div>
           <button type="button" class="panel-action" @click="emitFade(true)">Apply fades</button>
+          <button type="button" class="panel-action" @click="emitTransition(true)">Apply transition</button>
+        </template>
+
+        <template v-else-if="activeTab === 'audio'">
+          <div>
+            <div class="mb-1 flex items-center justify-between text-sm text-surface-100">
+              <span>Volume</span>
+              <input v-model.number="audioVolume" type="number" min="0" max="3" step="0.1" class="w-16 rounded bg-surface-950/60 border border-surface-800 px-2 py-1 text-right text-xs text-surface-100" />
+            </div>
+            <input v-model.number="audioVolume" type="range" min="0" max="2" step="0.05" class="w-full accent-primary-500" />
+          </div>
+          <div>
+            <div class="mb-1 flex items-center justify-between text-sm text-surface-100">
+              <span>Audio fade in</span>
+              <input v-model.number="audioFadeIn" type="number" min="0" step="0.1" class="w-16 rounded bg-surface-950/60 border border-surface-800 px-2 py-1 text-right text-xs text-surface-100" />
+            </div>
+            <input v-model.number="audioFadeIn" type="range" min="0" max="5" step="0.1" class="w-full accent-primary-500" />
+          </div>
+          <div>
+            <div class="mb-1 flex items-center justify-between text-sm text-surface-100">
+              <span>Audio fade out</span>
+              <input v-model.number="audioFadeOut" type="number" min="0" step="0.1" class="w-16 rounded bg-surface-950/60 border border-surface-800 px-2 py-1 text-right text-xs text-surface-100" />
+            </div>
+            <input v-model.number="audioFadeOut" type="range" min="0" max="5" step="0.1" class="w-full accent-primary-500" />
+          </div>
+          <button type="button" class="panel-action" @click="emitAudio(true)">Apply audio</button>
         </template>
 
         <template v-else-if="activeTab === 'filters'">
@@ -138,6 +177,23 @@
           <button type="button" class="panel-action" @click="emitShape">Apply shape style</button>
         </template>
 
+        <template v-else-if="activeTab === 'effects'">
+          <div>
+            <div class="mb-1 flex items-center justify-between text-sm text-surface-100">
+              <span>Opacity</span>
+              <input v-model.number="opacityValue" type="number" min="0" max="1" step="0.05" class="w-16 rounded bg-surface-950/60 border border-surface-800 px-2 py-1 text-right text-xs text-surface-100" />
+            </div>
+            <input v-model.number="opacityValue" type="range" min="0" max="1" step="0.02" class="w-full accent-primary-500" />
+          </div>
+          <div>
+            <label class="text-sm text-surface-100 block mb-1">Blend mode</label>
+            <select v-model="blendMode" class="w-full rounded bg-surface-950/60 border border-surface-800 px-2 py-2 text-sm text-surface-100">
+              <option v-for="mode in blendModes" :key="mode" :value="mode">{{ mode }}</option>
+            </select>
+          </div>
+          <button type="button" class="panel-action" @click="emitLayer(true)">Apply layer</button>
+        </template>
+
         <template v-else>
           <div class="rounded-lg border border-dashed border-surface-800 p-4 text-sm text-surface-400">
             {{ panelTitle }} controls will appear here.
@@ -183,8 +239,11 @@ const {
 const emit = defineEmits<{
   'update:activeTab': [tab: string]
   'apply:fade': [{ fadeIn: number; fadeOut: number; commit?: boolean }]
+  'apply:transition': [{ name?: string; duration?: number; commit?: boolean }]
+  'apply:audio': [{ volume: number; fadeIn: number; fadeOut: number; commit?: boolean }]
   'apply:filter': [{ preset: string; commit?: boolean }]
   'apply:speed': [{ speed: number; commit?: boolean }]
+  'apply:layer': [{ opacity: number; blendMode: string; commit?: boolean }]
   'apply:color': [{ brightness: number; contrast: number; saturation: number; gamma: number; commit?: boolean }]
   'apply:aspect': [{ ratio: string; fitMode: EditorFitMode; width: number; height: number; commit?: boolean }]
   'apply:shape': [{ color: string; outline: boolean; commit?: boolean }]
@@ -204,11 +263,18 @@ const tabItems = [
 
 const fadeIn = ref(0)
 const fadeOut = ref(0)
+const transitionName = ref('None')
+const transitionDuration = ref(0.6)
+const audioVolume = ref(1)
+const audioFadeIn = ref(0)
+const audioFadeOut = ref(0)
 const speedValue = ref(1)
 const filterSearch = ref('')
 const selectedFilter = ref('None')
 const shapeColor = ref('#8f8cae')
 const shapeOutline = ref(false)
+const opacityValue = ref(1)
+const blendMode = ref('normal')
 
 const brightness = ref(0)
 const contrast = ref(1)
@@ -220,6 +286,26 @@ const syncing = ref(false)
 
 const speedPresets = [0.1, 1, 2, 4, 16]
 const fitModes: EditorFitMode[] = ['fit', 'fill', 'stretch']
+const blendModes = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'hardlight', 'softlight', 'difference', 'exclusion']
+const transitionOptions = [
+  'None',
+  'Cross fade',
+  'Cross blur',
+  'Burn',
+  'Horizontal band',
+  'Slide left',
+  'Slide right',
+  'Slide up',
+  'Slide down',
+  'Wipe left',
+  'Wipe right',
+  'Wipe up',
+  'Wipe down',
+  'Circle open',
+  'Circle close',
+  'Dissolve',
+  'Pixelize',
+]
 
 const aspectRatios = [
   { value: '16:9', width: 1920, height: 1080 },
@@ -269,10 +355,17 @@ watch(
     syncing.value = true
     fadeIn.value = clip.effects?.fadeIn ?? fadeIn.value
     fadeOut.value = clip.effects?.fadeOut ?? fadeOut.value
+    transitionName.value = clip.effects?.transition ?? 'None'
+    transitionDuration.value = clip.effects?.transitionDuration ?? 0.6
+    audioVolume.value = clip.effects?.volume ?? audioVolume.value
+    audioFadeIn.value = clip.effects?.audioFadeIn ?? audioFadeIn.value
+    audioFadeOut.value = clip.effects?.audioFadeOut ?? audioFadeOut.value
     speedValue.value = clip.effects?.speed ?? speedValue.value
     selectedFilter.value = clip.effects?.filter ?? selectedFilter.value
     shapeColor.value = clip.style?.color ?? shapeColor.value
     shapeOutline.value = clip.style?.outline ?? shapeOutline.value
+    opacityValue.value = clip.effects?.opacity ?? opacityValue.value
+    blendMode.value = clip.effects?.blendMode ?? blendMode.value
     selectedAspectRatio.value = clip.aspectRatio ?? selectedAspectRatio.value
     fitMode.value = clip.fitMode ?? fitMode.value
     brightness.value = clip.effects?.brightness ?? brightness.value
@@ -291,9 +384,24 @@ watch([fadeIn, fadeOut], () => {
   emitFade()
 })
 
+watch([transitionName, transitionDuration], () => {
+  if (syncing.value) return
+  emitTransition()
+})
+
+watch([audioVolume, audioFadeIn, audioFadeOut], () => {
+  if (syncing.value) return
+  emitAudio()
+})
+
 watch(speedValue, () => {
   if (syncing.value) return
   emitSpeed()
+})
+
+watch([opacityValue, blendMode], () => {
+  if (syncing.value) return
+  emitLayer()
 })
 
 watch(selectedFilter, () => {
@@ -318,6 +426,20 @@ watch([shapeColor, shapeOutline], () => {
 
 function emitFade(commit = false) {
   emit('apply:fade', { fadeIn: Number(fadeIn.value) || 0, fadeOut: Number(fadeOut.value) || 0, commit })
+}
+
+function emitTransition(commit = false) {
+  const name = transitionName.value === 'None' ? undefined : transitionName.value
+  emit('apply:transition', { name, duration: Number(transitionDuration.value) || 0, commit })
+}
+
+function emitAudio(commit = false) {
+  emit('apply:audio', {
+    volume: Number(audioVolume.value) || 0,
+    fadeIn: Number(audioFadeIn.value) || 0,
+    fadeOut: Number(audioFadeOut.value) || 0,
+    commit,
+  })
 }
 
 function emitSpeed(commit = false) {
@@ -351,6 +473,14 @@ function emitAdjustColor(commit = false) {
   })
 }
 
+function emitLayer(commit = false) {
+  emit('apply:layer', {
+    opacity: Number(opacityValue.value),
+    blendMode: blendMode.value,
+    commit,
+  })
+}
+
 function emitAspect(commit = false) {
   const selectedRatio = aspectRatios.find((ratio) => ratio.value === selectedAspectRatio.value) ?? aspectRatios[0]
   emit('apply:aspect', {
@@ -375,9 +505,9 @@ function emitShape(commit = false) {
 .panel-action {
   width: 100%;
   border-radius: 0.5rem;
-  border: 1px solid var(--cream-border);
-  background: var(--cream-ui);
-  color: #1a1b18;
+  border: 1px solid #556152;
+  background: #697565;
+  color: #f5f5f5;
   font-size: 0.82rem;
   font-weight: 400;
   padding: 0.58rem 0.75rem;
@@ -385,8 +515,8 @@ function emitShape(commit = false) {
 }
 
 .panel-action:hover {
-  filter: brightness(0.97);
-  border-color: #a79b89;
+  background: #7d9a7d;
+  border-color: #697565;
 }
 
 .panel-container {

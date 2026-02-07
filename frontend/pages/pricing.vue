@@ -1,9 +1,8 @@
 <template>
   <div>
     <!-- Hero Section -->
-    <section class="relative pt-32 pb-20 lg:pt-40 lg:pb-24">
+    <section class="relative pt-16 pb-10 lg:pt-20 lg:pb-12">
       <!-- Background -->
-      <div class="absolute inset-0 bg-gradient-radial-top" />
       
       <div class="relative container-wide">
         <div class="max-w-2xl mx-auto text-center">
@@ -19,10 +18,10 @@
     </section>
 
     <!-- Pricing Cards -->
-    <section class="py-12 md:py-16">
+    <section class="py-6 md:py-8">
       <div class="container-wide">
         <!-- Divider -->
-        <div class="section-divider mb-12" />
+        <div class="section-divider mb-6" />
         
         <div class="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
           <!-- Starter -->
@@ -124,7 +123,7 @@
         </div>
         
         <!-- Divider -->
-        <div class="section-divider mt-12" />
+        <div class="section-divider mt-6" />
       </div>
     </section>
 

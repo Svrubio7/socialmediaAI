@@ -1,10 +1,7 @@
 <template>
-  <section class="relative min-h-[90vh] flex items-center justify-center overflow-hidden bg-transparent">
-    <!-- Subtle gradient background (dark mode only for glow) -->
-    <div class="absolute inset-0 bg-gradient-radial-top opacity-0 dark:opacity-100" aria-hidden="true" />
-    
+  <section class="relative min-h-[75vh] flex items-center justify-center overflow-hidden bg-transparent">
     <!-- Content -->
-    <div class="relative container-wide py-32 lg:py-40">
+    <div class="relative container-wide py-16 lg:py-20">
       <div class="max-w-4xl mx-auto text-center">
         <!-- Top badge with typewriter -->
         <div 

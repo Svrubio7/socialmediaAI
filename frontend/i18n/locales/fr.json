@@ -1,49 +1,50 @@
-{
+﻿{
   "nav": {
     "home": "Accueil",
-    "about": "À propos",
+    "about": "Ã€ propos",
     "contact": "Contact",
     "pricing": "Tarifs",
-    "goToApp": "Aller à l'App",
+    "goToApp": "Aller Ã  l'App",
     "login": "Connexion",
     "getStarted": "Commencer"
   },
   "hero": {
     "badge": "Plateforme Marketing IA pour PME",
-    "title1": "Élevez Votre",
+    "title1": "Ã‰levez Votre",
     "title2": "Marketing d'Entreprise",
     "title3": "avec l'IA",
-    "subtitle": "Transformez la façon dont votre entreprise crée et publie du contenu sur les réseaux sociaux. Analysez les patterns vidéo, générez des stratégies gagnantes et atteignez votre audience sur toutes les plateformes.",
+    "subtitle": "Transformez la faÃ§on dont votre entreprise crÃ©e et publie du contenu sur les rÃ©seaux sociaux. Analysez les patterns vidÃ©o, gÃ©nÃ©rez des stratÃ©gies gagnantes et atteignez votre audience sur toutes les plateformes.",
     "cta1": "Essayez-le!",
-    "cta2": "Voir notre démo"
+    "cta2": "Voir notre dÃ©mo",
+    "trustLine": "Gratuit pour commencer. Sans carte de crÃ©dit."
   },
   "stats": {
-    "faster": "Création de Contenu Plus Rapide",
-    "platforms": "Plateformes Supportées",
-    "timeSaved": "Temps Économisé",
+    "faster": "CrÃ©ation de Contenu Plus Rapide",
+    "platforms": "Plateformes SupportÃ©es",
+    "timeSaved": "Temps Ã‰conomisÃ©",
     "analysis": "Analyse IA"
   },
   "features": {
-    "badge": "Fonctionnalités",
+    "badge": "FonctionnalitÃ©s",
     "title": "Tout ce dont Votre Entreprise a Besoin pour",
     "titleHighlight": "Dominer",
-    "titleEnd": "les Réseaux Sociaux",
-    "subtitle": "De l'analyse de patterns par IA à la publication automatisée, ElevoAI fournit tous les outils dont votre entreprise a besoin pour créer du contenu engageant de manière cohérente.",
+    "titleEnd": "les RÃ©seaux Sociaux",
+    "subtitle": "De l'analyse de patterns par IA Ã  la publication automatisÃ©e, ElevoAI fournit tous les outils dont votre entreprise a besoin pour crÃ©er du contenu engageant de maniÃ¨re cohÃ©rente.",
     "pattern": {
       "title": "Analyse de Patterns",
-      "description": "L'IA analyse vos vidéos pour identifier ce qui rend le contenu réussi—accroches, rythme, coupes, transitions et plus."
+      "description": "L'IA analyse vos vidÃ©os pour identifier ce qui rend le contenu rÃ©ussiâ€”accroches, rythme, coupes, transitions et plus."
     },
     "strategy": {
-      "title": "Génération de Stratégies",
-      "description": "Obtenez des stratégies marketing générées par IA adaptées aux objectifs de votre entreprise et plateformes cibles."
+      "title": "GÃ©nÃ©ration de StratÃ©gies",
+      "description": "Obtenez des stratÃ©gies marketing gÃ©nÃ©rÃ©es par IA adaptÃ©es aux objectifs de votre entreprise et plateformes cibles."
     },
     "script": {
-      "title": "Création de Scripts",
-      "description": "Recevez des scripts détaillés de tournage et montage avec timing, instructions visuelles et patterns de succès prouvés."
+      "title": "CrÃ©ation de Scripts",
+      "description": "Recevez des scripts dÃ©taillÃ©s de tournage et montage avec timing, instructions visuelles et patterns de succÃ¨s prouvÃ©s."
     },
     "editing": {
-      "title": "Montage Vidéo Auto",
-      "description": "Appliquez automatiquement des patterns pour créer des variations vidéo optimisées pour chaque plateforme."
+      "title": "Montage VidÃ©o Auto",
+      "description": "Appliquez automatiquement des patterns pour crÃ©er des variations vidÃ©o optimisÃ©es pour chaque plateforme."
     },
     "publishing": {
       "title": "Publication Multi-Plateforme",
@@ -51,57 +52,57 @@
     },
     "analytics": {
       "title": "Analytiques de Performance",
-      "description": "Suivez les performances sur toutes les plateformes et observez l'amélioration de vos métriques d'engagement."
+      "description": "Suivez les performances sur toutes les plateformes et observez l'amÃ©lioration de vos mÃ©triques d'engagement."
     }
   },
   "howItWorks": {
-    "badge": "Comment Ça Marche",
-    "title": "Trois Étapes Simples pour",
+    "badge": "Comment Ã‡a Marche",
+    "title": "Trois Ã‰tapes Simples pour",
     "titleHighlight": "Plus d'Engagement",
-    "subtitle": "ElevoAI rend l'optimisation de contenu sans effort pour votre entreprise. Téléchargez, analysez et publiez en minutes.",
+    "subtitle": "ElevoAI rend l'optimisation de contenu sans effort pour votre entreprise. TÃ©lÃ©chargez, analysez et publiez en minutes.",
     "step1": {
-      "title": "Téléchargez Votre Contenu",
-      "description": "Glissez-déposez simplement vos vidéos ou connectez vos comptes réseaux sociaux existants pour importer du contenu.",
+      "title": "TÃ©lÃ©chargez Votre Contenu",
+      "description": "Glissez-dÃ©posez simplement vos vidÃ©os ou connectez vos comptes rÃ©seaux sociaux existants pour importer du contenu.",
       "feature1": "Support de tous les formats majeurs",
-      "feature2": "Téléchargement par lots de plusieurs vidéos",
+      "feature2": "TÃ©lÃ©chargement par lots de plusieurs vidÃ©os",
       "feature3": "Import depuis les comptes sociaux"
     },
     "step2": {
-      "title": "Analyse et Stratégie IA",
-      "description": "Notre IA analyse les patterns de votre contenu, identifie ce qui fonctionne et génère des stratégies sur mesure pour votre entreprise.",
-      "feature1": "Reconnaissance de patterns à 5fps",
-      "feature2": "Génération automatisée de scripts",
-      "feature3": "Optimisation spécifique par plateforme"
+      "title": "Analyse et StratÃ©gie IA",
+      "description": "Notre IA analyse les patterns de votre contenu, identifie ce qui fonctionne et gÃ©nÃ¨re des stratÃ©gies sur mesure pour votre entreprise.",
+      "feature1": "Reconnaissance de patterns Ã  5fps",
+      "feature2": "GÃ©nÃ©ration automatisÃ©e de scripts",
+      "feature3": "Optimisation spÃ©cifique par plateforme"
     },
     "step3": {
       "title": "Publiez et Suivez",
-      "description": "Planifiez et publiez du contenu optimisé sur toutes les plateformes, puis suivez les performances en temps réel.",
+      "description": "Planifiez et publiez du contenu optimisÃ© sur toutes les plateformes, puis suivez les performances en temps rÃ©el.",
       "feature1": "Publication multi-plateforme en un clic",
       "feature2": "Planification intelligente",
-      "feature3": "Tableau de bord analytique en temps réel"
+      "feature3": "Tableau de bord analytique en temps rÃ©el"
     }
   },
   "faq": {
     "badge": "FAQ",
-    "title": "Questions Fréquentes",
+    "title": "Questions FrÃ©quentes",
     "subtitle": "Tout ce que vous devez savoir sur ElevoAI",
-    "q1": "Comment ElevoAI analyse-t-il mes vidéos?",
-    "a1": "ElevoAI utilise Google Gemini 2.0 Flash pour analyser vos vidéos à 5 images par seconde (intervalles de 0.2s). Il examine les patterns visuels comme les types de scènes, mouvements de caméra, superpositions de texte, transitions et rythme pour identifier ce qui rend le contenu réussi.",
-    "q2": "Quelles plateformes de réseaux sociaux sont supportées?",
-    "a2": "ElevoAI supporte actuellement Instagram (Reels), TikTok, YouTube (Shorts et vidéos régulières) et Facebook (Reels et posts). Nous nous connectons via des intégrations OAuth officielles pour garantir une publication sécurisée.",
-    "q3": "ElevoAI peut-il monter mes vidéos automatiquement?",
-    "a3": "Oui! Basé sur les patterns et scripts générés, ElevoAI peut automatiquement créer des variations optimisées de vos vidéos pour différentes plateformes, ajustant la durée, le ratio d'aspect, le rythme et ajoutant des superpositions de texte.",
-    "q4": "Est-ce adapté aux petites entreprises?",
-    "a4": "Absolument! ElevoAI est conçu spécifiquement pour les PME qui veulent créer du contenu professionnel pour les réseaux sociaux sans embaucher une équipe marketing dédiée. Notre IA gère l'analyse et l'optimisation complexes.",
-    "q5": "Mes données sont-elles sécurisées?",
-    "a5": "Oui. Nous utilisons le chiffrement AES-256 pour tous les tokens OAuth, et vos vidéos sont stockées en sécurité. Nous ne partageons jamais votre contenu ou vos données avec des tiers.",
+    "q1": "Comment ElevoAI analyse-t-il mes vidÃ©os?",
+    "a1": "ElevoAI utilise Google Gemini 2.0 Flash pour analyser vos vidÃ©os Ã  5 images par seconde (intervalles de 0.2s). Il examine les patterns visuels comme les types de scÃ¨nes, mouvements de camÃ©ra, superpositions de texte, transitions et rythme pour identifier ce qui rend le contenu rÃ©ussi.",
+    "q2": "Quelles plateformes de rÃ©seaux sociaux sont supportÃ©es?",
+    "a2": "ElevoAI supporte actuellement Instagram (Reels), TikTok, YouTube (Shorts et vidÃ©os rÃ©guliÃ¨res) et Facebook (Reels et posts). Nous nous connectons via des intÃ©grations OAuth officielles pour garantir une publication sÃ©curisÃ©e.",
+    "q3": "ElevoAI peut-il monter mes vidÃ©os automatiquement?",
+    "a3": "Oui! BasÃ© sur les patterns et scripts gÃ©nÃ©rÃ©s, ElevoAI peut automatiquement crÃ©er des variations optimisÃ©es de vos vidÃ©os pour diffÃ©rentes plateformes, ajustant la durÃ©e, le ratio d'aspect, le rythme et ajoutant des superpositions de texte.",
+    "q4": "Est-ce adaptÃ© aux petites entreprises?",
+    "a4": "Absolument! ElevoAI est conÃ§u spÃ©cifiquement pour les PME qui veulent crÃ©er du contenu professionnel pour les rÃ©seaux sociaux sans embaucher une Ã©quipe marketing dÃ©diÃ©e. Notre IA gÃ¨re l'analyse et l'optimisation complexes.",
+    "q5": "Mes donnÃ©es sont-elles sÃ©curisÃ©es?",
+    "a5": "Oui. Nous utilisons le chiffrement AES-256 pour tous les tokens OAuth, et vos vidÃ©os sont stockÃ©es en sÃ©curitÃ©. Nous ne partageons jamais votre contenu ou vos donnÃ©es avec des tiers.",
     "q6": "Ai-je besoin de connaissances techniques pour utiliser ElevoAI?",
-    "a6": "Pas du tout! ElevoAI est conçu pour être intuitif et facile à utiliser. Téléchargez simplement vos vidéos, et l'IA gère l'analyse et l'optimisation complexes pour vous."
+    "a6": "Pas du tout! ElevoAI est conÃ§u pour Ãªtre intuitif et facile Ã  utiliser. TÃ©lÃ©chargez simplement vos vidÃ©os, et l'IA gÃ¨re l'analyse et l'optimisation complexes pour vous."
   },
   "cta": {
-    "title": "Prêt à Transformer Votre",
+    "title": "PrÃªt Ã  Transformer Votre",
     "titleHighlight": "Marketing d'Entreprise?",
-    "subtitle": "Rejoignez des milliers d'entreprises utilisant l'IA pour créer de meilleur contenu, plus vite. Commencez votre essai gratuit aujourd'hui—sans carte de crédit.",
+    "subtitle": "Rejoignez des milliers d'entreprises utilisant l'IA pour crÃ©er de meilleur contenu, plus vite. Commencez votre essai gratuit aujourd'huiâ€”sans carte de crÃ©dit.",
     "button1": "Commencer Gratuitement",
     "button2": "Parler aux Ventes",
     "badge1": "Conforme SOC 2",
@@ -109,52 +110,53 @@
     "badge3": "Support 24/7"
   },
   "footer": {
-    "description": "Élevez la présence sur les réseaux sociaux de votre entreprise avec l'analyse vidéo par IA, la génération de stratégies et la publication multi-plateforme.",
+    "description": "Ã‰levez la prÃ©sence sur les rÃ©seaux sociaux de votre entreprise avec l'analyse vidÃ©o par IA, la gÃ©nÃ©ration de stratÃ©gies et la publication multi-plateforme.",
     "product": "Produit",
-    "features": "Fonctionnalités",
+    "features": "FonctionnalitÃ©s",
     "pricing": "Tarifs",
     "changelog": "Changelog",
     "resources": "Ressources",
     "documentation": "Documentation",
-    "api": "Référence API",
+    "api": "RÃ©fÃ©rence API",
     "blog": "Blog",
     "company": "Entreprise",
-    "about": "À propos",
+    "about": "Ã€ propos",
     "contact": "Contact",
-    "careers": "Carrières",
-    "copyright": "ElevoAI. Tous droits réservés.",
-    "privacy": "Politique de Confidentialité",
+    "careers": "CarriÃ¨res",
+    "copyright": "ElevoAI. Tous droits rÃ©servÃ©s.",
+    "privacy": "Politique de ConfidentialitÃ©",
     "terms": "Conditions d'Utilisation"
   },
   "about": {
-    "badge": "À Propos",
+    "badge": "Ã€ Propos",
     "title": "Autonomiser les Entreprises avec le",
     "titleHighlight": "Marketing par IA",
-    "subtitle": "Nous sommes en mission pour démocratiser le marketing sur les réseaux sociaux pour les petites et moyennes entreprises.",
+    "subtitle": "Nous sommes en mission pour dÃ©mocratiser le marketing sur les rÃ©seaux sociaux pour les petites et moyennes entreprises.",
     "story": {
       "title": "Notre Histoire",
-      "p1": "ElevoAI a été fondée avec une croyance simple: chaque entreprise mérite l'accès à des outils marketing puissants, quelle que soit sa taille ou son budget.",
-      "p2": "Nous avons vu comment les grandes entreprises avaient des équipes entières dédiées à analyser les performances du contenu et optimiser leurs stratégies sur les réseaux sociaux. Pendant ce temps, les petites entreprises devaient se débrouiller seules.",
-      "p3": "C'est pourquoi nous avons créé ElevoAI—pour égaliser les chances. Notre plateforme alimentée par IA donne aux PME les mêmes capacités analytiques qui étaient auparavant réservées aux entreprises avec d'énormes budgets marketing."
+      "p1": "ElevoAI a Ã©tÃ© fondÃ©e avec une croyance simple: chaque entreprise mÃ©rite l'accÃ¨s Ã  des outils marketing puissants, quelle que soit sa taille ou son budget.",
+      "p2": "Nous avons vu comment les grandes entreprises avaient des Ã©quipes entiÃ¨res dÃ©diÃ©es Ã  analyser les performances du contenu et optimiser leurs stratÃ©gies sur les rÃ©seaux sociaux. Pendant ce temps, les petites entreprises devaient se dÃ©brouiller seules.",
+      "p3": "C'est pourquoi nous avons crÃ©Ã© ElevoAIâ€”pour Ã©galiser les chances. Notre plateforme alimentÃ©e par IA donne aux PME les mÃªmes capacitÃ©s analytiques qui Ã©taient auparavant rÃ©servÃ©es aux entreprises avec d'Ã©normes budgets marketing."
     },
     "mission": {
       "title": "Notre Mission",
-      "description": "Permettre à chaque entreprise de créer du contenu engageant et efficace sur les réseaux sociaux grâce à la puissance de l'intelligence artificielle."
+      "description": "Permettre Ã  chaque entreprise de crÃ©er du contenu engageant et efficace sur les rÃ©seaux sociaux grÃ¢ce Ã  la puissance de l'intelligence artificielle."
     },
     "values": {
       "title": "Nos Valeurs",
       "v1": {
-        "title": "Simplicité",
-        "description": "La technologie complexe doit être facile à utiliser. Nous cachons la complexité pour que vous puissiez vous concentrer sur votre entreprise."
+        "title": "SimplicitÃ©",
+        "description": "La technologie complexe doit Ãªtre facile Ã  utiliser. Nous cachons la complexitÃ© pour que vous puissiez vous concentrer sur votre entreprise."
       },
       "v2": {
         "title": "Innovation",
-        "description": "Nous repoussons continuellement les limites du possible avec l'IA pour offrir de meilleurs résultats pour votre entreprise."
+        "description": "Nous repoussons continuellement les limites du possible avec l'IA pour offrir de meilleurs rÃ©sultats pour votre entreprise."
       },
       "v3": {
         "title": "Confiance",
-        "description": "Vos données vous appartiennent. Nous maintenons les normes de sécurité les plus élevées et ne compromettons jamais la confidentialité."
+        "description": "Vos donnÃ©es vous appartiennent. Nous maintenons les normes de sÃ©curitÃ© les plus Ã©levÃ©es et ne compromettons jamais la confidentialitÃ©."
       }
     }
   }
 }
+

@@ -9,8 +9,8 @@
       @toggle-left="leftCollapsed = !leftCollapsed"
       @go-home="navigateTo(localePath('/editor'))"
       @update:project-name="handleProjectRename"
-      @undo="undo"
-      @redo="redo"
+      @undo="handleUndo"
+      @redo="handleRedo"
       @export="exportVideo"
       @help="toast.info('Help center is coming soon')"
       @feedback="toast.info('Thanks! Feedback channel is coming soon')"
@@ -51,7 +51,9 @@
               <option value="transitions">Transitions</option>
             </select>
             <select v-model="activeRightTab" class="mobile-select">
+              <option value="audio">Audio</option>
               <option value="fade">Fade</option>
+              <option value="effects">Effects</option>
               <option value="filters">Filters</option>
               <option value="adjust">Adjust</option>
               <option value="speed">Speed</option>
@@ -159,8 +161,11 @@
         :selected-clip="selectedClip"
         @update:active-tab="activeRightTab = $event"
         @apply:fade="applyFade"
+        @apply:transition="applyTransition"
+        @apply:audio="applyAudio"
         @apply:speed="applySpeed"
         @apply:filter="applyFilterPreset"
+        @apply:layer="applyLayer"
         @apply:color="applyColorAdjust"
         @apply:aspect="applyAspectRatio"
         @apply:shape="applyShapeStyle"
@@ -170,7 +175,7 @@
     <input
       ref="importInputRef"
       type="file"
-      accept="video/*,image/*"
+      accept="video/*,image/*,audio/*"
       class="hidden"
       @change="onImportSelected"
     />
@@ -224,7 +229,9 @@ const {
   canUndo,
   canRedo,
   setProjectName,
-  setSourceVideoClip,
+  exportState,
+  loadState,
+  resetState,
   addClip,
   updateClip,
   selectClip,
@@ -271,7 +278,7 @@ const extraLayers = ref<Record<EditorLayerGroup, number[]>>({
   audio: [],
 })
 
-let saveStateTimer: ReturnType<typeof setTimeout> | null = null
+let persistTimer: ReturnType<typeof setTimeout> | null = null
 let playbackFrame: number | null = null
 let lastFrameTime = 0
 let resizeCleanup: (() => void) | null = null
@@ -338,10 +345,11 @@ const layerTracks = computed<EditorTrack[]>(() => {
   return results
 })
 
-const workspaceVideoId = computed(() => String(route.params.id))
+const projectId = computed(() => String(route.params.id))
 
 watch(duration, (nextDuration) => {
   if (playheadTime.value > nextDuration) setPlayhead(nextDuration)
+  previewDuration.value = Math.max(1, nextDuration)
 })
 
 watch(
@@ -351,17 +359,49 @@ watch(
   }
 )
 
+async function persistProjectState() {
+  try {
+    if (!projectId.value) return
+    await api.projects.update(projectId.value, {
+      name: projectName.value,
+      state: {
+        ...exportState(),
+        outputSettings: outputSettings.value,
+      },
+    })
+    saveState.value = 'saved'
+  } catch {
+    saveState.value = 'error'
+  }
+}
+
+function schedulePersist() {
+  if (persistTimer) clearTimeout(persistTimer)
+  persistTimer = setTimeout(() => {
+    persistProjectState()
+  }, 900)
+}
+
 function markLocalSaving() {
   saveState.value = 'saving'
-  if (saveStateTimer) clearTimeout(saveStateTimer)
-  saveStateTimer = setTimeout(() => {
-    saveState.value = 'saved'
-  }, 420)
+  schedulePersist()
 }
 
 function handleProjectRename(nextName: string) {
   setProjectName(nextName)
   markLocalSaving()
+}
+
+function handleUndo() {
+  if (undo()) {
+    markLocalSaving()
+  }
+}
+
+function handleRedo() {
+  if (redo()) {
+    markLocalSaving()
+  }
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -426,30 +466,41 @@ function syncTimelineHeight() {
 
 async function loadWorkspace() {
   try {
-    const source = await api.videos.get(workspaceVideoId.value)
-    const videoUrl = source?.video_url || ''
-    const posterUrl = source?.thumbnail_url || ''
-    previewUrl.value = videoUrl
-    previewPoster.value = posterUrl || ''
-    previewDuration.value = Number(source?.duration) || 1
-    setProjectName(source?.original_filename || source?.filename || 'Untitled video')
-    setSourceVideoClip({
-      sourceId: workspaceVideoId.value,
-      sourceUrl: videoUrl,
-      posterUrl,
-      label: source?.original_filename || source?.filename || 'Source clip',
-      duration: Number(source?.duration) || 1,
-      aspectRatio: inferAspectRatio(source?.width, source?.height),
-    })
+    saveState.value = 'saving'
+    const project = await api.projects.get(projectId.value)
+    if (project?.state && project.state.tracks) {
+      loadState(project.state)
+    } else {
+      resetState()
+    }
+    setProjectName(project?.name || 'Untitled project')
+    await refreshPersistedStreamTokens()
     extraLayers.value = { video: [], graphics: [], audio: [] }
-    outputSettings.value.width = Number(source?.width) || outputSettings.value.width
-    outputSettings.value.height = Number(source?.height) || outputSettings.value.height
+    if (project?.state?.outputSettings) {
+      outputSettings.value = { ...outputSettings.value, ...project.state.outputSettings }
+    }
     await loadMediaLibrary()
+    hydrateProjectMedia()
+    await refreshProjectVideoSources()
     saveState.value = 'saved'
   } catch (error: any) {
     saveState.value = 'error'
     toast.error(error?.data?.detail ?? 'Could not load editor workspace')
   }
+}
+
+async function refreshPersistedStreamTokens() {
+  const clipEntries = tracks.value.flatMap((track) => track.clips)
+  if (!clipEntries.length) return
+  await Promise.all(
+    clipEntries.map(async (clip) => {
+      const source = clip.sourceUrl
+      if (!source || !source.includes('/videos/') || !source.includes('/stream')) return
+      const refreshed = await api.withAccessToken(source)
+      if (!refreshed || refreshed === source) return
+      updateClip(clip.id, { sourceUrl: refreshed }, { recordHistory: false })
+    })
+  )
 }
 
 async function loadMediaLibrary() {
@@ -475,12 +526,13 @@ async function loadMediaLibrary() {
   try {
     const branding = await api.branding.list()
     for (const asset of (branding?.items ?? [])) {
-      const assetType = asset.type === 'audio' ? 'audio' : 'image'
+      const isAudio = asset.type === 'audio'
+      const assetType = isAudio ? 'audio' : 'image'
       items.push({
         id: `asset-${asset.id}`,
         name: asset.filename || 'Asset',
         type: assetType,
-        thumbnail: asset.url,
+        thumbnail: isAudio ? undefined : asset.url,
         sourceId: String(asset.id),
         sourceUrl: asset.url,
         storagePath: asset.storage_path,
@@ -491,6 +543,62 @@ async function loadMediaLibrary() {
   }
 
   mediaItems.value = items
+}
+
+function hydrateProjectMedia() {
+  const library = new Map<string, MediaLibraryItem>()
+  for (const item of mediaItems.value) {
+    if (item.sourceId) library.set(item.sourceId, item)
+  }
+
+  for (const clip of tracks.value.flatMap((track) => track.clips)) {
+    if (!clip.sourceId) continue
+    const match = library.get(clip.sourceId)
+    if (!match) continue
+    const patch: Partial<EditorClip> = {}
+    if (!clip.sourceUrl && match.sourceUrl) patch.sourceUrl = match.sourceUrl
+    if (!clip.posterUrl && match.thumbnail) patch.posterUrl = match.thumbnail
+    if (Object.keys(patch).length) {
+      updateClip(clip.id, patch, { recordHistory: false })
+    }
+  }
+
+  const firstVideo = tracks.value.find((track) => track.type === 'video')?.clips[0]
+  previewUrl.value = firstVideo?.sourceUrl || ''
+  previewPoster.value = firstVideo?.posterUrl || ''
+  previewDuration.value = Math.max(1, duration.value)
+}
+
+async function refreshProjectVideoSources() {
+  const ids = new Set<string>()
+  for (const clip of tracks.value.flatMap((track) => track.clips)) {
+    if (clip.type === 'video' && clip.sourceId) ids.add(String(clip.sourceId))
+  }
+  if (!ids.size) return
+
+  const results = await Promise.all(Array.from(ids).map(async (id) => {
+    try {
+      return await api.videos.get(id)
+    } catch {
+      return null
+    }
+  }))
+
+  results.forEach((video) => {
+    if (!video?.id) return
+    for (const clip of tracks.value.flatMap((track) => track.clips)) {
+      if (clip.type !== 'video') continue
+      if (String(clip.sourceId) !== String(video.id)) continue
+      updateClip(clip.id, {
+        sourceUrl: video.video_url || clip.sourceUrl,
+        posterUrl: video.thumbnail_url || clip.posterUrl,
+      }, { recordHistory: false })
+    }
+  })
+
+  const firstVideo = tracks.value.find((track) => track.type === 'video')?.clips[0]
+  if (firstVideo?.sourceUrl) previewUrl.value = firstVideo.sourceUrl
+  if (firstVideo?.posterUrl) previewPoster.value = firstVideo.posterUrl
 }
 
 function syncPreviewDuration(nextDuration: number) {
@@ -515,8 +623,8 @@ function syncClipMeta(payload: { clipId: string; duration?: number }) {
     duration: Math.max(0.1, payload.duration),
     trimEnd: Math.max(0.1, payload.duration),
   }, { recordHistory: false })
-  if (clip.sourceId === workspaceVideoId.value) {
-    previewDuration.value = payload.duration
+  if (clip.type === 'video') {
+    previewDuration.value = Math.max(previewDuration.value, payload.duration)
   }
 }
 
@@ -535,8 +643,10 @@ async function onImportSelected(event: Event) {
       await api.branding.upload(file, 'image')
     } else if (mediaType === 'video') {
       await api.videos.upload(file, file.name)
+    } else if (mediaType === 'audio') {
+      await api.branding.upload(file, 'audio')
     } else {
-      throw new Error('Unsupported file type. Please upload a video or image file.')
+      throw new Error('Unsupported file type. Please upload a video, image, or audio file.')
     }
     await loadMediaLibrary()
     toast.success('Media uploaded to your library')
@@ -602,6 +712,8 @@ function handleAddTransition(transitionName: string) {
       ...selectedClip.value.effects,
       fadeIn: base,
       fadeOut: base,
+      transition: transitionName,
+      transitionDuration: base,
     },
   })
   markLocalSaving()
@@ -629,6 +741,10 @@ async function handleAddMedia(item: MediaLibraryItem) {
       size: { width: 100, height: 100 },
       effects: { speed: 1, fadeIn: 0, fadeOut: 0, filter: 'None' },
     })
+    if (!previewUrl.value && item.sourceUrl) {
+      previewUrl.value = item.sourceUrl
+      previewPoster.value = item.thumbnail ?? ''
+    }
     toast.info('Video added to the timeline')
     markLocalSaving()
     return
@@ -695,14 +811,24 @@ const videoExtensions = new Set([
   '3g2',
   'ts',
 ])
+const audioExtensions = new Set([
+  'mp3',
+  'wav',
+  'm4a',
+  'aac',
+  'ogg',
+  'flac',
+])
 
 function inferMediaType(file: File) {
   if (file.type.startsWith('image/')) return 'image'
   if (file.type.startsWith('video/')) return 'video'
+  if (file.type.startsWith('audio/')) return 'audio'
   const ext = file.name.split('.').pop()?.toLowerCase()
   if (!ext) return null
   if (imageExtensions.has(ext)) return 'image'
   if (videoExtensions.has(ext)) return 'video'
+  if (audioExtensions.has(ext)) return 'audio'
   return null
 }
 
@@ -747,13 +873,13 @@ function handleTimelineTrim(payload: { clipId: string; startTime: number; durati
   })
   markLocalSaving()
 
-  if (clip.type === 'video' && clip.sourceId === workspaceVideoId.value) {
+  if (clip.type === 'video' && clip.sourceId) {
     const trimStart = Math.max(0, payload.startTime)
     const trimEnd = Math.max(trimStart + 0.1, trimStart + payload.duration)
     executeEditorOp('trim_clip', {
       start: trimStart,
       end: trimEnd,
-    }, 'Trim applied')
+    }, 'Trim applied', clip.id)
     updateClip(payload.clipId, {
       startTime: 0,
       duration: Math.max(0.1, trimEnd - trimStart),
@@ -828,28 +954,35 @@ function togglePreviewFullscreen() {
   previewRef.value?.toggleFullscreen?.()
 }
 
-async function executeEditorOp(op: string, params: Record<string, unknown>, successMessage?: string) {
+async function executeEditorOp(op: string, params: Record<string, unknown>, successMessage?: string, targetClipId?: string) {
   if (operationRunning.value) {
     toast.info('Please wait for the current render to finish')
     return
   }
+  const clip = targetClipId
+    ? tracks.value.flatMap((track) => track.clips).find((entry) => entry.id === targetClipId)
+    : selectedClip.value
+  if (!clip || clip.type !== 'video' || !clip.sourceId) {
+    toast.info('Select a video clip to render')
+    return
+  }
+
   operationRunning.value = true
   saveState.value = 'saving'
   isPlaying.value = false
 
   try {
     const shouldSaveToLibrary = op === 'export_video'
-    const response = await api.editorOps.execute(workspaceVideoId.value, op, params, {
+    const response = await api.editorOps.execute(String(clip.sourceId), op, params, {
       saveToLibrary: shouldSaveToLibrary,
       outputTitle: shouldSaveToLibrary ? `${projectName.value} - ${op}` : undefined,
     }) as EditorOpResponse
     if (response?.error) throw new Error(response.error)
 
     if (response?.output_url) {
-      previewUrl.value = response.output_url
-      const mainVideoClip = tracks.value.find((track) => track.type === 'video')?.clips[0]
-      if (mainVideoClip) {
-        updateClip(mainVideoClip.id, { sourceUrl: response.output_url }, { recordHistory: false })
+      updateClip(clip.id, { sourceUrl: response.output_url }, { recordHistory: false })
+      if (clip.id === selectedClipId.value) {
+        previewUrl.value = response.output_url
       }
     }
 
@@ -873,6 +1006,31 @@ function applyFade(payload: { fadeIn: number; fadeOut: number; commit?: boolean 
       ...selectedClip.value.effects,
       fadeIn: payload.fadeIn,
       fadeOut: payload.fadeOut,
+    },
+  }, { recordHistory: payload.commit === true })
+  markLocalSaving()
+}
+
+function applyTransition(payload: { name?: string; duration?: number; commit?: boolean }) {
+  if (!selectedClip.value) return
+  updateClip(selectedClip.value.id, {
+    effects: {
+      ...selectedClip.value.effects,
+      transition: payload.name,
+      transitionDuration: payload.duration ?? 0,
+    },
+  }, { recordHistory: payload.commit === true })
+  markLocalSaving()
+}
+
+function applyAudio(payload: { volume: number; fadeIn: number; fadeOut: number; commit?: boolean }) {
+  if (!selectedClip.value) return
+  updateClip(selectedClip.value.id, {
+    effects: {
+      ...selectedClip.value.effects,
+      volume: payload.volume,
+      audioFadeIn: payload.fadeIn,
+      audioFadeOut: payload.fadeOut,
     },
   }, { recordHistory: payload.commit === true })
   markLocalSaving()
@@ -947,6 +1105,18 @@ function applyColorAdjust(payload: { brightness: number; contrast: number; satur
   markLocalSaving()
 }
 
+function applyLayer(payload: { opacity: number; blendMode: string; commit?: boolean }) {
+  if (!selectedClip.value) return
+  updateClip(selectedClip.value.id, {
+    effects: {
+      ...selectedClip.value.effects,
+      opacity: payload.opacity,
+      blendMode: payload.blendMode,
+    },
+  }, { recordHistory: payload.commit === true })
+  markLocalSaving()
+}
+
 function applyAspectRatio(payload: { ratio: string; fitMode: 'fit' | 'fill' | 'stretch'; width: number; height: number; commit?: boolean }) {
   if (!selectedClip.value) return
   updateClip(selectedClip.value.id, {
@@ -971,13 +1141,35 @@ function applyShapeStyle(payload: { color: string; outline: boolean; commit?: bo
   markLocalSaving()
 }
 
-function exportVideo() {
-  executeEditorOp('export_video', {
-    width: outputSettings.value.width,
-    height: outputSettings.value.height,
-    fps: outputSettings.value.fps,
-    bitrate: outputSettings.value.bitrate,
-  }, 'Export completed')
+async function exportVideo() {
+  if (operationRunning.value) {
+    toast.info('Please wait for the current render to finish')
+    return
+  }
+  operationRunning.value = true
+  saveState.value = 'saving'
+
+  try {
+    const response = await api.projects.export(projectId.value, {
+      output_title: `${projectName.value} - export`,
+      output_settings: {
+        width: outputSettings.value.width,
+        height: outputSettings.value.height,
+        fps: outputSettings.value.fps,
+        bitrate: outputSettings.value.bitrate,
+      },
+    })
+    if (response?.output_url) {
+      window.open(response.output_url, '_blank', 'noopener')
+    }
+    saveState.value = 'saved'
+    toast.success('Export completed')
+  } catch (error: any) {
+    saveState.value = 'error'
+    toast.error(error?.data?.detail ?? error?.message ?? 'Export failed')
+  } finally {
+    operationRunning.value = false
+  }
 }
 
 function inferAspectRatio(width?: number, height?: number) {
@@ -1056,6 +1248,7 @@ onBeforeUnmount(() => {
   stopPlaybackLoop()
   if (resizeCleanup) resizeCleanup()
   if (windowResizeCleanup) windowResizeCleanup()
+  if (persistTimer) clearTimeout(persistTimer)
 })
 </script>
 
@@ -1096,16 +1289,16 @@ onBeforeUnmount(() => {
   gap: 0.5rem;
   padding: 0.6rem 0.75rem;
   border-top: 1px solid var(--cream-border);
-  background: rgba(191, 181, 166, 0.72);
+  background: rgba(7, 8, 7, 0.9);
 }
 
 .editor-btn {
   height: 1.95rem;
   min-width: 1.95rem;
   border-radius: 0.5rem;
-  border: 1px solid var(--cream-border);
-  background: var(--cream-ui);
-  color: #1a1b18;
+  border: 1px solid #556152;
+  background: #697565;
+  color: #f5f5f5;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1116,25 +1309,23 @@ onBeforeUnmount(() => {
 }
 
 .editor-btn:hover {
-  filter: brightness(0.97);
-  border-color: #a79b89;
-  background: var(--cream-ui);
+  background: #7d9a7d;
+  border-color: #697565;
 }
 
 .dark .editor-controls {
   border-top: 1px solid #2b2a25;
-  background: rgba(18, 19, 16, 0.9);
+  background: rgba(7, 8, 7, 0.9);
 }
 
 .editor-btn-primary {
-  background: var(--cream-ui);
-  color: #1a1b18;
-  border-color: var(--cream-border);
+  background: #697565;
+  color: #f5f5f5;
+  border-color: #556152;
 }
 
 .editor-btn-primary:hover {
-  filter: brightness(0.97);
-  background: var(--cream-ui);
+  background: #7d9a7d;
 }
 
 </style>

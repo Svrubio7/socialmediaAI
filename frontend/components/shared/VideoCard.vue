@@ -47,10 +47,9 @@
         <UiButton 
           variant="ghost" 
           size="sm" 
-          :href="localePath(`/editor/${video.id}`)"
-          target="_blank"
-          rel="noopener"
+          :disabled="video.status === 'processing'"
           class="flex-1 rounded-xl"
+          @click="$emit('edit', video)"
         >
           <template #icon-left><UiIcon name="Scissors" :size="14" /></template>
           Edit
@@ -86,7 +85,10 @@ interface Video {
   filename: string
   original_filename?: string
   thumbnail_url?: string
+  video_url?: string
   duration?: number
+  width?: number
+  height?: number
   status: 'uploaded' | 'processing' | 'processed' | 'failed'
   created_at: string
 }
@@ -102,6 +104,7 @@ const localePath = useLocalePath()
 
 defineEmits<{
   (e: 'analyze', id: string): void
+  (e: 'edit', video: Video): void
 }>()
 
 const formatDuration = (seconds: number) => {

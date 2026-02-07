@@ -24,7 +24,7 @@
           v-model="localProjectName"
           type="text"
           class="hidden sm:block w-44 lg:w-56 rounded-md border border-surface-800 bg-surface-900 px-3 py-1.5 text-sm text-surface-100 placeholder:text-surface-500 focus:outline-none focus:border-primary-400 transition-colors"
-          placeholder="Untitled video"
+          placeholder="Untitled project"
           @blur="emitName"
           @keydown.enter.prevent="emitName"
         />

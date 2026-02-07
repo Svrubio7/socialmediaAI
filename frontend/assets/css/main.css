@@ -6,12 +6,14 @@
   :root {
     --grid-size: 64px;
     --grid-line: rgba(0, 0, 0, 0.045);
+    --app-bg: #f6f4f0;
     --cream-ui: #bfb5a6;
     --cream-border: #b1a695;
   }
 
   .dark {
-    --grid-line: rgba(105, 117, 101, 0.096);
+    --grid-line: rgba(105, 117, 101, 0.115);
+    --app-bg: #070807;
     --cream-ui: #bfb5a6;
     --cream-border: #b1a695;
   }
@@ -21,8 +23,9 @@
   }
 
   body {
-    @apply bg-surface-50 text-surface-900 min-h-screen font-mono dark:bg-surface-950 dark:text-surface-200;
+    @apply text-surface-900 min-h-screen font-mono dark:text-surface-200;
     font-feature-settings: 'kern' 1, 'liga' 1;
+    background-color: var(--app-bg);
     background-image:
       linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
       linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
@@ -117,18 +120,18 @@
            hover:-translate-y-0.5 hover:shadow-glow-sm
            active:translate-y-0 active:shadow-none
            focus-visible:ring-primary-500;
-    background-color: var(--cream-ui);
-    color: #1a1b18;
-    border: 1px solid var(--cream-border);
+    background-color: #697565;
+    color: #f5f5f5;
+    border: 1px solid #556152;
   }
 
   .btn-secondary {
     @apply btn
            active:translate-y-0
            focus-visible:ring-surface-500;
-    background-color: var(--cream-ui);
-    color: #1a1b18;
-    border: 1px solid var(--cream-border);
+    background-color: #697565;
+    color: #f5f5f5;
+    border: 1px solid #556152;
   }
 
   .btn-accent {
@@ -136,9 +139,9 @@
            hover:-translate-y-0.5 hover:shadow-glow-accent
            active:translate-y-0 active:shadow-none
            focus-visible:ring-accent-300;
-    background-color: var(--cream-ui);
-    color: #1a1b18;
-    border: 1px solid var(--cream-border);
+    background-color: #697565;
+    color: #f5f5f5;
+    border: 1px solid #556152;
   }
 
   .btn-ghost {
@@ -164,41 +167,41 @@
   .btn-primary:hover,
   .btn-secondary:hover,
   .btn-accent:hover {
-    filter: brightness(0.97);
-    border-color: #a79b89;
-    background-color: var(--cream-ui);
+    background-color: #7d9a7d;
+    border-color: #697565;
   }
 
   .cream-btn {
-    background-color: var(--cream-ui);
-    color: #1a1b18;
-    border: 1px solid var(--cream-border);
+    background-color: #697565;
+    color: #f5f5f5;
+    border: 1px solid #556152;
   }
 
   .cream-btn:hover {
-    filter: brightness(0.97);
-    border-color: #a79b89;
+    background-color: #7d9a7d;
+    border-color: #697565;
   }
 
   .dark .editor-header button {
-    background-color: var(--cream-ui);
-    color: #1a1b18;
-    border-color: var(--cream-border);
+    background-color: #697565;
+    color: #f5f5f5;
+    border-color: #556152;
   }
 
   .dark .editor-header button:hover {
-    filter: brightness(0.97);
-    border-color: #a79b89;
+    background-color: #7d9a7d;
+    border-color: #697565;
   }
 
   .dark .btn {
-    background-color: var(--cream-ui);
-    color: #1a1b18;
-    border-color: var(--cream-border);
+    background-color: #697565;
+    color: #f5f5f5;
+    border-color: #556152;
   }
 
   .dark .btn:hover {
-    filter: brightness(0.97);
+    background-color: #7d9a7d;
+    border-color: #697565;
   }
 
   /* Size variants */
@@ -350,11 +353,11 @@
 
   /* Section styles */
   .section {
-    @apply py-24 md:py-32 relative;
+    @apply py-12 md:py-16 relative;
   }
 
   .section-tight {
-    @apply py-16 md:py-20;
+    @apply py-8 md:py-10;
   }
 
   .container-tight {
@@ -468,7 +471,7 @@
   }
 
   .bg-gradient-radial-top {
-    background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(105, 117, 101, 0.08), transparent);
+    background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(105, 117, 101, 0.06), transparent);
   }
 
   /* Glow effects */

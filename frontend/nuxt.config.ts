@@ -1,7 +1,7 @@
 // @ts-nocheck
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  devtools: { enabled: true },
+  devtools: { enabled: process.env.NUXT_DEVTOOLS === 'true' },
 
   modules: [
     '@nuxtjs/tailwindcss',
@@ -34,6 +34,7 @@ export default defineNuxtConfig({
       apiUrl: process.env.NUXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1',
       supabaseUrl: process.env.NUXT_PUBLIC_SUPABASE_URL || '',
       supabaseKey: process.env.NUXT_PUBLIC_SUPABASE_ANON_KEY || '',
+      supabaseStorageBucket: process.env.NUXT_PUBLIC_SUPABASE_STORAGE_BUCKET || 'videos',
     },
   },
 

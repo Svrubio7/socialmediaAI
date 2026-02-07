@@ -14,12 +14,12 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_db, get_current_user
 from app.models.user import User
 from app.models.user_asset import UserAsset
-from app.services.storage_service import LocalStorageService
+from app.services.storage_service import get_storage_service
 
 router = APIRouter()
-storage = LocalStorageService()
+storage = get_storage_service()
 
-ALLOWED_EXTENSIONS = {
+IMAGE_EXTENSIONS = {
     ".png",
     ".jpg",
     ".jpeg",
@@ -32,8 +32,16 @@ ALLOWED_EXTENSIONS = {
     ".heic",
     ".heif",
 }
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
-ASSET_TYPES = ["logo", "image", "watermark"]
+AUDIO_EXTENSIONS = {
+    ".mp3",
+    ".wav",
+    ".m4a",
+    ".aac",
+    ".ogg",
+    ".flac",
+}
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
+ASSET_TYPES = ["logo", "image", "watermark", "audio"]
 
 
 class BrandingAssetResponse(BaseModel):
@@ -59,21 +67,26 @@ class BrandingAssetListResponse(BaseModel):
 
 def validate_asset_file(file: UploadFile, asset_type: str) -> None:
     ext = os.path.splitext(file.filename or "")[1].lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
-        )
     if asset_type not in ASSET_TYPES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid type. Allowed: {', '.join(ASSET_TYPES)}",
         )
+    if asset_type == "audio":
+        allowed = AUDIO_EXTENSIONS
+    else:
+        allowed = IMAGE_EXTENSIONS
+    if ext not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file type. Allowed: {', '.join(sorted(allowed))}",
+        )
 
 
 def _asset_url(asset: UserAsset, request: Request) -> Optional[str]:
     if asset.storage_path:
-        return storage.build_public_url(asset.storage_path, request)
+        signed = storage.build_public_url(asset.storage_path, request)
+        return signed or asset.url
     return asset.url
 
 

@@ -58,6 +58,7 @@
         :video="video"
         :analyzing="analyzingId === video.id"
         @analyze="analyzeVideo"
+        @edit="editVideo"
       />
     </div>
 
@@ -132,6 +133,7 @@ definePageMeta({
 
 const api = useApi()
 const toast = useToast()
+const localePath = useLocalePath()
 const showUpload = ref(false)
 const uploadProgress = ref(0)
 const uploadingFileName = ref('')
@@ -217,6 +219,104 @@ const analyzeVideo = async (videoId: string) => {
     toast.error(e?.data?.detail ?? e?.message ?? 'Analysis failed')
   } finally {
     analyzingId.value = null
+  }
+}
+
+function inferAspectRatio(width?: number, height?: number) {
+  const w = Number(width)
+  const h = Number(height)
+  if (!w || !h) return '16:9'
+  const ratio = w / h
+  const known = [
+    { key: '16:9', value: 16 / 9 },
+    { key: '9:16', value: 9 / 16 },
+    { key: '1:1', value: 1 },
+    { key: '4:5', value: 4 / 5 },
+    { key: '4:3', value: 4 / 3 },
+    { key: '21:9', value: 21 / 9 },
+  ]
+  let best = known[0]
+  let score = Number.POSITIVE_INFINITY
+  for (const option of known) {
+    const delta = Math.abs(option.value - ratio)
+    if (delta < score) {
+      score = delta
+      best = option
+    }
+  }
+  return best.key
+}
+
+const editVideo = async (video: any) => {
+  if (!video) return
+  try {
+    const projectName = video.original_filename || video.filename || 'Untitled project'
+    const project = await api.projects.create({ name: projectName })
+    const duration = Math.max(0.1, Number(video.duration) || 1)
+    const clipId = `video-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    const baseEffects = {
+      fadeIn: 0,
+      fadeOut: 0,
+      transition: undefined,
+      transitionDuration: undefined,
+      audioFadeIn: 0,
+      audioFadeOut: 0,
+      speed: 1,
+      filter: 'None',
+      brightness: 0,
+      contrast: 1,
+      saturation: 1,
+      gamma: 1,
+      hue: 0,
+      blur: 0,
+      opacity: 1,
+      volume: 1,
+      blendMode: 'normal',
+      overlayColor: 'transparent',
+      overlayOpacity: 0,
+      overlayBlend: 'soft-light',
+    }
+    const state = {
+      projectName: project.name || projectName,
+      tracks: [
+        {
+          id: 'track-video',
+          type: 'video',
+          label: 'Video',
+          clips: [
+            {
+              id: clipId,
+              type: 'video',
+              label: projectName,
+              startTime: 0,
+              duration,
+              layer: 1,
+              layerGroup: 'video',
+              sourceId: video.id,
+              sourceUrl: video.video_url,
+              posterUrl: video.thumbnail_url,
+              trimStart: 0,
+              trimEnd: duration,
+              aspectRatio: inferAspectRatio(video.width, video.height),
+              fitMode: 'fit',
+              position: { x: 0, y: 0 },
+              size: { width: 100, height: 100 },
+              lockAspectRatio: true,
+              effects: { ...baseEffects },
+            },
+          ],
+        },
+        { id: 'track-graphics', type: 'graphics', label: 'Graphics', clips: [] },
+        { id: 'track-audio', type: 'audio', label: 'Audio', clips: [] },
+      ],
+      selectedClipId: clipId,
+      playheadTime: 0,
+      timelineZoom: 1,
+    }
+    await api.projects.update(project.id, { state })
+    await navigateTo(localePath(`/editor/${project.id}`))
+  } catch (e: any) {
+    toast.error(e?.data?.detail ?? e?.message ?? 'Could not open editor')
   }
 }
 </script>

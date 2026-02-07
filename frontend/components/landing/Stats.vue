@@ -1,8 +1,8 @@
 <template>
-  <section ref="sectionRef" class="relative py-16">
+  <section ref="sectionRef" class="relative py-8">
     <div class="container-wide">
       <!-- Contained divider -->
-      <div class="section-divider mb-16" />
+      <div class="section-divider mb-8" />
       
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
         <div 
@@ -22,7 +22,7 @@
       </div>
       
       <!-- Contained divider -->
-      <div class="section-divider mt-16" />
+      <div class="section-divider mt-8" />
     </div>
   </section>
 </template>

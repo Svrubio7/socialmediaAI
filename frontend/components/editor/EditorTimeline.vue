@@ -463,9 +463,9 @@ onBeforeUnmount(() => {
 .tool-btn {
   height: 1.9rem;
   border-radius: 0.45rem;
-  border: 1px solid var(--cream-border);
-  background: var(--cream-ui);
-  color: #1a1b18;
+  border: 1px solid #556152;
+  background: #697565;
+  color: #f5f5f5;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -475,9 +475,8 @@ onBeforeUnmount(() => {
 }
 
 .tool-btn:hover {
-  filter: brightness(0.97);
-  border-color: #a79b89;
-  background: var(--cream-ui);
+  background: #7d9a7d;
+  border-color: #697565;
 }
 
 .trim-handle {

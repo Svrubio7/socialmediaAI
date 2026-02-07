@@ -14,11 +14,11 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_db, get_current_user
 from app.models.user import User
 from app.models.video import Video, VideoStatus
-from app.services.storage_service import LocalStorageService
+from app.services.storage_service import get_storage_service
 from app.services.video_editor import VideoEditorService
 
 router = APIRouter()
-storage = LocalStorageService()
+storage = get_storage_service()
 
 
 class EditorOpRequest(BaseModel):
@@ -72,24 +72,31 @@ async def execute_editor_op(
     p = body.params
 
     out_storage_path = f"editor/outputs/{current_user.id}/{video_id}/{uuid4()}_{body.op}.mp4"
-    out_abs = str(storage.absolute_path(out_storage_path))
+    out_abs = str(storage.get_write_path(out_storage_path))
     os.makedirs(os.path.dirname(out_abs), exist_ok=True)
-    out_url = storage.build_public_url(out_storage_path)
 
     async def finalize_output(op: str) -> EditorOpResponse:
         if not os.path.exists(out_abs):
             return EditorOpResponse(op=op, error="Operation completed but output file was not produced")
 
         output_video_id: Optional[str] = None
+        info = await svc.get_video_info(out_abs)
+        file_size = os.path.getsize(out_abs)
+
+        try:
+            storage.finalize_write(out_storage_path, out_abs, content_type="video/mp4")
+        except Exception as exc:
+            return EditorOpResponse(op=op, error=f"Failed to save output: {exc}")
+
+        out_url = storage.build_public_url(out_storage_path)
         if body.save_to_library:
-            info = await svc.get_video_info(out_abs)
             edited = Video(
                 id=uuid4(),
                 user_id=current_user.id,
                 filename=(body.output_title or f"{source_video.filename} - {op}"),
                 original_filename=source_video.original_filename or source_video.filename,
                 storage_path=out_storage_path,
-                file_size=os.path.getsize(out_abs),
+                file_size=file_size,
                 duration=info.get("duration"),
                 width=info.get("width"),
                 height=info.get("height"),

@@ -44,7 +44,7 @@
       </div>
       
       <!-- Contained divider -->
-      <div class="section-divider mt-24" />
+      <div class="section-divider mt-12" />
     </div>
   </section>
 </template>

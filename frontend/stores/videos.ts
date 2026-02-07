@@ -8,6 +8,9 @@ interface Video {
   id: string
   filename: string
   original_filename?: string
+  storage_path?: string
+  thumbnail_storage_path?: string
+  video_url?: string
   thumbnail_url?: string
   status: 'uploaded' | 'processing' | 'processed' | 'failed'
   duration?: number

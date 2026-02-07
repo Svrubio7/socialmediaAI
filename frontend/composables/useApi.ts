@@ -8,17 +8,184 @@ interface ApiOptions {
   headers?: Record<string, string>
 }
 
+const API_REQUEST_TIMEOUT_MS = 15000
+const TOKEN_TIMEOUT_MS = 4000
+
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Timed out after ${timeoutMs}ms`)), timeoutMs)
+    promise
+      .then((value) => {
+        clearTimeout(timer)
+        resolve(value)
+      })
+      .catch((error) => {
+        clearTimeout(timer)
+        reject(error)
+      })
+  })
+
+const safeNumber = (value: number) => (Number.isFinite(value) ? value : undefined)
+
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `vid_${Date.now()}_${Math.random().toString(16).slice(2)}`
+}
+
+const extensionFromType = (mime: string) => {
+  const map: Record<string, string> = {
+    'video/mp4': '.mp4',
+    'video/quicktime': '.mov',
+    'video/x-m4v': '.m4v',
+    'video/webm': '.webm',
+    'video/ogg': '.ogv',
+  }
+  return map[mime] || ''
+}
+
+const getFileExtension = (file: File) => {
+  const name = file.name || ''
+  const idx = name.lastIndexOf('.')
+  if (idx > -1) return name.slice(idx).toLowerCase()
+  return extensionFromType(file.type) || '.mp4'
+}
+
+const getVideoMetadata = async (file: File): Promise<{ duration?: number; width?: number; height?: number }> => {
+  if (!process.client) return {}
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file)
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.muted = true
+    video.src = url
+    video.load()
+    video.onloadedmetadata = () => {
+      const duration = safeNumber(video.duration)
+      const width = safeNumber(video.videoWidth)
+      const height = safeNumber(video.videoHeight)
+      URL.revokeObjectURL(url)
+      resolve({ duration, width, height })
+    }
+    video.onerror = () => {
+      URL.revokeObjectURL(url)
+      resolve({})
+    }
+  })
+}
+
+const createVideoThumbnail = async (file: File, seekTime = 0.1): Promise<Blob | null> => {
+  if (!process.client) return null
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file)
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.muted = true
+    video.src = url
+    video.load()
+    video.onloadedmetadata = () => {
+      const safeTime = Math.min(Math.max(seekTime, 0), Math.max(0, (video.duration || 0) - 0.1))
+      try {
+        video.currentTime = safeTime
+      } catch {
+        video.currentTime = 0
+      }
+    }
+    video.onseeked = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = video.videoWidth || 1280
+      canvas.height = video.videoHeight || 720
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        URL.revokeObjectURL(url)
+        resolve(null)
+        return
+      }
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(
+        (blob) => {
+          URL.revokeObjectURL(url)
+          resolve(blob || null)
+        },
+        'image/jpeg',
+        0.86
+      )
+    }
+    video.onerror = () => {
+      URL.revokeObjectURL(url)
+      resolve(null)
+    }
+  })
+}
+
 export const useApi = () => {
   const config = useRuntimeConfig()
   const supabase = useSupabaseClient()
   const baseUrl = (config.public.apiUrl || '').replace(/\/$/, '')
+  const signedUrlTtl = 3600
+
+  const createSignedUrl = async (path?: string): Promise<string | undefined> => {
+    if (!process.client || !path) return undefined
+    const bucket = config.public.supabaseStorageBucket || 'videos'
+    try {
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, signedUrlTtl)
+      if (error) return undefined
+      return data?.signedUrl || data?.signedURL || data?.signed_url
+    } catch {
+      return undefined
+    }
+  }
+
+  const getAccessToken = async (): Promise<string | undefined> => {
+    try {
+      const { data: { session } } = await withTimeout(supabase.auth.getSession(), TOKEN_TIMEOUT_MS)
+      return session?.access_token
+    } catch {
+      return undefined
+    }
+  }
+
+  const withAccessToken = async (url?: string): Promise<string | undefined> => {
+    if (!process.client || !url) return url
+    if (!url.includes('/videos/') || !url.includes('/stream')) return url
+    const token = await getAccessToken()
+    if (!token) return url
+    try {
+      const parsed = new URL(url, window.location.origin)
+      parsed.searchParams.set('token', token)
+      if (/^https?:\/\//i.test(url)) {
+        return parsed.toString()
+      }
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`
+    } catch {
+      // Fallback for malformed/relative URLs that URL() cannot parse cleanly.
+      let cleaned = url.replace(/([?&])token=[^&]*(&?)/, (_m, sep, tail) => (sep === '?' && tail ? '?' : sep))
+      cleaned = cleaned.replace(/[?&]$/, '')
+      const join = cleaned.includes('?') ? '&' : '?'
+      return `${cleaned}${join}token=${encodeURIComponent(token)}`
+    }
+  }
+
+  const hydrateVideoUrls = async (video: any) => {
+    if (!process.client || !video) return video
+    if (!video.video_url && video.storage_path) {
+      video.video_url = await createSignedUrl(video.storage_path)
+    }
+    const thumbPath = video.thumbnail_storage_path
+    if (!video.thumbnail_url && thumbPath) {
+      video.thumbnail_url = await createSignedUrl(thumbPath)
+    }
+    if (video.video_url) {
+      video.video_url = await withAccessToken(video.video_url)
+    }
+    return video
+  }
 
   const getAuthHeaders = async (): Promise<Record<string, string>> => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.access_token) {
-      return {
-        'Authorization': `Bearer ${session.access_token}`,
-      }
+    const token = await getAccessToken()
+    if (token) {
+      return { 'Authorization': `Bearer ${token}` }
     }
     return {}
   }
@@ -28,12 +195,14 @@ export const useApi = () => {
     
     const authHeaders = await getAuthHeaders()
     const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
+    const shouldSetJsonContentType = !isFormData && body !== undefined && method !== 'GET'
     
     const response = await $fetch<T>(`${baseUrl}${endpoint}`, {
       method,
       body: body ?? undefined,
+      timeout: API_REQUEST_TIMEOUT_MS,
       headers: {
-        ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
+        ...(shouldSetJsonContentType ? { 'Content-Type': 'application/json' } : {}),
         ...authHeaders,
         ...headers,
       },
@@ -70,24 +239,95 @@ export const useApi = () => {
       if (params?.page) query.set('page', params.page.toString())
       if (params?.limit) query.set('limit', params.limit.toString())
       if (params?.status) query.set('status', params.status)
-      return get<any>(`/videos?${query}`)
-    },
-    get: (id: string) => get<any>(`/videos/${id}`),
-    upload: async (file: File, title?: string) => {
-      const formData = new FormData()
-      formData.append('file', file)
-      if (title) formData.append('title', title)
-      
-      const authHeaders = await getAuthHeaders()
-      return $fetch(`${baseUrl}/videos/upload`, {
-        method: 'POST',
-        body: formData,
-        headers: authHeaders,
+      return get<any>(`/videos?${query}`).then(async (response) => {
+        if (response?.items?.length) {
+          response.items = await Promise.all(response.items.map(hydrateVideoUrls))
+        }
+        return response
       })
+    },
+    get: (id: string) => get<any>(`/videos/${id}`).then(hydrateVideoUrls),
+    upload: async (file: File, title?: string) => {
+      if (!process.client) throw new Error('Upload must run in the browser')
+      const { data: { user }, error } = await supabase.auth.getUser()
+      if (error || !user) throw new Error('Not authenticated')
+
+      const bucket = config.public.supabaseStorageBucket || 'videos'
+      const fileId = generateId()
+      const ext = getFileExtension(file)
+      const storagePath = `videos/${user.id}/${fileId}${ext}`
+
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(storagePath, file, {
+          upsert: false,
+          contentType: file.type || 'video/mp4',
+        })
+      if (uploadError) {
+        const details = uploadError.message || 'Supabase upload failed.'
+        throw new Error(`${details} Verify the storage bucket name and RLS policies for '${bucket}'.`)
+      }
+
+      const metadata = await getVideoMetadata(file)
+      let thumbPath: string | undefined
+      const thumbBlob = await createVideoThumbnail(file)
+      if (thumbBlob) {
+        thumbPath = `thumbnails/${user.id}/${fileId}.jpg`
+        const { error: thumbError } = await supabase.storage
+          .from(bucket)
+          .upload(thumbPath, thumbBlob, {
+            upsert: true,
+            contentType: 'image/jpeg',
+          })
+        if (thumbError) {
+          thumbPath = undefined
+        }
+      }
+
+      try {
+        return await post('/videos/register', {
+          storage_path: storagePath,
+          thumbnail_storage_path: thumbPath,
+          filename: title || file.name,
+          original_filename: file.name,
+          file_size: file.size,
+          duration: metadata.duration,
+          width: metadata.width,
+          height: metadata.height,
+        })
+      } catch (err) {
+        const paths = [storagePath, thumbPath].filter(Boolean) as string[]
+        if (paths.length) {
+          await supabase.storage.from(bucket).remove(paths)
+        }
+        throw err
+      }
     },
     delete: (id: string) => del(`/videos/${id}`),
     analyze: (id: string) => post(`/videos/${id}/analyze`),
     edit: (id: string, data: any) => post(`/videos/${id}/edit`, data),
+  }
+
+  // Editor projects
+  const projects = {
+    list: (params?: { page?: number; limit?: number }) => {
+      const query = new URLSearchParams()
+      if (params?.page) query.set('page', params.page.toString())
+      if (params?.limit) query.set('limit', params.limit.toString())
+      return get<any>(`/projects?${query}`)
+    },
+    get: (id: string) => get<any>(`/projects/${id}`),
+    create: (body: { name?: string; description?: string }) => post<any>('/projects', body),
+    update: (id: string, body: { name?: string; description?: string; state?: Record<string, unknown> }) =>
+      patch<any>(`/projects/${id}`, body),
+    delete: (id: string) => del(`/projects/${id}`),
+    export: (id: string, body?: { output_title?: string; output_settings?: Record<string, unknown> }) =>
+      post<any>(`/projects/${id}/export`, body).then(async (response) => {
+        if (process.client && response?.output_path && !response?.output_url) {
+          response.output_url = await createSignedUrl(response.output_path)
+        }
+        return response
+      }),
   }
 
   // Pattern endpoints
@@ -158,9 +398,26 @@ export const useApi = () => {
     list: (params?: { type?: string }) => {
       const query = new URLSearchParams()
       if (params?.type) query.set('type_filter', params.type)
-      return get<any>(`/branding?${query}`)
+      return get<any>(`/branding?${query}`).then(async (response) => {
+        if (!process.client || !response?.items?.length) return response
+        response.items = await Promise.all(
+          response.items.map(async (item: any) => {
+            if (!item?.url && item?.storage_path) {
+              item.url = await createSignedUrl(item.storage_path)
+            }
+            return item
+          })
+        )
+        return response
+      })
     },
-    get: (id: string) => get<any>(`/branding/${id}`),
+    get: (id: string) =>
+      get<any>(`/branding/${id}`).then(async (item) => {
+        if (process.client && item?.storage_path && !item?.url) {
+          item.url = await createSignedUrl(item.storage_path)
+        }
+        return item
+      }),
     upload: async (file: File, assetType: string = 'image') => {
       const formData = new FormData()
       formData.append('file', file)
@@ -198,7 +455,12 @@ export const useApi = () => {
           save_to_library: options?.saveToLibrary ?? true,
           output_title: options?.outputTitle,
         }
-      ),
+      ).then(async (response) => {
+        if (process.client && response?.output_path && !response?.output_url) {
+          response.output_url = await createSignedUrl(response.output_path)
+        }
+        return response
+      }),
   }
 
   // Edit templates (content library)
@@ -251,8 +513,10 @@ export const useApi = () => {
     put,
     del,
     patch,
+    withAccessToken,
     auth: authApi,
     videos,
+    projects,
     patterns,
     strategies,
     scripts,

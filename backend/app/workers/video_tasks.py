@@ -13,8 +13,10 @@ import shutil
 from pathlib import Path
 
 from app.core.config import settings
+from app.services.storage_service import get_storage_service
 
 logger = logging.getLogger(__name__)
+storage = get_storage_service()
 
 
 def ensure_temp_dir() -> Path:
@@ -22,6 +24,16 @@ def ensure_temp_dir() -> Path:
     temp_dir = Path(settings.TEMP_PROCESSING_DIR)
     temp_dir.mkdir(parents=True, exist_ok=True)
     return temp_dir
+
+
+def resolve_storage_path(path: str) -> str:
+    try:
+        candidate = Path(path)
+        if candidate.is_absolute() and candidate.exists():
+            return str(candidate)
+    except Exception:
+        pass
+    return storage.resolve_for_processing(path)
 
 
 def get_video_info(video_path: str) -> Dict[str, Any]:
@@ -224,6 +236,7 @@ def extract_frames_task(
     """
     try:
         logger.info(f"Starting frame extraction for video {video_id}")
+        video_path = resolve_storage_path(video_path)
         
         # Create temp directory for this video
         temp_dir = ensure_temp_dir()
@@ -273,6 +286,7 @@ def extract_audio_task(
     """
     try:
         logger.info(f"Starting audio extraction for video {video_id}")
+        video_path = resolve_storage_path(video_path)
         
         # Create temp directory for this video
         temp_dir = ensure_temp_dir()
@@ -321,6 +335,7 @@ def analyze_video_patterns(
     """
     try:
         logger.info(f"Starting pattern analysis for video {video_id}")
+        video_path = resolve_storage_path(video_path)
         
         # Create temp directory for this video
         temp_dir = ensure_temp_dir()
@@ -401,6 +416,7 @@ def generate_thumbnail(
     """
     try:
         logger.info(f"Generating thumbnail for video {video_id}")
+        video_path = resolve_storage_path(video_path)
         
         temp_dir = ensure_temp_dir()
         thumbnail_path = temp_dir / f"{video_id}_thumbnail.jpg"
@@ -456,6 +472,7 @@ def edit_video(
     """
     try:
         logger.info(f"Starting video editing for video {video_id}")
+        video_path = resolve_storage_path(video_path)
         import asyncio
         from app.services.video_editor import VideoEditorService
 
@@ -501,6 +518,7 @@ def execute_editor_op(
 
     try:
         logger.info(f"Running editor op {op} for video {video_id}")
+        video_path = resolve_storage_path(video_path)
         svc = VideoEditorService()
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -560,6 +578,7 @@ def extract_video_metadata(
     """
     try:
         logger.info(f"Extracting metadata for video {video_id}")
+        video_path = resolve_storage_path(video_path)
         
         metadata = get_video_info(video_path)
         

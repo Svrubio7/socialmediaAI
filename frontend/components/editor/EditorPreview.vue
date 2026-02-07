@@ -35,14 +35,16 @@
               <video
                 v-if="clip.type === 'video' && hasPlayableVideo(clip)"
                 :ref="(el) => setVideoRef(clip.id, el as HTMLVideoElement | null)"
-                :key="`${clip.id}-${clip.sourceUrl ?? ''}`"
-                :src="clip.sourceUrl || ''"
-                :poster="clip.posterUrl || ''"
+                :key="`${clip.id}-${resolveVideoSource(clip)}`"
+                :src="resolveVideoSource(clip)"
+                :poster="clipPosterSource(clip)"
                 class="h-full w-full rounded-md border border-surface-700 bg-black"
                 :style="mediaStyle(clip)"
                 preload="auto"
                 playsinline
                 @loadedmetadata="onVideoMetaLoaded(clip)"
+                @loadeddata="onVideoDataLoaded(clip)"
+                @error="onVideoError(clip)"
               />
               <img
                 v-else-if="clip.type === 'video'"
@@ -144,7 +146,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, toRefs, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, toRefs, watch } from 'vue'
 import type { EditorClip } from '~/composables/useEditorState'
 
 interface Props {
@@ -192,6 +194,7 @@ const volumeValue = computed(() => props.volume ?? 1)
 const fallbackPoster = computed(() => props.fallbackPoster || '')
 
 const videoRefs = new Map<string, HTMLVideoElement>()
+const failedVideos = ref<Record<string, string>>({})
 function setVideoRef(id: string, el: HTMLVideoElement | null) {
   if (!el) {
     videoRefs.delete(id)
@@ -200,6 +203,12 @@ function setVideoRef(id: string, el: HTMLVideoElement | null) {
   videoRefs.set(id, el)
   el.volume = volumeValue.value
   el.muted = volumeValue.value <= 0
+  if (el.src) {
+    el.load()
+  }
+  void nextTick(() => {
+    syncActiveVideoPlayback()
+  })
 }
 
 const visualClips = computed(() => clips.value.filter((clip) => clip.type !== 'audio'))
@@ -213,9 +222,38 @@ const fallbackMedia = computed(() => {
   if (props.fallbackPoster) return { type: 'image' as const, src: props.fallbackPoster }
   return null
 })
+const transitionInfo = computed(() => {
+  const videos = visualClips.value
+    .filter((clip) => clip.type === 'video')
+    .slice()
+    .sort((a, b) => a.startTime - b.startTime)
+  const inMap = new Map<string, number>()
+  const outMap = new Map<string, number>()
+  for (let i = 0; i < videos.length - 1; i += 1) {
+    const current = videos[i]
+    const next = videos[i + 1]
+    const end = current.startTime + current.duration
+    if (Math.abs(next.startTime - end) > 0.05) continue
+    const transName = current.effects?.transition ?? next.effects?.transition
+    const dur = current.effects?.transitionDuration ?? next.effects?.transitionDuration ?? 0
+    if (!transName || !dur) continue
+    outMap.set(current.id, dur)
+    inMap.set(next.id, dur)
+  }
+  return { inMap, outMap }
+})
+
 const activeClips = computed(() => {
   const now = currentTime.value
-  return visualClips.value.filter((clip) => now >= clip.startTime && now <= clip.startTime + clip.duration)
+  return visualClips.value.filter((clip) => {
+    if (clip.type === 'video') {
+      const transitionIn = transitionInfo.value.inMap.get(clip.id) ?? 0
+      const startWindow = clip.startTime - transitionIn
+      const endWindow = clip.startTime + clip.duration
+      return now >= startWindow && now <= endWindow
+    }
+    return now >= clip.startTime && now <= clip.startTime + clip.duration
+  })
 })
 const activeVideoClips = computed(() => activeClips.value.filter((clip) => clip.type === 'video'))
 const activeNonVideoClips = computed(() => activeClips.value.filter((clip) => clip.type !== 'video'))
@@ -252,9 +290,29 @@ function clipOpacity(clip: EditorClip) {
   const localTime = currentTime.value - clip.startTime
   const remaining = clip.duration - localTime
   let opacity = 1
-  if (fadeIn > 0) opacity = Math.min(opacity, Math.max(0, localTime / fadeIn))
-  if (fadeOut > 0) opacity = Math.min(opacity, Math.max(0, remaining / fadeOut))
-  return opacity
+
+  if (clip.type === 'video') {
+    const transitionIn = transitionInfo.value.inMap.get(clip.id) ?? 0
+    const transitionOut = transitionInfo.value.outMap.get(clip.id) ?? 0
+    if (transitionIn > 0) {
+      const t0 = clip.startTime - transitionIn
+      if (currentTime.value >= t0 && currentTime.value <= clip.startTime) {
+        opacity = Math.min(opacity, Math.max(0, (currentTime.value - t0) / transitionIn))
+      }
+    }
+    if (transitionOut > 0) {
+      const t1 = clip.startTime + clip.duration - transitionOut
+      if (currentTime.value >= t1 && currentTime.value <= clip.startTime + clip.duration) {
+        opacity = Math.min(opacity, Math.max(0, (clip.startTime + clip.duration - currentTime.value) / transitionOut))
+      }
+    }
+  }
+
+  if (fadeIn > 0 && localTime >= 0) opacity = Math.min(opacity, Math.max(0, localTime / fadeIn))
+  if (fadeOut > 0 && remaining >= 0) opacity = Math.min(opacity, Math.max(0, remaining / fadeOut))
+
+  const extra = clip.effects?.opacity ?? clip.style?.opacity ?? 1
+  return opacity * extra
 }
 
 function clipFilter(clip: EditorClip) {
@@ -299,14 +357,21 @@ function isLikelyImage(url?: string) {
   return imageExtensions.some((ext) => clean.endsWith(ext))
 }
 
+function resolveVideoSource(clip: EditorClip) {
+  return clip.sourceUrl || props.fallbackUrl || ''
+}
+
 function hasPlayableVideo(clip: EditorClip) {
-  if (!clip.sourceUrl) return false
-  return !isLikelyImage(clip.sourceUrl)
+  const src = resolveVideoSource(clip)
+  if (!src) return false
+  if (failedVideos.value[clip.id] === src) return false
+  return !isLikelyImage(src)
 }
 
 function clipPosterSource(clip: EditorClip) {
   if (clip.posterUrl) return clip.posterUrl
-  if (clip.sourceUrl && isLikelyImage(clip.sourceUrl)) return clip.sourceUrl
+  const fallbackSource = resolveVideoSource(clip)
+  if (fallbackSource && isLikelyImage(fallbackSource)) return fallbackSource
   return fallbackPoster.value
 }
 
@@ -316,6 +381,11 @@ function clipBoxStyle(clip: EditorClip) {
   const rotation = clip.rotation ?? 0
   const group = clip.layerGroup ?? (clip.type === 'video' ? 'video' : clip.type === 'audio' ? 'audio' : 'graphics')
   const groupOffset = group === 'graphics' ? 100 : 0
+  const rawBlend = clip.effects?.blendMode
+  const cssBlendMap: Record<string, string> = {
+    softlight: 'soft-light',
+    hardlight: 'hard-light',
+  }
   return {
     left: `${position.x}%`,
     top: `${position.y}%`,
@@ -325,6 +395,7 @@ function clipBoxStyle(clip: EditorClip) {
     opacity: clipOpacity(clip),
     zIndex: groupOffset + (clip.layer ?? 1),
     filter: clipFilter(clip),
+    mixBlendMode: rawBlend && rawBlend !== 'normal' ? (cssBlendMap[rawBlend] || rawBlend) : 'normal',
   }
 }
 
@@ -355,7 +426,7 @@ watch([currentTime, activeVideoClips, holdFrameClip, fallbackVideoClip], () => {
     const video = videoRefs.get(clip.id)
     if (!video) return
     const targetTime = getClipMediaTime(clip)
-    if (Number.isFinite(targetTime) && Math.abs(video.currentTime - targetTime) > 0.2) {
+    if (video.readyState >= 1 && Number.isFinite(targetTime) && Math.abs(video.currentTime - targetTime) > 0.2) {
       video.currentTime = targetTime
     }
     const playbackRate = clip.effects?.speed ?? 1
@@ -393,6 +464,15 @@ async function syncActiveVideoPlayback(forceState?: boolean) {
       try {
         await video.play()
       } catch {
+        if (!video.muted) {
+          video.muted = true
+          try {
+            await video.play()
+            continue
+          } catch {
+            // fall through
+          }
+        }
         emit('update:playing', false)
       }
     } else if (!shouldPlay && !video.paused) {
@@ -418,10 +498,43 @@ function onVideoMetaLoaded(clip: EditorClip) {
   if (Number.isFinite(duration)) {
     emit('update:clip-meta', { clipId: clip.id, duration })
   }
+  if (video) {
+    const targetTime = getClipMediaTime(clip)
+    if (video.readyState >= 1 && Number.isFinite(targetTime)) {
+      video.currentTime = targetTime
+    }
+  }
+  if (playing.value) {
+    syncActiveVideoPlayback(true)
+  }
+}
+
+function onVideoDataLoaded(clip: EditorClip) {
+  if (failedVideos.value[clip.id]) {
+    const next = { ...failedVideos.value }
+    delete next[clip.id]
+    failedVideos.value = next
+  }
+  if (playing.value) {
+    syncActiveVideoPlayback(true)
+  }
+}
+
+function onVideoError(clip: EditorClip) {
+  const src = resolveVideoSource(clip)
+  if (src && failedVideos.value[clip.id] !== src) {
+    failedVideos.value = { ...failedVideos.value, [clip.id]: src }
+  }
+  // eslint-disable-next-line no-console
+  console.warn('Preview video failed to load', clip.sourceUrl || props.fallbackUrl || '')
 }
 
 function togglePlay() {
-  emit('update:playing', !playing.value)
+  const next = !playing.value
+  emit('update:playing', next)
+  if (next) {
+    void syncActiveVideoPlayback(true)
+  }
 }
 
 function seekBy(seconds: number) {
@@ -541,9 +654,9 @@ defineExpose({
   height: 1.95rem;
   min-width: 1.95rem;
   border-radius: 0.5rem;
-  border: 1px solid var(--cream-border);
-  background: var(--cream-ui);
-  color: #1a1b18;
+  border: 1px solid #556152;
+  background: #697565;
+  color: #f5f5f5;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -552,9 +665,8 @@ defineExpose({
 }
 
 .control-btn:hover {
-  filter: brightness(0.97);
-  border-color: #a79b89;
-  background: var(--cream-ui);
+  background: #7d9a7d;
+  border-color: #697565;
 }
 
 .overlay-tool {

@@ -22,12 +22,12 @@
           v-for="(item, index) in faqs" 
           :key="index"
           ref="faqRefs"
-          class="border border-surface-800 rounded-xl overflow-hidden bg-surface-900/50 transition-all duration-500"
+          class="border border-surface-800 rounded-xl overflow-hidden bg-surface-900 transition-all duration-500"
           :class="visibleFaqs[index] ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'"
           :style="{ transitionDelay: `${index * 75}ms` }"
         >
           <button
-            class="w-full flex items-center justify-between p-5 text-left hover:bg-surface-800/50 transition-colors"
+            class="w-full flex items-center justify-between p-5 text-left hover:bg-surface-800 transition-colors"
             @click="toggleFaq(index)"
           >
             <span class="text-surface-100 pr-4 font-mono">
@@ -59,7 +59,7 @@
       </div>
       
       <!-- Contained divider -->
-      <div class="section-divider mt-24" />
+      <div class="section-divider mt-12" />
     </div>
   </section>
 </template>

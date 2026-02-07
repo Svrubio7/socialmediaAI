@@ -1,9 +1,8 @@
 <template>
   <div>
     <!-- Hero Section -->
-    <section class="relative pt-32 pb-16 lg:pt-40 lg:pb-20">
+    <section class="relative pt-16 pb-8 lg:pt-20 lg:pb-10">
       <!-- Background -->
-      <div class="absolute inset-0 bg-gradient-radial-top" />
       
       <div class="relative container-wide">
         <div class="max-w-2xl mx-auto text-center">
@@ -20,10 +19,10 @@
     </section>
 
     <!-- Our Story -->
-    <section class="py-12 md:py-16">
+    <section class="py-6 md:py-8">
       <div class="container-tight">
         <!-- Divider -->
-        <div class="section-divider mb-12" />
+        <div class="section-divider mb-6" />
         
         <div class="max-w-2xl mx-auto">
           <h2 class="text-2xl font-mono text-surface-900 dark:text-surface-50 mb-6">
@@ -37,12 +36,12 @@
         </div>
         
         <!-- Divider -->
-        <div class="section-divider mt-12" />
+        <div class="section-divider mt-6" />
       </div>
     </section>
 
     <!-- Mission -->
-    <section class="py-12 md:py-16">
+    <section class="py-6 md:py-8">
       <div class="container-wide">
         <div class="max-w-3xl mx-auto">
           <div class="card p-8 lg:p-10 text-center">
@@ -59,12 +58,12 @@
         </div>
         
         <!-- Divider -->
-        <div class="section-divider mt-12" />
+        <div class="section-divider mt-6" />
       </div>
     </section>
 
     <!-- Values -->
-    <section class="py-12 md:py-16">
+    <section class="py-6 md:py-8">
       <div class="container-wide">
         <h2 class="text-2xl font-mono text-surface-900 dark:text-surface-50 text-center mb-10">
           {{ $t('about.values.title') }}
@@ -88,12 +87,12 @@
         </div>
         
         <!-- Divider -->
-        <div class="section-divider mt-12" />
+        <div class="section-divider mt-6" />
       </div>
     </section>
 
     <!-- Image placeholder -->
-    <section class="py-12 md:py-16">
+    <section class="py-6 md:py-8">
       <div class="container-wide">
         <div class="image-placeholder aspect-[2/1] max-w-4xl mx-auto p-8">
           <div class="flex flex-col items-center gap-3">

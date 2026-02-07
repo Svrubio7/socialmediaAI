@@ -1,5 +1,5 @@
 <template>
-  <footer class="bg-surface-50 dark:bg-surface-950">
+  <footer class="" style="background-color: var(--app-bg)">
     <div class="container-wide">
       <!-- Main Footer -->
       <div class="py-16 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8 lg:gap-12">
@@ -39,7 +39,7 @@
               </NuxtLink>
             </li>
             <li>
-              <NuxtLink to="/changelog" class="font-mono text-sm text-surface-600 hover:text-surface-900 dark:text-surface-500 dark:hover:text-surface-200 transition-colors">
+              <NuxtLink :to="localePath('/changelog')" class="font-mono text-sm text-surface-600 hover:text-surface-900 dark:text-surface-500 dark:hover:text-surface-200 transition-colors">
                 {{ $t('footer.changelog') }}
               </NuxtLink>
             </li>
@@ -50,17 +50,17 @@
           <h4 class="font-mono text-surface-900 text-sm mb-4 dark:text-surface-200">{{ $t('footer.resources') }}</h4>
           <ul class="space-y-3">
             <li>
-              <NuxtLink to="/docs" class="font-mono text-sm text-surface-600 hover:text-surface-900 dark:text-surface-500 dark:hover:text-surface-200 transition-colors">
+              <NuxtLink :to="localePath('/docs')" class="font-mono text-sm text-surface-600 hover:text-surface-900 dark:text-surface-500 dark:hover:text-surface-200 transition-colors">
                 {{ $t('footer.documentation') }}
               </NuxtLink>
             </li>
             <li>
-              <NuxtLink to="/api" class="font-mono text-sm text-surface-600 hover:text-surface-900 dark:text-surface-500 dark:hover:text-surface-200 transition-colors">
+              <NuxtLink :to="localePath('/api')" class="font-mono text-sm text-surface-600 hover:text-surface-900 dark:text-surface-500 dark:hover:text-surface-200 transition-colors">
                 {{ $t('footer.api') }}
               </NuxtLink>
             </li>
             <li>
-              <NuxtLink to="/blog" class="font-mono text-sm text-surface-600 hover:text-surface-900 dark:text-surface-500 dark:hover:text-surface-200 transition-colors">
+              <NuxtLink :to="localePath('/blog')" class="font-mono text-sm text-surface-600 hover:text-surface-900 dark:text-surface-500 dark:hover:text-surface-200 transition-colors">
                 {{ $t('footer.blog') }}
               </NuxtLink>
             </li>
@@ -81,7 +81,7 @@
               </NuxtLink>
             </li>
             <li>
-              <NuxtLink to="/careers" class="font-mono text-sm text-surface-600 hover:text-surface-900 dark:text-surface-500 dark:hover:text-surface-200 transition-colors">
+              <NuxtLink :to="localePath('/careers')" class="font-mono text-sm text-surface-600 hover:text-surface-900 dark:text-surface-500 dark:hover:text-surface-200 transition-colors">
                 {{ $t('footer.careers') }}
               </NuxtLink>
             </li>
@@ -96,10 +96,10 @@
             © {{ new Date().getFullYear() }} {{ $t('footer.copyright') }}
           </p>
           <div class="flex items-center gap-6">
-            <NuxtLink to="/privacy" class="font-mono text-surface-600 hover:text-surface-900 dark:hover:text-surface-400 text-sm transition-colors">
+            <NuxtLink :to="localePath('/privacy')" class="font-mono text-surface-600 hover:text-surface-900 dark:hover:text-surface-400 text-sm transition-colors">
               {{ $t('footer.privacy') }}
             </NuxtLink>
-            <NuxtLink to="/terms" class="font-mono text-surface-600 hover:text-surface-900 dark:hover:text-surface-400 text-sm transition-colors">
+            <NuxtLink :to="localePath('/terms')" class="font-mono text-surface-600 hover:text-surface-900 dark:hover:text-surface-400 text-sm transition-colors">
               {{ $t('footer.terms') }}
             </NuxtLink>
           </div>

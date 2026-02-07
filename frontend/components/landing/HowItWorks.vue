@@ -27,7 +27,7 @@
           }"
         >
           <!-- Step card -->
-          <div class="bg-surface-900/60 border border-surface-800 rounded-2xl p-6 relative h-full">
+          <div class="bg-surface-900 border border-surface-800 rounded-2xl p-6 relative h-full">
             <!-- Step number -->
             <div 
               class="absolute -top-3 -left-3 w-12 h-12 rounded-xl bg-surface-950 border border-surface-700 flex items-center justify-center shadow-lg z-10 transition-all duration-500"
@@ -79,7 +79,7 @@
       </div>
       
       <!-- Contained divider -->
-      <div class="section-divider mt-24" />
+      <div class="section-divider mt-12" />
     </div>
   </section>
 </template>

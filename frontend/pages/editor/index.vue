@@ -11,114 +11,76 @@
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
       <div>
         <h1 class="text-xl lg:text-2xl font-mono font-normal text-surface-100">Editor Hub</h1>
-        <p class="text-surface-400 mt-1 text-sm">Pick a video, then open the full-screen workspace in a new tab</p>
+        <p class="text-surface-400 mt-1 text-sm">Create projects, upload media, and export finished videos to your library.</p>
       </div>
       <div class="flex flex-wrap items-center gap-3">
-        <select
-          v-model="selectedVideoId"
-          class="input w-auto min-w-[180px] text-sm py-2.5"
-          :disabled="videosLoading"
-          @change="onVideoSelect"
-        >
-          <option value="">{{ videosLoading ? 'Loading...' : 'Choose video...' }}</option>
-          <option v-for="v in videoList" :key="v.id" :value="v.id">
-            {{ v.original_filename || v.filename }} ({{ formatDuration(v.duration) }})
-          </option>
-        </select>
-        <UiButton variant="primary" :to="localePath('/videos')">
-          <template #icon-left><UiIcon name="Upload" :size="16" /></template>
-          Upload
+        <UiButton variant="secondary" :to="localePath('/videos')">
+          <template #icon-left><UiIcon name="Video" :size="16" /></template>
+          Media library
         </UiButton>
-        <UiButton
-          v-if="selectedVideoId"
-          variant="secondary"
-          :href="localePath(`/editor/${selectedVideoId}`)"
-          target="_blank"
-          rel="noopener"
-        >
-          <template #icon-left><UiIcon name="ExternalLink" :size="16" /></template>
-          Open Workspace
+        <UiButton variant="primary" @click="showCreateProject = true">
+          <template #icon-left><UiIcon name="Plus" :size="16" /></template>
+          New project
         </UiButton>
       </div>
     </div>
 
-    <!-- Timeline + ops (CapCut-like minimal UI) -->
     <UiCard class="border border-accent-500/30 bg-accent-100/70 dark:bg-surface-700/40 rounded-2xl mb-8">
-      <div v-if="!selectedVideoId" class="min-h-[260px] flex flex-col items-center justify-center gap-5 text-center px-4">
-        <div class="w-12 h-12 rounded-xl bg-accent-500/20 flex items-center justify-center">
-          <UiIcon name="Scissors" :size="24" class="text-accent-400" />
-        </div>
-        <p class="text-surface-400 text-sm">Select a video to trim, reverse, duplicate, or export.</p>
-        <UiButton variant="secondary" :to="localePath('/videos')">
-          <template #icon-left><UiIcon name="Video" :size="16" /></template>
-          Browse videos
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
+        <h2 class="text-base font-mono font-medium text-surface-100">Projects</h2>
+        <UiButton variant="secondary" size="sm" class="rounded-xl" @click="showCreateProject = true">
+          <template #icon-left><UiIcon name="Plus" :size="14" /></template>
+          Create project
         </UiButton>
       </div>
-      <template v-else>
-        <UiCard class="mb-4 border border-primary-500/30 bg-primary-500/5">
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <p class="font-medium text-surface-100">Full-screen editor workspace</p>
-              <p class="text-xs text-surface-400 mt-1">Opens in a new tab with a dedicated layout and complete tool panel.</p>
+      <div v-if="projectsLoading" class="py-10 flex justify-center">
+        <div class="flex flex-col items-center gap-3">
+          <UiSkeleton variant="rounded" width="64px" height="64px" />
+          <UiSkeleton variant="text" width="160px" />
+        </div>
+      </div>
+      <SharedEmptyState
+        v-else-if="projects.length === 0"
+        icon="FolderPlus"
+        title="No projects yet"
+        description="Start your first editor project and add media from your library."
+        action-label="Create project"
+        action-icon="Plus"
+        variant="primary"
+        @action="showCreateProject = true"
+      />
+      <div v-else class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div
+          v-for="p in projects"
+          :key="p.id"
+          class="p-4 rounded-xl bg-surface-50/70 dark:bg-surface-600/30 border border-surface-300/70 dark:border-surface-600/50 flex flex-col"
+        >
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-9 h-9 rounded-lg bg-accent-500/20 flex items-center justify-center flex-shrink-0">
+              <UiIcon name="FolderOpen" :size="18" class="text-accent-400" />
             </div>
+            <div class="min-w-0 flex-1">
+              <p class="font-medium text-surface-100 truncate text-sm">{{ p.name }}</p>
+              <p class="text-surface-500 text-xs truncate">
+                Updated {{ formatDate(p.updated_at) }}
+              </p>
+            </div>
+          </div>
+          <div class="mt-auto pt-3 flex flex-wrap gap-2">
             <UiButton
-              variant="primary"
+              variant="secondary"
               size="sm"
-              :href="localePath(`/editor/${selectedVideoId}`)"
+              class="rounded-xl"
+              :href="localePath(`/editor/${p.id}`)"
               target="_blank"
               rel="noopener"
             >
               <template #icon-left><UiIcon name="ExternalLink" :size="14" /></template>
-              Launch workspace
+              Open workspace
             </UiButton>
           </div>
-        </UiCard>
-        <!-- Single-track timeline -->
-        <div class="mb-5">
-          <h3 class="text-xs font-mono font-medium text-surface-400 mb-1.5">Track 1</h3>
-          <div class="h-12 rounded-xl bg-surface-50/70 dark:bg-surface-600/40 border border-surface-300/70 dark:border-surface-600/60 flex items-center px-3 overflow-x-auto">
-            <div
-              class="h-8 rounded-lg flex items-center gap-2 flex-shrink-0 px-3 font-medium text-surface-200 text-sm"
-              :style="{ minWidth: clipWidth + 'px' }"
-            >
-              <UiIcon name="Video" :size="16" class="text-accent-400" />
-              <span class="truncate">{{ selectedVideoName }}</span>
-              <span class="text-surface-500 text-xs">{{ formatDuration(selectedDuration) }}</span>
-            </div>
-          </div>
         </div>
-        <!-- Trim -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-          <div>
-            <label class="label text-sm">Trim start (s)</label>
-            <UiInput v-model.number="trimStart" type="number" min="0" :max="selectedDuration" step="0.1" />
-          </div>
-          <div>
-            <label class="label text-sm">Trim end (s)</label>
-            <UiInput v-model.number="trimEnd" type="number" :min="trimStart" :max="selectedDuration" step="0.1" />
-          </div>
-        </div>
-        <!-- Op buttons -->
-        <div class="flex flex-wrap gap-3">
-          <UiButton variant="secondary" size="sm" :disabled="opRunning" class="rounded-xl" @click="runOp('trim_clip')">
-            <template #icon-left><UiIcon name="Scissors" :size="14" /></template>
-            Apply trim
-          </UiButton>
-          <UiButton variant="secondary" size="sm" :disabled="opRunning" class="rounded-xl" @click="runOp('reverse_clip')">
-            <template #icon-left><UiIcon name="RotateCcw" :size="14" /></template>
-            Reverse
-          </UiButton>
-          <UiButton variant="secondary" size="sm" :disabled="opRunning" class="rounded-xl" @click="runOp('duplicate_clip')">
-            <template #icon-left><UiIcon name="Copy" :size="14" /></template>
-            Duplicate
-          </UiButton>
-          <UiButton variant="primary" size="sm" :disabled="opRunning" class="rounded-xl" @click="runOp('export_video')">
-            <template #icon-left><UiIcon name="Download" :size="14" /></template>
-            Export
-          </UiButton>
-        </div>
-        <p v-if="opError" class="mt-3 text-sm text-red-400">{{ opError }}</p>
-      </template>
+      </div>
     </UiCard>
 
     <!-- Edit templates (content library) -->
@@ -163,17 +125,6 @@
           </div>
           <div class="mt-auto pt-3 flex flex-wrap gap-2">
             <UiButton
-              v-if="selectedVideoId"
-              variant="secondary"
-              size="sm"
-              class="rounded-xl"
-              :disabled="applyingTemplate === t.id"
-              @click="applyTemplate(t.id)"
-            >
-              <template #icon-left><UiIcon name="Play" :size="14" /></template>
-              Apply
-            </UiButton>
-            <UiButton
               variant="ghost"
               size="sm"
               class="rounded-xl text-red-400 hover:text-red-300 hover:bg-red-500/10"
@@ -187,6 +138,22 @@
         </div>
       </div>
     </UiCard>
+
+    <!-- Create project modal -->
+    <UiModal v-model="showCreateProject" title="Create project" size="md">
+      <form @submit.prevent="createProject" class="space-y-4">
+        <div>
+          <label class="label text-sm">Project name</label>
+          <UiInput v-model="newProjectName" placeholder="e.g. March campaign cutdown" required />
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <UiButton variant="ghost" type="button" class="rounded-xl" @click="showCreateProject = false">Cancel</UiButton>
+          <UiButton variant="primary" type="submit" class="rounded-xl" :disabled="creatingProject">
+            {{ creatingProject ? 'Creating...' : 'Create' }}
+          </UiButton>
+        </div>
+      </form>
+    </UiModal>
 
     <!-- Create edit template modal -->
     <UiModal v-model="showCreateTemplate" title="Create edit template" size="md">
@@ -202,7 +169,7 @@
         <div class="flex justify-end gap-3 pt-2">
           <UiButton variant="ghost" type="button" class="rounded-xl" @click="showCreateTemplate = false">Cancel</UiButton>
           <UiButton variant="primary" type="submit" class="rounded-xl" :disabled="creatingTemplate">
-            {{ creatingTemplate ? 'Creating…' : 'Create' }}
+            {{ creatingTemplate ? 'Creating...' : 'Create' }}
           </UiButton>
         </div>
       </form>
@@ -211,16 +178,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 definePageMeta({
   layout: 'app-sidebar',
   middleware: 'auth',
 })
 
-const route = useRoute()
 const localePath = useLocalePath()
 const api = useApi()
 const toast = useToast()
+
+const projects = ref<any[]>([])
+const projectsLoading = ref(true)
+const showCreateProject = ref(false)
+const creatingProject = ref(false)
+const newProjectName = ref('')
 
 const showCreateTemplate = ref(false)
 const templatesLoading = ref(true)
@@ -229,87 +201,46 @@ const deletingTemplate = ref<string | null>(null)
 const editTemplates = ref<any[]>([])
 const newTemplateName = ref('')
 const newTemplateDescription = ref('')
-const applyingTemplate = ref<string | null>(null)
 
-const videoList = ref<any[]>([])
-const videosLoading = ref(false)
-const selectedVideoId = ref('')
-const selectedVideoName = ref('')
-const selectedDuration = ref(0)
-const trimStart = ref(0)
-const trimEnd = ref(0)
-const opRunning = ref(false)
-const opError = ref('')
-
-const clipWidth = computed(() => Math.max(120, Math.min(400, (selectedDuration.value || 60) * 4)))
-
-async function fetchVideos() {
-  videosLoading.value = true
+function formatDate(value?: string) {
+  if (!value) return 'just now'
   try {
-    const res = await api.videos.list({ limit: 50 })
-    videoList.value = (res as { items?: any[] })?.items ?? []
+    return new Date(value).toLocaleDateString()
   } catch {
-    videoList.value = []
-  } finally {
-    videosLoading.value = false
+    return 'just now'
   }
 }
 
-function formatDuration(s: number | undefined) {
-  if (s == null || Number.isNaN(s)) return '0:00'
-  const m = Math.floor(s / 60)
-  const sec = Math.floor(s % 60)
-  return `${m}:${sec.toString().padStart(2, '0')}`
-}
-
-function onVideoSelect() {
-  const id = selectedVideoId.value
-  if (!id) {
-    selectedVideoName.value = ''
-    selectedDuration.value = 0
-    trimStart.value = 0
-    trimEnd.value = 0
-    return
-  }
-  const v = videoList.value.find((x) => x.id === id)
-  if (v) {
-    selectedVideoName.value = v.original_filename || v.filename
-    selectedDuration.value = Number(v.duration) || 0
-    trimStart.value = 0
-    trimEnd.value = selectedDuration.value
-  }
-  opError.value = ''
-}
-
-async function runOp(op: string) {
-  const id = selectedVideoId.value
-  if (!id) return
-  if (op === 'trim_clip' && (trimEnd.value <= trimStart.value || selectedDuration.value <= 0)) {
-    toast.error('Set trim start < end and duration > 0')
-    return
-  }
-  opRunning.value = true
-  opError.value = ''
+async function fetchProjects() {
+  projectsLoading.value = true
   try {
-    let params: Record<string, unknown> = {}
-    if (op === 'trim_clip') {
-      params = { start: Number(trimStart.value) || 0, end: Number(trimEnd.value) || selectedDuration.value }
-    } else if (op === 'export_video') {
-      params = { width: 1920, height: 1080 }
-    }
-    const res = await api.editorOps.execute(id, op, params) as { error?: string; output_path?: string }
-    if (res?.error) {
-      opError.value = res.error
-      toast.error(res.error)
+    const res = await api.projects.list({ limit: 50 })
+    projects.value = res?.items ?? []
+  } catch {
+    projects.value = []
+  } finally {
+    projectsLoading.value = false
+  }
+}
+
+async function createProject() {
+  const name = newProjectName.value.trim()
+  if (!name) return
+  creatingProject.value = true
+  try {
+    const project = await api.projects.create({ name })
+    showCreateProject.value = false
+    newProjectName.value = ''
+    toast.success('Project created')
+    if (project?.id) {
+      navigateTo(localePath(`/editor/${project.id}`))
     } else {
-      toast.success(op === 'export_video' ? 'Export completed (output on server)' : `Done: ${op}`)
+      await fetchProjects()
     }
   } catch (e: any) {
-    const msg = e?.data?.detail ?? e?.message ?? String(e)
-    opError.value = msg
-    toast.error(msg)
+    toast.error(e?.data?.detail ?? 'Failed to create project')
   } finally {
-    opRunning.value = false
+    creatingProject.value = false
   }
 }
 
@@ -347,20 +278,6 @@ async function createTemplate() {
   }
 }
 
-async function applyTemplate(templateId: string) {
-  const videoId = selectedVideoId.value
-  if (!videoId) return
-  applyingTemplate.value = templateId
-  try {
-    await api.editTemplates.apply(templateId, videoId)
-    toast.success('Apply template queued (implementation in progress)')
-  } catch (e: any) {
-    toast.error(e?.data?.detail ?? 'Failed to apply template')
-  } finally {
-    applyingTemplate.value = null
-  }
-}
-
 async function deleteTemplate(id: string) {
   deletingTemplate.value = id
   try {
@@ -375,12 +292,7 @@ async function deleteTemplate(id: string) {
 }
 
 onMounted(async () => {
-  await fetchVideos()
+  await fetchProjects()
   await fetchTemplates()
-  const q = route.query?.video
-  if (q && typeof q === 'string') {
-    selectedVideoId.value = q
-    onVideoSelect()
-  }
 })
 </script>
