@@ -4,10 +4,11 @@
     <div class="relative aspect-video bg-surface-200/70 dark:bg-surface-800 overflow-hidden">
       <!-- Thumbnail image or placeholder -->
       <img 
-        v-if="video.thumbnail_url" 
+        v-if="showThumbnail && video.thumbnail_url" 
         :src="video.thumbnail_url" 
         :alt="video.filename"
         class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+        @error="showThumbnail = false"
       />
       <div v-else class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-surface-200 to-surface-300 dark:from-surface-800 dark:to-surface-900">
         <UiIcon name="Video" :size="40" class="text-surface-500 dark:text-surface-600" />
@@ -80,6 +81,8 @@
 </template>
 
 <script setup lang="ts">
+import { ref, watch } from 'vue'
+
 interface Video {
   id: string
   filename: string
@@ -98,7 +101,16 @@ interface Props {
   analyzing?: boolean
 }
 
-withDefaults(defineProps<Props>(), { analyzing: false })
+const props = withDefaults(defineProps<Props>(), { analyzing: false })
+const showThumbnail = ref(Boolean(props.video?.thumbnail_url))
+
+watch(
+  () => props.video?.thumbnail_url,
+  (value) => {
+    showThumbnail.value = Boolean(value)
+  },
+  { immediate: true }
+)
 
 const localePath = useLocalePath()
 

@@ -2,99 +2,117 @@
   <section class="flex-1 min-h-0 flex flex-col bg-surface-900">
     <div class="flex-1 min-h-0 p-2 lg:p-3">
       <div ref="frameRef" class="relative h-full w-full rounded-xl border border-surface-800 bg-surface-950/70 overflow-hidden">
-        <div class="absolute inset-0">
-          <div v-if="renderClips.length === 0" class="absolute inset-0 flex items-center justify-center text-sm text-surface-400">
-            <template v-if="fallbackMedia">
-              <video
-                v-if="fallbackMedia.type === 'video'"
-                :src="fallbackMedia.src"
-                :poster="fallbackPoster || ''"
-                class="h-full w-full rounded-md border border-surface-700 bg-black object-contain"
-                preload="auto"
-                playsinline
-              />
-              <img
-                v-else
-                :src="fallbackMedia.src"
-                alt="Preview"
-                class="h-full w-full rounded-md border border-surface-700 bg-black object-contain"
-              />
-            </template>
-            <span v-else>No preview available</span>
-          </div>
-
-          <template v-else>
-            <div
-              v-for="clip in renderClips"
-              :key="clip.id"
-              class="absolute group"
-              :style="clipBoxStyle(clip)"
-              :class="clip.id === selectedClipId ? 'ring-2 ring-primary-400/70' : ''"
-              @pointerdown.stop="onClipPointerDown($event, clip)"
-            >
-              <video
-                v-if="clip.type === 'video' && hasPlayableVideo(clip)"
-                :ref="(el) => setVideoRef(clip.id, el as HTMLVideoElement | null)"
-                :key="`${clip.id}-${resolveVideoSource(clip)}`"
-                :src="resolveVideoSource(clip)"
-                :poster="clipPosterSource(clip)"
-                class="h-full w-full rounded-md border border-surface-700 bg-black"
-                :style="mediaStyle(clip)"
-                preload="auto"
-                playsinline
-                @loadedmetadata="onVideoMetaLoaded(clip)"
-                @loadeddata="onVideoDataLoaded(clip)"
-                @error="onVideoError(clip)"
-              />
-              <img
-                v-else-if="clip.type === 'video'"
-                :src="clipPosterSource(clip)"
-                :alt="clip.label"
-                class="h-full w-full rounded-md border border-surface-700 bg-black object-contain"
-                :style="mediaStyle(clip)"
-              />
-              <img
-                v-else-if="clip.type === 'image'"
-                :src="clip.sourceUrl || ''"
-                :alt="clip.label"
-                class="h-full w-full rounded-md border border-surface-700 bg-black object-contain"
-                :style="mediaStyle(clip)"
-              />
-              <div
-                v-else-if="clip.type === 'shape'"
-                class="h-full w-full rounded-md"
-                :style="shapeStyle(clip)"
-              />
-              <div
-                v-else-if="clip.type === 'text'"
-                class="h-full w-full px-2 py-1 flex items-center justify-center text-sm font-normal text-white bg-black/35 rounded-md"
-              >
-                {{ clip.text || 'Text' }}
+        <div class="absolute inset-0 flex items-center justify-center">
+          <div
+            ref="stageRef"
+            class="relative overflow-hidden rounded-md border border-surface-700 bg-black"
+            :style="stageStyle"
+          >
+            <div class="absolute inset-0">
+              <div v-if="renderClips.length === 0" class="absolute inset-0 flex items-center justify-center text-sm text-surface-400">
+                <template v-if="fallbackMedia">
+                  <video
+                    v-if="fallbackMedia.type === 'video'"
+                    :src="fallbackMedia.src"
+                    :poster="fallbackPoster || ''"
+                    class="h-full w-full rounded-md border border-surface-700 bg-black object-contain"
+                    preload="auto"
+                    playsinline
+                  />
+                  <img
+                    v-else
+                    :src="fallbackMedia.src"
+                    alt="Preview"
+                    class="h-full w-full rounded-md border border-surface-700 bg-black object-contain"
+                  />
+                </template>
+                <span v-else>No preview available</span>
               </div>
 
-              <div
-                v-if="clipOverlayStyle(clip)"
-                class="pointer-events-none absolute inset-0 rounded-md"
-                :style="clipOverlayStyle(clip)"
-              />
+              <template v-else>
+                <div
+                  v-for="clip in renderClips"
+                  :key="clip.id"
+                  class="absolute group"
+                  :style="clipBoxStyle(clip)"
+                  :class="clip.id === selectedClipId ? 'ring-2 ring-primary-400/70' : ''"
+                  @pointerdown.stop="onClipPointerDown($event, clip)"
+                >
+                  <video
+                    v-if="clip.type === 'video' && shouldRenderVideo(clip)"
+                    ref="activeVideoRef"
+                    :key="activeVideoKey"
+                    :src="activeVideoSrc"
+                    :poster="clipPosterSource(clip)"
+                    class="h-full w-full rounded-md border border-surface-700 bg-black"
+                    :style="mediaStyle(clip)"
+                    preload="auto"
+                    playsinline
+                    @loadedmetadata="onActiveVideoMetadata"
+                    @loadeddata="onActiveVideoData"
+                    @canplay="onActiveVideoCanPlay"
+                    @timeupdate="onActiveVideoTimeUpdate"
+                    @error="onActiveVideoError"
+                  />
+                  <template v-else-if="clip.type === 'video'">
+                    <img
+                      v-if="clipPosterSource(clip)"
+                      :src="clipPosterSource(clip)"
+                      :alt="clip.label"
+                      class="h-full w-full rounded-md border border-surface-700 bg-black object-contain"
+                      :style="mediaStyle(clip)"
+                    />
+                    <div
+                      v-else
+                      class="flex h-full w-full items-center justify-center rounded-md border border-surface-700 bg-surface-900 text-center text-sm text-surface-400"
+                    >
+                      Video unavailable
+                    </div>
+                  </template>
+                  <img
+                    v-else-if="clip.type === 'image'"
+                    :src="clip.sourceUrl || ''"
+                    :alt="clip.label"
+                    class="h-full w-full rounded-md border border-surface-700 bg-black object-contain"
+                    :style="mediaStyle(clip)"
+                  />
+                  <div
+                    v-else-if="clip.type === 'shape'"
+                    class="h-full w-full rounded-md"
+                    :style="shapeStyle(clip)"
+                  />
+                  <div
+                    v-else-if="clip.type === 'text'"
+                    class="h-full w-full px-2 py-1 flex items-center justify-center text-sm font-normal text-white bg-black/35 rounded-md"
+                  >
+                    {{ clip.text || 'Text' }}
+                  </div>
 
-              <button
-                v-if="clip.id === selectedClipId"
-                type="button"
-                class="absolute -bottom-2 -right-2 h-4 w-4 rounded-full border border-surface-50 bg-[var(--cream-ui)]"
-                aria-label="Resize clip"
-                @pointerdown.stop="onClipPointerDown($event, clip, 'resize')"
-              />
+                  <div
+                    v-if="clipOverlayStyle(clip)"
+                    class="pointer-events-none absolute inset-0 rounded-md"
+                    :style="clipOverlayStyle(clip)"
+                  />
+
+                  <button
+                    v-if="clip.id === selectedClipId"
+                    type="button"
+                    class="absolute -bottom-2 -right-2 h-4 w-4 rounded-full border border-surface-50 bg-[var(--cream-ui)]"
+                    aria-label="Resize clip"
+                    @pointerdown.stop="onClipPointerDown($event, clip, 'resize')"
+                  />
+                </div>
+              </template>
             </div>
-          </template>
+          </div>
         </div>
 
-    <button
-      type="button"
-      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-16 w-16 rounded-full cream-btn transition-colors"
-      @click="togglePlay"
-      aria-label="Play or pause"
-    >
+        <button
+          type="button"
+          class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-16 w-16 rounded-full cream-btn transition-colors"
+          @click="togglePlay"
+          aria-label="Play or pause"
+        >
           <UiIcon :name="playing ? 'Pause' : 'Play'" :size="24" class="mx-auto" />
         </button>
       </div>
@@ -146,7 +164,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, toRefs, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRefs, watch, type CSSProperties } from 'vue'
 import type { EditorClip } from '~/composables/useEditorState'
 
 interface Props {
@@ -190,152 +208,15 @@ const emit = defineEmits<{
 }>()
 
 const frameRef = ref<HTMLDivElement | null>(null)
+const stageRef = ref<HTMLDivElement | null>(null)
+const activeVideoRef = ref<unknown>(null)
+const videoErrorCount = ref<Record<string, number>>({})
 const volumeValue = computed(() => props.volume ?? 1)
 const fallbackPoster = computed(() => props.fallbackPoster || '')
-
-const videoRefs = new Map<string, HTMLVideoElement>()
-const failedVideos = ref<Record<string, string>>({})
-function setVideoRef(id: string, el: HTMLVideoElement | null) {
-  if (!el) {
-    videoRefs.delete(id)
-    return
-  }
-  videoRefs.set(id, el)
-  el.volume = volumeValue.value
-  el.muted = volumeValue.value <= 0
-  if (el.src) {
-    el.load()
-  }
-  void nextTick(() => {
-    syncActiveVideoPlayback()
-  })
-}
-
-const visualClips = computed(() => clips.value.filter((clip) => clip.type !== 'audio'))
-const fallbackMedia = computed(() => {
-  if (props.fallbackUrl) {
-    if (isLikelyImage(props.fallbackUrl)) {
-      return { type: 'image' as const, src: props.fallbackUrl }
-    }
-    return { type: 'video' as const, src: props.fallbackUrl }
-  }
-  if (props.fallbackPoster) return { type: 'image' as const, src: props.fallbackPoster }
-  return null
-})
-const transitionInfo = computed(() => {
-  const videos = visualClips.value
-    .filter((clip) => clip.type === 'video')
-    .slice()
-    .sort((a, b) => a.startTime - b.startTime)
-  const inMap = new Map<string, number>()
-  const outMap = new Map<string, number>()
-  for (let i = 0; i < videos.length - 1; i += 1) {
-    const current = videos[i]
-    const next = videos[i + 1]
-    const end = current.startTime + current.duration
-    if (Math.abs(next.startTime - end) > 0.05) continue
-    const transName = current.effects?.transition ?? next.effects?.transition
-    const dur = current.effects?.transitionDuration ?? next.effects?.transitionDuration ?? 0
-    if (!transName || !dur) continue
-    outMap.set(current.id, dur)
-    inMap.set(next.id, dur)
-  }
-  return { inMap, outMap }
-})
-
-const activeClips = computed(() => {
-  const now = currentTime.value
-  return visualClips.value.filter((clip) => {
-    if (clip.type === 'video') {
-      const transitionIn = transitionInfo.value.inMap.get(clip.id) ?? 0
-      const startWindow = clip.startTime - transitionIn
-      const endWindow = clip.startTime + clip.duration
-      return now >= startWindow && now <= endWindow
-    }
-    return now >= clip.startTime && now <= clip.startTime + clip.duration
-  })
-})
-const activeVideoClips = computed(() => activeClips.value.filter((clip) => clip.type === 'video'))
-const activeNonVideoClips = computed(() => activeClips.value.filter((clip) => clip.type !== 'video'))
-const holdFrameClip = computed(() => {
-  if (activeVideoClips.value.length > 0) return null
-  const now = currentTime.value
-  const pastVideos = visualClips.value.filter((clip) => clip.type === 'video' && now > clip.startTime + clip.duration)
-  if (!pastVideos.length) return null
-  const sorted = pastVideos.sort((a, b) => (a.startTime + a.duration) - (b.startTime + b.duration))
-  return sorted.length ? sorted[sorted.length - 1] : null
-})
-const fallbackVideoClip = computed(() => {
-  if (activeVideoClips.value.length > 0 || holdFrameClip.value) return null
-  return visualClips.value.find((clip) => clip.type === 'video') ?? null
-})
-const renderClips = computed(() => {
-  const base = activeVideoClips.value.length > 0
-    ? activeVideoClips.value
-    : holdFrameClip.value
-      ? [holdFrameClip.value]
-      : fallbackVideoClip.value
-        ? [fallbackVideoClip.value]
-        : []
-  const combined = [...base, ...activeNonVideoClips.value]
-  return combined.sort((a, b) => (a.layer ?? 1) - (b.layer ?? 1))
-})
-
-function clipOpacity(clip: EditorClip) {
-  if (holdFrameClip.value?.id === clip.id && currentTime.value > clip.startTime + clip.duration) {
-    return 1
-  }
-  const fadeIn = clip.effects?.fadeIn ?? 0
-  const fadeOut = clip.effects?.fadeOut ?? 0
-  const localTime = currentTime.value - clip.startTime
-  const remaining = clip.duration - localTime
-  let opacity = 1
-
-  if (clip.type === 'video') {
-    const transitionIn = transitionInfo.value.inMap.get(clip.id) ?? 0
-    const transitionOut = transitionInfo.value.outMap.get(clip.id) ?? 0
-    if (transitionIn > 0) {
-      const t0 = clip.startTime - transitionIn
-      if (currentTime.value >= t0 && currentTime.value <= clip.startTime) {
-        opacity = Math.min(opacity, Math.max(0, (currentTime.value - t0) / transitionIn))
-      }
-    }
-    if (transitionOut > 0) {
-      const t1 = clip.startTime + clip.duration - transitionOut
-      if (currentTime.value >= t1 && currentTime.value <= clip.startTime + clip.duration) {
-        opacity = Math.min(opacity, Math.max(0, (clip.startTime + clip.duration - currentTime.value) / transitionOut))
-      }
-    }
-  }
-
-  if (fadeIn > 0 && localTime >= 0) opacity = Math.min(opacity, Math.max(0, localTime / fadeIn))
-  if (fadeOut > 0 && remaining >= 0) opacity = Math.min(opacity, Math.max(0, remaining / fadeOut))
-
-  const extra = clip.effects?.opacity ?? clip.style?.opacity ?? 1
-  return opacity * extra
-}
-
-function clipFilter(clip: EditorClip) {
-  const brightness = clip.effects?.brightness ?? 0
-  const contrast = clip.effects?.contrast ?? 1
-  const saturation = clip.effects?.saturation ?? 1
-  const gamma = clip.effects?.gamma ?? 1
-  const hue = clip.effects?.hue ?? 0
-  const blur = clip.effects?.blur ?? 0
-  const brightnessValue = Math.max(0, (1 + brightness) * gamma)
-  return `brightness(${brightnessValue}) contrast(${contrast}) saturate(${saturation}) hue-rotate(${hue}deg) blur(${blur}px)`
-}
-
-function clipOverlayStyle(clip: EditorClip) {
-  const color = clip.effects?.overlayColor
-  const opacity = clip.effects?.overlayOpacity ?? 0
-  if (!color || color === 'transparent' || opacity <= 0) return null
-  return {
-    background: color,
-    opacity,
-    mixBlendMode: clip.effects?.overlayBlend ?? 'soft-light',
-  }
-}
+const MAX_PREVIEW_RECOVERY_ATTEMPTS = 2
+const DEFAULT_STAGE_RATIO = 16 / 9
+const frameSize = ref({ width: 0, height: 0 })
+let frameResizeObserver: ResizeObserver | null = null
 
 const imageExtensions = [
   '.jpg',
@@ -357,35 +238,463 @@ function isLikelyImage(url?: string) {
   return imageExtensions.some((ext) => clean.endsWith(ext))
 }
 
+const visualClips = computed(() =>
+  clips.value
+    .filter((clip) => clip.type !== 'audio')
+    .slice()
+    .sort((a, b) => a.startTime - b.startTime)
+)
+
+const videoClips = computed(() => visualClips.value.filter((clip) => clip.type === 'video'))
+
+function isClipActive(clip: EditorClip, time: number) {
+  return time >= clip.startTime && time <= clip.startTime + clip.duration
+}
+
+const activeVideoClip = computed<EditorClip | null>(() => {
+  const now = currentTime.value
+  const active = videoClips.value
+    .filter((clip) => isClipActive(clip, now))
+    .sort((a, b) => ((a.layer ?? 1) - (b.layer ?? 1)) || (a.startTime - b.startTime))
+  return active.length ? active[active.length - 1] : null
+})
+
+const fallbackVideoClip = computed<EditorClip | null>(() => {
+  if (activeVideoClip.value) return null
+  if (!videoClips.value.length) return null
+  const now = currentTime.value
+  const past = videoClips.value.filter((clip) => now > clip.startTime + clip.duration)
+  if (past.length) return past[past.length - 1]
+  const upcoming = videoClips.value.find((clip) => clip.startTime >= now)
+  return upcoming ?? videoClips.value[0]
+})
+
+const primaryVideoClip = computed<EditorClip | null>(() => activeVideoClip.value ?? fallbackVideoClip.value)
+
+const activeOverlayClips = computed(() =>
+  visualClips.value
+    .filter((clip) => clip.type !== 'video' && isClipActive(clip, currentTime.value))
+    .sort((a, b) => ((a.layer ?? 1) - (b.layer ?? 1)) || (a.startTime - b.startTime))
+)
+
+const renderClips = computed(() => {
+  const base = primaryVideoClip.value ? [primaryVideoClip.value] : []
+  const combined = [...base, ...activeOverlayClips.value]
+  return combined.sort((a, b) => clipZIndex(a) - clipZIndex(b))
+})
+
+const fallbackMedia = computed(() => {
+  if (props.fallbackUrl) {
+    if (isLikelyImage(props.fallbackUrl)) return { type: 'image' as const, src: props.fallbackUrl }
+    return { type: 'video' as const, src: props.fallbackUrl }
+  }
+  if (props.fallbackPoster) return { type: 'image' as const, src: props.fallbackPoster }
+  return null
+})
+
+function parseAspectRatio(value?: string) {
+  if (!value) return null
+  const normalized = value.trim()
+  if (!normalized) return null
+  if (normalized.includes(':')) {
+    const [leftRaw, rightRaw] = normalized.split(':', 2)
+    const left = Number(leftRaw)
+    const right = Number(rightRaw)
+    if (!Number.isFinite(left) || !Number.isFinite(right) || right <= 0 || left <= 0) return null
+    return left / right
+  }
+  const ratio = Number(normalized)
+  if (!Number.isFinite(ratio) || ratio <= 0) return null
+  return ratio
+}
+
+const stageAspectRatio = computed(() => {
+  const fromActive = parseAspectRatio(primaryVideoClip.value?.aspectRatio)
+  if (fromActive) return fromActive
+  const fromTimeline = parseAspectRatio(videoClips.value[0]?.aspectRatio)
+  if (fromTimeline) return fromTimeline
+  return DEFAULT_STAGE_RATIO
+})
+
+const stageStyle = computed<CSSProperties>(() => {
+  const width = frameSize.value.width
+  const height = frameSize.value.height
+  if (!width || !height) {
+    return {
+      width: '100%',
+      height: '100%',
+    }
+  }
+
+  const ratio = stageAspectRatio.value
+  const frameRatio = width / height
+
+  let stageWidth = width
+  let stageHeight = height
+
+  if (frameRatio > ratio) {
+    stageHeight = height
+    stageWidth = height * ratio
+  } else {
+    stageWidth = width
+    stageHeight = width / ratio
+  }
+
+  return {
+    width: `${Math.max(1, Math.floor(stageWidth))}px`,
+    height: `${Math.max(1, Math.floor(stageHeight))}px`,
+  }
+})
+
 function resolveVideoSource(clip: EditorClip) {
   return clip.sourceUrl || props.fallbackUrl || ''
 }
 
-function hasPlayableVideo(clip: EditorClip) {
-  const src = resolveVideoSource(clip)
-  if (!src) return false
-  if (failedVideos.value[clip.id] === src) return false
-  return !isLikelyImage(src)
+const activeVideoSrc = computed(() => {
+  const clip = primaryVideoClip.value
+  if (!clip || clip.type !== 'video') return ''
+  return resolveVideoSource(clip)
+})
+
+const activeVideoRetryCount = computed(() => {
+  const source = activeVideoSrc.value
+  if (!source) return 0
+  return videoErrorCount.value[source] ?? 0
+})
+
+const activeVideoKey = computed(() => {
+  const clip = primaryVideoClip.value
+  if (!clip) return `none-${activeVideoSrc.value}-${activeVideoRetryCount.value}`
+  return `${clip.id}-${activeVideoSrc.value}-${activeVideoRetryCount.value}`
+})
+
+function shouldRenderVideo(clip: EditorClip) {
+  if (clip.type !== 'video') return false
+  if (!primaryVideoClip.value || clip.id !== primaryVideoClip.value.id) return false
+  if (!activeVideoSrc.value) return false
+  if (isLikelyImage(activeVideoSrc.value)) return false
+  return true
 }
 
 function clipPosterSource(clip: EditorClip) {
   if (clip.posterUrl) return clip.posterUrl
-  const fallbackSource = resolveVideoSource(clip)
-  if (fallbackSource && isLikelyImage(fallbackSource)) return fallbackSource
-  return fallbackPoster.value
+  const source = resolveVideoSource(clip)
+  if (source && isLikelyImage(source)) return source
+  if (fallbackPoster.value) return fallbackPoster.value
+  return ''
 }
 
-function clipBoxStyle(clip: EditorClip) {
+function getTrimRange(clip: EditorClip) {
+  const trimStart = clip.trimStart ?? 0
+  const trimEnd = clip.trimEnd ?? (trimStart + clip.duration)
+  return {
+    trimStart,
+    trimEnd: Math.max(trimStart + 0.01, trimEnd),
+  }
+}
+
+function getClipMediaTime(clip: EditorClip, timelineTime: number) {
+  const { trimStart, trimEnd } = getTrimRange(clip)
+  const speed = Math.max(0.01, clip.effects?.speed ?? 1)
+  const local = (timelineTime - clip.startTime) * speed + trimStart
+  return Math.min(Math.max(trimStart, local), trimEnd)
+}
+
+function getDisplayMediaTime(clip: EditorClip) {
+  if (activeVideoClip.value?.id === clip.id) {
+    return getClipMediaTime(clip, currentTime.value)
+  }
+  const { trimStart, trimEnd } = getTrimRange(clip)
+  if (currentTime.value < clip.startTime) return trimStart
+  if (currentTime.value > clip.startTime + clip.duration) return trimEnd
+  return getClipMediaTime(clip, currentTime.value)
+}
+
+function getActiveVideoElement(): HTMLVideoElement | null {
+  const candidate = activeVideoRef.value
+  if (!candidate) return null
+  if (candidate instanceof HTMLVideoElement) return candidate
+  if (Array.isArray(candidate)) {
+    const fromArray = candidate.find((entry) => entry instanceof HTMLVideoElement)
+    return fromArray ?? null
+  }
+  if (typeof candidate === 'object' && candidate !== null && '$el' in candidate) {
+    const maybeEl = (candidate as { $el?: unknown }).$el
+    if (maybeEl instanceof HTMLVideoElement) return maybeEl
+  }
+  return null
+}
+
+function syncVideoVolume() {
+  const video = getActiveVideoElement()
+  if (!video) return
+  video.volume = volumeValue.value
+  video.muted = volumeValue.value <= 0
+}
+
+function syncVideoRate() {
+  const video = getActiveVideoElement()
+  const clip = primaryVideoClip.value
+  if (!video || !clip) return
+  const rate = clip.effects?.speed ?? 1
+  if (video.playbackRate !== rate) video.playbackRate = rate
+}
+
+function syncVideoCurrentTime(force = false) {
+  const video = getActiveVideoElement()
+  const clip = primaryVideoClip.value
+  if (!video || !clip) return
+  if (!Number.isFinite(video.currentTime)) return
+  const target = getDisplayMediaTime(clip)
+  if (!Number.isFinite(target)) return
+  const threshold = force ? 0.01 : (playing.value && activeVideoClip.value ? 0.35 : 0.05)
+  if (Math.abs(video.currentTime - target) > threshold) {
+    try {
+      video.currentTime = target
+    } catch {
+      // Ignore transient seek errors while metadata is still loading.
+    }
+  }
+}
+
+function mapMediaTimeToTimeline(clip: EditorClip, mediaTime: number) {
+  const { trimStart } = getTrimRange(clip)
+  const speed = Math.max(0.01, clip.effects?.speed ?? 1)
+  const timelineTime = clip.startTime + ((mediaTime - trimStart) / speed)
+  return Math.min(Math.max(0, timelineTime), clip.startTime + clip.duration)
+}
+
+let videoTimelineSyncFrame: number | null = null
+
+function stopVideoTimelineSync() {
+  if (videoTimelineSyncFrame) {
+    cancelAnimationFrame(videoTimelineSyncFrame)
+    videoTimelineSyncFrame = null
+  }
+}
+
+function syncTimelineFromActiveVideo() {
+  const clip = activeVideoClip.value
+  const video = getActiveVideoElement()
+  if (!playing.value || !clip || !video) {
+    stopVideoTimelineSync()
+    return
+  }
+  const mediaTime = Number(video.currentTime)
+  if (!Number.isFinite(mediaTime)) {
+    videoTimelineSyncFrame = requestAnimationFrame(syncTimelineFromActiveVideo)
+    return
+  }
+  const clamped = mapMediaTimeToTimeline(clip, mediaTime)
+  if (Math.abs(clamped - currentTime.value) > 0.016) {
+    emit('update:currentTime', clamped)
+  }
+  videoTimelineSyncFrame = requestAnimationFrame(syncTimelineFromActiveVideo)
+}
+
+function startVideoTimelineSync() {
+  if (videoTimelineSyncFrame) return
+  videoTimelineSyncFrame = requestAnimationFrame(syncTimelineFromActiveVideo)
+}
+
+async function syncVideoPlayback() {
+  const video = getActiveVideoElement()
+  if (!video) return
+  const shouldPlay = Boolean(playing.value && activeVideoClip.value)
+  if (!shouldPlay) {
+    if (!video.paused) video.pause()
+    return
+  }
+  try {
+    await video.play()
+  } catch {
+    if (!video.muted) {
+      video.muted = true
+      try {
+        await video.play()
+        return
+      } catch {
+        // fall through
+      }
+    }
+    emit('update:playing', false)
+  }
+}
+
+watch(
+  activeVideoKey,
+  () => {
+    nextTick(() => {
+      syncVideoVolume()
+      syncVideoRate()
+      syncVideoCurrentTime(true)
+      void syncVideoPlayback()
+    })
+  },
+  { immediate: true }
+)
+
+watch(currentTime, () => {
+  syncVideoCurrentTime()
+})
+
+watch(playing, () => {
+  void syncVideoPlayback()
+})
+
+watch(
+  () => activeVideoClip.value?.id,
+  () => {
+    void syncVideoPlayback()
+  }
+)
+
+watch(volumeValue, () => {
+  syncVideoVolume()
+})
+
+watch(
+  [playing, () => activeVideoClip.value?.id],
+  ([isPlaying, activeClipId]) => {
+    if (isPlaying && activeClipId) {
+      startVideoTimelineSync()
+      return
+    }
+    stopVideoTimelineSync()
+  },
+  { immediate: true }
+)
+
+function onActiveVideoMetadata() {
+  const clip = primaryVideoClip.value
+  const video = getActiveVideoElement()
+  if (!clip || !video) return
+  const measuredDuration = Number(video.duration || 0)
+  if (Number.isFinite(measuredDuration) && measuredDuration > 0) {
+    emit('update:clip-meta', { clipId: clip.id, duration: measuredDuration })
+  }
+  syncVideoCurrentTime(true)
+  syncVideoRate()
+}
+
+function onActiveVideoData() {
+  const source = activeVideoSrc.value
+  if (source && videoErrorCount.value[source]) {
+    videoErrorCount.value = {
+      ...videoErrorCount.value,
+      [source]: 0,
+    }
+  }
+  syncVideoCurrentTime(true)
+  if (playing.value) {
+    startVideoTimelineSync()
+    void syncVideoPlayback()
+  }
+}
+
+function onActiveVideoCanPlay() {
+  syncVideoCurrentTime(true)
+  if (playing.value) {
+    startVideoTimelineSync()
+    void syncVideoPlayback()
+  }
+}
+
+function onActiveVideoTimeUpdate() {
+  if (!playing.value || !activeVideoClip.value) return
+  const video = getActiveVideoElement()
+  if (!video) return
+  const mediaTime = Number(video.currentTime)
+  if (!Number.isFinite(mediaTime)) return
+  const clamped = mapMediaTimeToTimeline(activeVideoClip.value, mediaTime)
+  if (Math.abs(clamped - currentTime.value) > 0.016) {
+    emit('update:currentTime', clamped)
+  }
+}
+
+function onActiveVideoError() {
+  const source = activeVideoSrc.value
+  if (!source) return
+  const attempts = videoErrorCount.value[source] ?? 0
+  if (attempts >= MAX_PREVIEW_RECOVERY_ATTEMPTS) {
+    emit('update:playing', false)
+    // eslint-disable-next-line no-console
+    console.warn('Preview video failed after retry attempts', source)
+    return
+  }
+  videoErrorCount.value = {
+    ...videoErrorCount.value,
+    [source]: attempts + 1,
+  }
+  // eslint-disable-next-line no-console
+  console.warn('Preview video failed to load, retrying', source)
+}
+
+function clipOpacity(clip: EditorClip) {
+  if (clip.type === 'video' && primaryVideoClip.value?.id === clip.id && !activeVideoClip.value) {
+    const base = clip.effects?.opacity ?? clip.style?.opacity ?? 1
+    return Math.max(0, Math.min(1, base))
+  }
+  const localTime = currentTime.value - clip.startTime
+  if (localTime < 0 || localTime > clip.duration) return 0
+  const fadeIn = clip.effects?.fadeIn ?? 0
+  const fadeOut = clip.effects?.fadeOut ?? 0
+  const remaining = clip.duration - localTime
+  let opacity = 1
+  if (fadeIn > 0) opacity = Math.min(opacity, Math.max(0, localTime / fadeIn))
+  if (fadeOut > 0) opacity = Math.min(opacity, Math.max(0, remaining / fadeOut))
+  const base = clip.effects?.opacity ?? clip.style?.opacity ?? 1
+  return opacity * base
+}
+
+function clipFilter(clip: EditorClip) {
+  const brightness = clip.effects?.brightness ?? 0
+  const contrast = clip.effects?.contrast ?? 1
+  const saturation = clip.effects?.saturation ?? 1
+  const gamma = clip.effects?.gamma ?? 1
+  const hue = clip.effects?.hue ?? 0
+  const blur = clip.effects?.blur ?? 0
+  const isIdentity = (
+    Math.abs(brightness) < 0.0001
+    && Math.abs(contrast - 1) < 0.0001
+    && Math.abs(saturation - 1) < 0.0001
+    && Math.abs(gamma - 1) < 0.0001
+    && Math.abs(hue) < 0.0001
+    && Math.abs(blur) < 0.0001
+  )
+  if (isIdentity) return undefined
+  const brightnessValue = Math.max(0, (1 + brightness) * gamma)
+  return `brightness(${brightnessValue}) contrast(${contrast}) saturate(${saturation}) hue-rotate(${hue}deg) blur(${blur}px)`
+}
+
+function clipOverlayStyle(clip: EditorClip): CSSProperties | null {
+  const color = clip.effects?.overlayColor
+  const opacity = clip.effects?.overlayOpacity ?? 0
+  if (!color || color === 'transparent' || opacity <= 0) return null
+  return {
+    background: color,
+    opacity,
+    mixBlendMode: (clip.effects?.overlayBlend ?? 'soft-light') as CSSProperties['mixBlendMode'],
+  }
+}
+
+function clipZIndex(clip: EditorClip) {
+  const group = clip.layerGroup ?? (clip.type === 'video' ? 'video' : clip.type === 'audio' ? 'audio' : 'graphics')
+  const groupOffset = group === 'graphics' ? 100 : 0
+  return groupOffset + (clip.layer ?? 1)
+}
+
+function clipBoxStyle(clip: EditorClip): CSSProperties {
   const position = clip.position ?? { x: 0, y: 0 }
   const size = clip.size ?? { width: 100, height: 100 }
   const rotation = clip.rotation ?? 0
-  const group = clip.layerGroup ?? (clip.type === 'video' ? 'video' : clip.type === 'audio' ? 'audio' : 'graphics')
-  const groupOffset = group === 'graphics' ? 100 : 0
   const rawBlend = clip.effects?.blendMode
   const cssBlendMap: Record<string, string> = {
     softlight: 'soft-light',
     hardlight: 'hard-light',
   }
+  const blendMode = rawBlend && rawBlend !== 'normal' ? (cssBlendMap[rawBlend] || rawBlend) : undefined
+  const filter = clipFilter(clip)
   return {
     left: `${position.x}%`,
     top: `${position.y}%`,
@@ -393,148 +702,30 @@ function clipBoxStyle(clip: EditorClip) {
     height: `${size.height}%`,
     transform: `rotate(${rotation}deg)`,
     opacity: clipOpacity(clip),
-    zIndex: groupOffset + (clip.layer ?? 1),
-    filter: clipFilter(clip),
-    mixBlendMode: rawBlend && rawBlend !== 'normal' ? (cssBlendMap[rawBlend] || rawBlend) : 'normal',
+    zIndex: clipZIndex(clip),
+    filter,
+    mixBlendMode: blendMode as CSSProperties['mixBlendMode'],
   }
 }
 
-function mediaStyle(clip: EditorClip) {
+function mediaStyle(clip: EditorClip): CSSProperties {
   const fitMode = clip.fitMode ?? 'fit'
   const objectFit = fitMode === 'fill' ? 'cover' : fitMode === 'stretch' ? 'fill' : 'contain'
   return {
-    objectFit,
+    objectFit: objectFit as CSSProperties['objectFit'],
   }
 }
 
-function shapeStyle(clip: EditorClip) {
+function shapeStyle(clip: EditorClip): CSSProperties {
   return {
     background: clip.style?.color ?? '#8f8cae80',
     border: clip.style?.outline ? '2px solid rgba(255,255,255,.7)' : 'none',
   }
 }
 
-function getClipMediaTime(clip: EditorClip) {
-  const trimStart = clip.trimStart ?? 0
-  const trimEnd = clip.trimEnd ?? trimStart + clip.duration
-  const local = currentTime.value - clip.startTime + trimStart
-  return Math.min(Math.max(trimStart, local), trimEnd)
-}
-
-watch([currentTime, activeVideoClips, holdFrameClip, fallbackVideoClip], () => {
-  activeVideoClips.value.forEach((clip) => {
-    const video = videoRefs.get(clip.id)
-    if (!video) return
-    const targetTime = getClipMediaTime(clip)
-    if (video.readyState >= 1 && Number.isFinite(targetTime) && Math.abs(video.currentTime - targetTime) > 0.2) {
-      video.currentTime = targetTime
-    }
-    const playbackRate = clip.effects?.speed ?? 1
-    if (video.playbackRate !== playbackRate) video.playbackRate = playbackRate
-  })
-
-  if (holdFrameClip.value) {
-    const video = videoRefs.get(holdFrameClip.value.id)
-    if (video) {
-      const trimEnd = holdFrameClip.value.trimEnd ?? holdFrameClip.value.duration
-      if (Number.isFinite(trimEnd)) video.currentTime = trimEnd
-      video.pause()
-    }
-  }
-
-  if (fallbackVideoClip.value) {
-    const video = videoRefs.get(fallbackVideoClip.value.id)
-    if (video) {
-      const trimStart = fallbackVideoClip.value.trimStart ?? 0
-      if (Number.isFinite(trimStart)) video.currentTime = trimStart
-    }
-  }
-})
-
-async function syncActiveVideoPlayback(forceState?: boolean) {
-  const shouldPlay = typeof forceState === 'boolean' ? forceState : playing.value
-  const activeIds = new Set(activeVideoClips.value.map((clip) => clip.id))
-
-  for (const [id, video] of videoRefs) {
-    if (!activeIds.has(id)) {
-      if (!video.paused) video.pause()
-      continue
-    }
-    if (shouldPlay && video.paused) {
-      try {
-        await video.play()
-      } catch {
-        if (!video.muted) {
-          video.muted = true
-          try {
-            await video.play()
-            continue
-          } catch {
-            // fall through
-          }
-        }
-        emit('update:playing', false)
-      }
-    } else if (!shouldPlay && !video.paused) {
-      video.pause()
-    }
-  }
-}
-
-watch([playing, activeVideoClips], () => {
-  syncActiveVideoPlayback()
-})
-
-watch(volumeValue, (next) => {
-  for (const video of videoRefs.values()) {
-    video.volume = next
-    video.muted = next <= 0
-  }
-})
-
-function onVideoMetaLoaded(clip: EditorClip) {
-  const video = videoRefs.get(clip.id)
-  const duration = Number(video?.duration || 0)
-  if (Number.isFinite(duration)) {
-    emit('update:clip-meta', { clipId: clip.id, duration })
-  }
-  if (video) {
-    const targetTime = getClipMediaTime(clip)
-    if (video.readyState >= 1 && Number.isFinite(targetTime)) {
-      video.currentTime = targetTime
-    }
-  }
-  if (playing.value) {
-    syncActiveVideoPlayback(true)
-  }
-}
-
-function onVideoDataLoaded(clip: EditorClip) {
-  if (failedVideos.value[clip.id]) {
-    const next = { ...failedVideos.value }
-    delete next[clip.id]
-    failedVideos.value = next
-  }
-  if (playing.value) {
-    syncActiveVideoPlayback(true)
-  }
-}
-
-function onVideoError(clip: EditorClip) {
-  const src = resolveVideoSource(clip)
-  if (src && failedVideos.value[clip.id] !== src) {
-    failedVideos.value = { ...failedVideos.value, [clip.id]: src }
-  }
-  // eslint-disable-next-line no-console
-  console.warn('Preview video failed to load', clip.sourceUrl || props.fallbackUrl || '')
-}
-
 function togglePlay() {
   const next = !playing.value
   emit('update:playing', next)
-  if (next) {
-    void syncActiveVideoPlayback(true)
-  }
 }
 
 function seekBy(seconds: number) {
@@ -600,9 +791,9 @@ function onClipPointerDown(event: PointerEvent, clip: EditorClip, mode: DragMode
 
 function onClipPointerMove(event: PointerEvent) {
   const state = dragState.value
-  const frame = frameRef.value
-  if (!state || !frame) return
-  const rect = frame.getBoundingClientRect()
+  const stage = stageRef.value ?? frameRef.value
+  if (!state || !stage) return
+  const rect = stage.getBoundingClientRect()
   const dxPercent = ((event.clientX - state.startX) / rect.width) * 100
   const dyPercent = ((event.clientY - state.startY) / rect.height) * 100
 
@@ -641,7 +832,32 @@ function formatTime(seconds: number) {
 }
 
 onBeforeUnmount(() => {
+  stopVideoTimelineSync()
+  if (frameResizeObserver) {
+    frameResizeObserver.disconnect()
+    frameResizeObserver = null
+  }
   onClipPointerUp()
+})
+
+onMounted(() => {
+  const measure = () => {
+    const rect = frameRef.value?.getBoundingClientRect()
+    if (!rect) return
+    frameSize.value = {
+      width: rect.width,
+      height: rect.height,
+    }
+  }
+
+  measure()
+
+  if (typeof ResizeObserver !== 'undefined' && frameRef.value) {
+    frameResizeObserver = new ResizeObserver(() => {
+      measure()
+    })
+    frameResizeObserver.observe(frameRef.value)
+  }
 })
 
 defineExpose({

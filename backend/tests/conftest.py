@@ -5,6 +5,8 @@ Pytest configuration and fixtures.
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from uuid import uuid4
@@ -24,6 +26,12 @@ engine = create_engine(
 )
 
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+@compiles(JSONB, "sqlite")
+def _compile_jsonb_sqlite(_type, _compiler, **_kwargs):
+    """Allow PostgreSQL JSONB columns to compile in sqlite test DB."""
+    return "JSON"
 
 
 @pytest.fixture(scope="function")

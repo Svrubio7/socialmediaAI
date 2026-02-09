@@ -1,11 +1,11 @@
 <template>
   <aside class="h-full min-h-0 flex border-r border-surface-800 bg-surface-900">
-    <nav class="w-14 shrink-0 border-r border-surface-800 py-2">
+    <nav class="w-[4.2rem] shrink-0 border-r border-surface-800 py-2">
       <button
         v-for="item in navItems"
         :key="item.key"
         type="button"
-        class="mx-1 mb-1.5 flex w-12 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] leading-tight transition-all"
+        class="mx-1 mb-1.5 flex w-[3.6rem] flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] leading-tight transition-all"
         :class="item.key === activeSection ? 'bg-surface-800 text-surface-50 shadow-[inset_0_0_0_1px_rgba(105,117,101,.5)]' : 'text-surface-400 hover:bg-surface-800 hover:text-surface-100'"
         @click="$emit('update:activeSection', item.key)"
       >

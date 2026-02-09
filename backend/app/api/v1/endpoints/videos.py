@@ -2,12 +2,13 @@
 Video management endpoints.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID, uuid4
 import os
 import json
 import logging
 import subprocess
+import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Request, status, Header
@@ -118,6 +119,26 @@ class TaskResponse(BaseModel):
     task_id: str
     status: str
     message: Optional[str] = None
+
+
+class VideoMediaUrlsRequest(BaseModel):
+    """Batch request for short-lived media playback URLs."""
+    video_ids: List[str]
+    include_video: bool = True
+    include_thumbnail: bool = True
+
+
+class VideoMediaUrlItem(BaseModel):
+    """Media URLs resolved for a specific video."""
+    id: str
+    video_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+
+
+class VideoMediaUrlsResponse(BaseModel):
+    """Batch media URL response."""
+    items: List[VideoMediaUrlItem]
+    expires_in: Optional[int] = None
 
 
 class EditRequest(BaseModel):
@@ -273,12 +294,27 @@ def _generate_thumbnail(video_path: str, user_id: str, video_id: str) -> Optiona
     return None
 
 
-def _thumbnail_url(video: Video, request: Request) -> Optional[str]:
+def _thumbnail_storage_path(video: Video) -> Optional[str]:
     meta = video.video_metadata or {}
     thumb_path = meta.get("thumbnail_storage_path")
-    if thumb_path:
-        signed = storage.build_public_url(thumb_path, request)
-        return signed or video.thumbnail_url
+    if isinstance(thumb_path, str) and thumb_path:
+        return thumb_path
+    return None
+
+
+def _thumbnail_url(video: Video, request: Request) -> Optional[str]:
+    thumb_path = _thumbnail_storage_path(video)
+    if not thumb_path:
+        return video.thumbnail_url
+
+    if (settings.STORAGE_BACKEND or "").lower() == "supabase":
+        # Avoid expensive N signed-url calls in list/get; proxy each image on demand.
+        base = str(request.base_url).rstrip("/")
+        return f"{base}{settings.API_V1_STR}/videos/{video.id}/thumbnail"
+
+    signed = storage.build_public_url(thumb_path, request)
+    if signed:
+        return signed
     return video.thumbnail_url
 
 
@@ -289,6 +325,19 @@ def _video_url(video: Video, request: Request) -> Optional[str]:
         base = str(request.base_url).rstrip("/")
         return f"{base}{settings.API_V1_STR}/videos/{video.id}/stream"
     return storage.build_public_url(video.storage_path, request)
+
+
+def _signed_url_ttl_seconds() -> Optional[int]:
+    if (settings.STORAGE_BACKEND or "").lower() != "supabase":
+        return None
+    if not bool(settings.SUPABASE_STORAGE_PRIVATE):
+        return None
+    ttl = int(settings.SUPABASE_STORAGE_SIGNED_URL_TTL or 3600)
+    return max(1, ttl)
+
+
+def _is_http_url(value: str) -> bool:
+    return value.startswith("http://") or value.startswith("https://")
 
 
 async def _head_remote(url: str, range_header: Optional[str]) -> Response:
@@ -333,7 +382,7 @@ async def _stream_remote(url: str, range_header: Optional[str]) -> StreamingResp
     response = StreamingResponse(
         iterator(),
         status_code=resp.status_code,
-        media_type=resp.headers.get("content-type", "video/mp4"),
+        media_type=resp.headers.get("content-type") or "application/octet-stream",
         background=BackgroundTask(close),
     )
     for header in ("content-length", "content-range", "accept-ranges"):
@@ -482,6 +531,46 @@ async def stream_video(
     return await _stream_remote(url, range_header)
 
 
+@router.api_route("/{video_id}/thumbnail", methods=["GET", "HEAD"])
+async def stream_thumbnail(
+    video_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    token: Optional[str] = None,
+):
+    user = current_user
+    if user is None and token:
+        payload = decode_token(token) or verify_supabase_token(token)
+        if payload:
+            user = await get_current_user(db=db, token_payload=payload)
+
+    if user is None and not settings.DEBUG:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    query = db.query(Video).filter(Video.id == UUID(video_id))
+    if user is not None:
+        query = query.filter(Video.user_id == user.id)
+    video = query.first()
+
+    if video is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+
+    thumb_path = _thumbnail_storage_path(video)
+    source_url: Optional[str] = None
+    if thumb_path:
+        source_url = storage.build_public_url(thumb_path, request)
+    if not source_url and video.thumbnail_url:
+        source_url = video.thumbnail_url
+
+    if not source_url:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thumbnail not found")
+
+    if request.method == "HEAD":
+        return await _head_remote(source_url, None)
+    return await _stream_remote(source_url, None)
+
+
 @router.post("/upload", response_model=VideoUploadResponse)
 async def upload_video(
     request: Request,
@@ -621,6 +710,99 @@ async def register_video(
         filename=video.filename,
         status=video.status.value,
         created_at=video.created_at,
+    )
+
+
+@router.post("/media-urls", response_model=VideoMediaUrlsResponse)
+async def get_video_media_urls(
+    payload: VideoMediaUrlsRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Resolve short-lived playback URLs in batch.
+
+    This is the primary media-access path for web clients:
+    - avoids persisting expiring URLs in editor state
+    - avoids exposing full user JWT in media query strings
+    - enables direct browser/CDN playback without backend video proxy on each frame
+    """
+    raw_ids = payload.video_ids or []
+    if not raw_ids:
+        return VideoMediaUrlsResponse(items=[], expires_in=_signed_url_ttl_seconds())
+
+    if len(raw_ids) > 200:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Maximum of 200 video IDs per request",
+        )
+
+    ordered_ids: List[str] = []
+    parsed_ids: List[UUID] = []
+    seen: set[str] = set()
+    for raw_id in raw_ids:
+        try:
+            parsed = UUID(raw_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid video id: {raw_id}",
+            )
+        canonical = str(parsed)
+        if canonical in seen:
+            continue
+        parsed_ids.append(parsed)
+        ordered_ids.append(canonical)
+        seen.add(canonical)
+
+    videos = db.query(Video).filter(
+        Video.user_id == current_user.id,
+        Video.id.in_(parsed_ids),
+    ).all()
+    by_id = {str(video.id): video for video in videos}
+
+    items = [VideoMediaUrlItem(id=video_id) for video_id in ordered_ids]
+    jobs: List[Tuple[str, int, str]] = []
+
+    for index, video_id in enumerate(ordered_ids):
+        video = by_id.get(video_id)
+        if not video:
+            continue
+        if payload.include_video and video.storage_path:
+            jobs.append(("video", index, video.storage_path))
+        if payload.include_thumbnail:
+            thumb_path = _thumbnail_storage_path(video)
+            if thumb_path:
+                jobs.append(("thumbnail", index, thumb_path))
+            elif video.thumbnail_url and _is_http_url(video.thumbnail_url):
+                items[index].thumbnail_url = video.thumbnail_url
+
+    if jobs:
+        semaphore = asyncio.Semaphore(12)
+
+        async def resolve_one(kind: str, index: int, path: str):
+            async with semaphore:
+                try:
+                    resolved = await asyncio.to_thread(storage.build_public_url, path, request)
+                except Exception as exc:
+                    logger.warning("Failed to resolve %s media URL for %s: %s", kind, path, exc)
+                    resolved = None
+                return kind, index, resolved
+
+        results = await asyncio.gather(*(resolve_one(kind, idx, path) for kind, idx, path in jobs))
+        for kind, index, resolved in results:
+            if kind == "video":
+                items[index].video_url = resolved
+            else:
+                items[index].thumbnail_url = resolved
+
+    # Keep only videos user can access. Missing IDs are silently dropped to simplify client sync flows.
+    items = [item for item in items if item.id in by_id]
+
+    return VideoMediaUrlsResponse(
+        items=items,
+        expires_in=_signed_url_ttl_seconds(),
     )
 
 

@@ -6,10 +6,25 @@ interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
   body?: any
   headers?: Record<string, string>
+  timeoutMs?: number
+}
+
+interface VideoMediaUrlItem {
+  id: string
+  video_url?: string
+  thumbnail_url?: string
+}
+
+interface VideoMediaUrlsResponse {
+  items?: VideoMediaUrlItem[]
+  expires_in?: number | null
 }
 
 const API_REQUEST_TIMEOUT_MS = 15000
+const API_LONG_REQUEST_TIMEOUT_MS = 60000
 const TOKEN_TIMEOUT_MS = 4000
+const ACCESS_TOKEN_CACHE_MS = 10000
+const VIDEO_MEDIA_URL_BATCH_SIZE = 200
 
 const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> =>
   new Promise<T>((resolve, reject) => {
@@ -26,6 +41,28 @@ const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> =>
   })
 
 const safeNumber = (value: number) => (Number.isFinite(value) ? value : undefined)
+const asNonEmptyString = (value: unknown) => {
+  if (typeof value !== 'string') return ''
+  return value.trim()
+}
+const normalizeVideoIds = (videoIds: string[]) => {
+  const result: string[] = []
+  const seen = new Set<string>()
+  for (const raw of videoIds) {
+    const id = asNonEmptyString(raw)
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    result.push(id)
+  }
+  return result
+}
+const chunk = <T>(items: T[], size: number) => {
+  const chunks: T[][] = []
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size))
+  }
+  return chunks
+}
 
 const generateId = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -124,6 +161,10 @@ export const useApi = () => {
   const supabase = useSupabaseClient()
   const baseUrl = (config.public.apiUrl || '').replace(/\/$/, '')
   const signedUrlTtl = 3600
+  let cachedAccessToken: string | undefined
+  let tokenCachedAt = 0
+  let hasTokenCache = false
+  let inflightTokenRequest: Promise<string | undefined> | null = null
 
   const createSignedUrl = async (path?: string): Promise<string | undefined> => {
     if (!process.client || !path) return undefined
@@ -131,25 +172,56 @@ export const useApi = () => {
     try {
       const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, signedUrlTtl)
       if (error) return undefined
-      return data?.signedUrl || data?.signedURL || data?.signed_url
+      const signedData = data as Record<string, string | undefined> | null
+      return signedData?.signedUrl || signedData?.signedURL || signedData?.signed_url
     } catch {
       return undefined
     }
   }
 
-  const getAccessToken = async (): Promise<string | undefined> => {
-    try {
-      const { data: { session } } = await withTimeout(supabase.auth.getSession(), TOKEN_TIMEOUT_MS)
-      return session?.access_token
-    } catch {
-      return undefined
+  const getAccessToken = async (forceRefresh = false): Promise<string | undefined> => {
+    if (!process.client) return undefined
+
+    const now = Date.now()
+    const cacheIsFresh = hasTokenCache && (now - tokenCachedAt) < ACCESS_TOKEN_CACHE_MS
+    if (!forceRefresh && cacheIsFresh) {
+      return cachedAccessToken
     }
+
+    if (inflightTokenRequest) return inflightTokenRequest
+
+    inflightTokenRequest = withTimeout(supabase.auth.getSession(), TOKEN_TIMEOUT_MS)
+      .then(({ data: { session } }) => session?.access_token)
+      .catch(() => undefined)
+      .then((token) => {
+        if (token) {
+          cachedAccessToken = token
+          tokenCachedAt = Date.now()
+          hasTokenCache = true
+          return token
+        }
+        cachedAccessToken = undefined
+        tokenCachedAt = 0
+        hasTokenCache = false
+        return token
+      })
+      .finally(() => {
+        inflightTokenRequest = null
+      })
+
+    return inflightTokenRequest
   }
 
-  const withAccessToken = async (url?: string): Promise<string | undefined> => {
+  const isProtectedMediaUrl = (url: string) =>
+    url.includes('/videos/') && (url.includes('/stream') || url.includes('/thumbnail'))
+
+  const withAccessToken = async (url?: string, tokenOverride?: string): Promise<string | undefined> => {
     if (!process.client || !url) return url
-    if (!url.includes('/videos/') || !url.includes('/stream')) return url
-    const token = await getAccessToken()
+    if (!isProtectedMediaUrl(url)) return url
+    let token = tokenOverride ?? await getAccessToken()
+    if (!token && !tokenOverride) {
+      token = await getAccessToken(true)
+    }
     if (!token) return url
     try {
       const parsed = new URL(url, window.location.origin)
@@ -167,19 +239,63 @@ export const useApi = () => {
     }
   }
 
-  const hydrateVideoUrls = async (video: any) => {
+  const hydrateVideoUrls = async (
+    video: any,
+    options: { token?: string } = {}
+  ) => {
     if (!process.client || !video) return video
-    if (!video.video_url && video.storage_path) {
-      video.video_url = await createSignedUrl(video.storage_path)
-    }
-    const thumbPath = video.thumbnail_storage_path
-    if (!video.thumbnail_url && thumbPath) {
-      video.thumbnail_url = await createSignedUrl(thumbPath)
-    }
+    const { token } = options
+
     if (video.video_url) {
-      video.video_url = await withAccessToken(video.video_url)
+      video.video_url = await withAccessToken(video.video_url, token)
+    }
+    if (video.thumbnail_url) {
+      video.thumbnail_url = await withAccessToken(video.thumbnail_url, token)
     }
     return video
+  }
+
+  const resolveVideoMediaUrls = async (
+    videoIds: string[],
+    options: { includeVideo?: boolean; includeThumbnail?: boolean } = {}
+  ): Promise<{ byId: Map<string, VideoMediaUrlItem>; expiresIn?: number }> => {
+    const includeVideo = options.includeVideo !== false
+    const includeThumbnail = options.includeThumbnail !== false
+    const normalizedIds = normalizeVideoIds(videoIds)
+    if (!normalizedIds.length) return { byId: new Map(), expiresIn: undefined }
+
+    const idChunks = chunk(normalizedIds, VIDEO_MEDIA_URL_BATCH_SIZE)
+    const responses = await Promise.all(
+      idChunks.map((videoIdsChunk) =>
+        post<VideoMediaUrlsResponse>(
+          '/videos/media-urls',
+          {
+            video_ids: videoIdsChunk,
+            include_video: includeVideo,
+            include_thumbnail: includeThumbnail,
+          },
+          undefined,
+          API_LONG_REQUEST_TIMEOUT_MS
+        )
+      )
+    )
+
+    const byId = new Map<string, VideoMediaUrlItem>()
+    let expiresIn: number | undefined
+
+    for (const response of responses) {
+      const nextExpiresIn = Number(response?.expires_in)
+      if (Number.isFinite(nextExpiresIn) && nextExpiresIn > 0) {
+        expiresIn = typeof expiresIn === 'number' ? Math.min(expiresIn, nextExpiresIn) : nextExpiresIn
+      }
+      for (const item of response?.items ?? []) {
+        const id = asNonEmptyString(item?.id)
+        if (!id) continue
+        byId.set(id, item)
+      }
+    }
+
+    return { byId, expiresIn }
   }
 
   const getAuthHeaders = async (): Promise<Record<string, string>> => {
@@ -191,7 +307,7 @@ export const useApi = () => {
   }
 
   const request = async <T>(endpoint: string, options: ApiOptions = {}): Promise<T> => {
-    const { method = 'GET', body, headers = {} } = options
+    const { method = 'GET', body, headers = {}, timeoutMs = API_REQUEST_TIMEOUT_MS } = options
     
     const authHeaders = await getAuthHeaders()
     const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
@@ -200,7 +316,7 @@ export const useApi = () => {
     const response = await $fetch<T>(`${baseUrl}${endpoint}`, {
       method,
       body: body ?? undefined,
-      timeout: API_REQUEST_TIMEOUT_MS,
+      timeout: timeoutMs,
       headers: {
         ...(shouldSetJsonContentType ? { 'Content-Type': 'application/json' } : {}),
         ...authHeaders,
@@ -211,20 +327,20 @@ export const useApi = () => {
     return response
   }
 
-  const get = <T>(endpoint: string, headers?: Record<string, string>) => 
-    request<T>(endpoint, { method: 'GET', headers })
+  const get = <T>(endpoint: string, headers?: Record<string, string>, timeoutMs?: number) => 
+    request<T>(endpoint, { method: 'GET', headers, timeoutMs })
 
-  const post = <T>(endpoint: string, body?: any, headers?: Record<string, string>) => 
-    request<T>(endpoint, { method: 'POST', body, headers })
+  const post = <T>(endpoint: string, body?: any, headers?: Record<string, string>, timeoutMs?: number) => 
+    request<T>(endpoint, { method: 'POST', body, headers, timeoutMs })
 
-  const put = <T>(endpoint: string, body?: any, headers?: Record<string, string>) => 
-    request<T>(endpoint, { method: 'PUT', body, headers })
+  const put = <T>(endpoint: string, body?: any, headers?: Record<string, string>, timeoutMs?: number) => 
+    request<T>(endpoint, { method: 'PUT', body, headers, timeoutMs })
 
-  const del = <T>(endpoint: string, headers?: Record<string, string>) => 
-    request<T>(endpoint, { method: 'DELETE', headers })
+  const del = <T>(endpoint: string, headers?: Record<string, string>, timeoutMs?: number) => 
+    request<T>(endpoint, { method: 'DELETE', headers, timeoutMs })
 
-  const patch = <T>(endpoint: string, body?: any, headers?: Record<string, string>) => 
-    request<T>(endpoint, { method: 'PATCH', body, headers })
+  const patch = <T>(endpoint: string, body?: any, headers?: Record<string, string>, timeoutMs?: number) => 
+    request<T>(endpoint, { method: 'PATCH', body, headers, timeoutMs })
 
   // Auth / user profile endpoints
   const authApi = {
@@ -234,19 +350,76 @@ export const useApi = () => {
 
   // Video endpoints
   const videos = {
-    list: (params?: { page?: number; limit?: number; status?: string }) => {
+    list: async (params?: { page?: number; limit?: number; status?: string }) => {
       const query = new URLSearchParams()
       if (params?.page) query.set('page', params.page.toString())
       if (params?.limit) query.set('limit', params.limit.toString())
       if (params?.status) query.set('status', params.status)
-      return get<any>(`/videos?${query}`).then(async (response) => {
-        if (response?.items?.length) {
-          response.items = await Promise.all(response.items.map(hydrateVideoUrls))
-        }
-        return response
-      })
+      const timeoutMs = (params?.limit ?? 0) > 50 ? API_LONG_REQUEST_TIMEOUT_MS : API_REQUEST_TIMEOUT_MS
+      const response = await get<any>(`/videos?${query}`, undefined, timeoutMs)
+      if (!response?.items?.length) return response
+
+      const token = await getAccessToken()
+      const ids = response.items.map((item: any) => String(item?.id || '')).filter(Boolean)
+      let byId = new Map<string, VideoMediaUrlItem>()
+      try {
+        const resolved = await resolveVideoMediaUrls(ids)
+        byId = resolved.byId
+      } catch {
+        // Fallback to list/get stream URLs when media-url resolution fails.
+      }
+
+      response.items = await Promise.all(
+        response.items.map(async (item: any) => {
+          const id = asNonEmptyString(item?.id)
+          const resolved = byId.get(id)
+          if (resolved?.video_url) item.video_url = resolved.video_url
+          if (resolved?.thumbnail_url) item.thumbnail_url = resolved.thumbnail_url
+          return hydrateVideoUrls(item, { token })
+        })
+      )
+
+      return response
     },
-    get: (id: string) => get<any>(`/videos/${id}`).then(hydrateVideoUrls),
+    get: async (id: string) => {
+      const response = await get<any>(`/videos/${id}`, undefined, API_LONG_REQUEST_TIMEOUT_MS)
+      const token = await getAccessToken()
+
+      try {
+        const resolved = await resolveVideoMediaUrls([id])
+        const media = resolved.byId.get(asNonEmptyString(id))
+        if (media?.video_url) response.video_url = media.video_url
+        if (media?.thumbnail_url) response.thumbnail_url = media.thumbnail_url
+      } catch {
+        // Fallback to backend detail payload if media-url resolution fails.
+      }
+
+      return hydrateVideoUrls(response, { token })
+    },
+    mediaUrls: async (
+      videoIds: string[],
+      options: { includeVideo?: boolean; includeThumbnail?: boolean } = {}
+    ): Promise<{ items: VideoMediaUrlItem[]; expires_in?: number }> => {
+      const normalizedIds = normalizeVideoIds(videoIds)
+      if (!normalizedIds.length) return { items: [] }
+
+      const resolved = await resolveVideoMediaUrls(normalizedIds, options)
+      const items: VideoMediaUrlItem[] = []
+      for (const id of normalizedIds) {
+        const media = resolved.byId.get(id)
+        if (!media) continue
+        items.push({
+          id,
+          video_url: media.video_url,
+          thumbnail_url: media.thumbnail_url,
+        })
+      }
+
+      return {
+        items,
+        expires_in: resolved.expiresIn,
+      }
+    },
     upload: async (file: File, title?: string) => {
       if (!process.client) throw new Error('Upload must run in the browser')
       const { data: { user }, error } = await supabase.auth.getUser()

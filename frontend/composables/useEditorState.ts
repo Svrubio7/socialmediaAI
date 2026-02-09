@@ -411,17 +411,25 @@ export function useEditorState() {
 
     const leftDuration = splitAt - clipStart
     const rightDuration = clipEnd - splitAt
+    const trimStart = clip.trimStart ?? 0
+    const leftTrimEnd = trimStart + leftDuration
+    const rightTrimStart = leftTrimEnd
+    const rightTrimEnd = clip.trimEnd ?? (rightTrimStart + rightDuration)
     const rightClip: EditorClip = {
       ...deepClone(clip),
       id: nextClipId('split'),
       startTime: splitAt,
       duration: rightDuration,
+      trimStart: rightTrimStart,
+      trimEnd: Math.max(rightTrimStart + MIN_DURATION, rightTrimEnd),
       label: `${clip.label} (2)`,
     }
 
     found.track.clips.splice(found.index, 1, {
       ...clip,
       duration: leftDuration,
+      trimStart,
+      trimEnd: Math.max(trimStart + MIN_DURATION, leftTrimEnd),
       label: `${clip.label} (1)`,
     }, rightClip)
 

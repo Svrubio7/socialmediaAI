@@ -125,7 +125,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 definePageMeta({
   layout: 'app-sidebar',
   middleware: 'auth',
@@ -144,20 +144,75 @@ const isLoading = ref(true)
 const fileInput = ref<HTMLInputElement | null>(null)
 const videos = ref<any[]>([])
 const analyzingId = ref<string | null>(null)
+let mediaUrlRefreshTimer: ReturnType<typeof setTimeout> | null = null
+const MEDIA_URL_REFRESH_BUFFER_SECONDS = 90
+
+function clearMediaUrlRefreshTimer() {
+  if (!mediaUrlRefreshTimer) return
+  clearTimeout(mediaUrlRefreshTimer)
+  mediaUrlRefreshTimer = null
+}
+
+function scheduleMediaUrlRefresh(expiresIn?: number) {
+  clearMediaUrlRefreshTimer()
+  if (typeof expiresIn !== 'number' || !Number.isFinite(expiresIn) || expiresIn <= 0) return
+  const refreshInMs = Math.max(30_000, (expiresIn - MEDIA_URL_REFRESH_BUFFER_SECONDS) * 1000)
+  mediaUrlRefreshTimer = setTimeout(() => {
+    void refreshVideoMediaUrls()
+  }, refreshInMs)
+}
+
+async function refreshVideoMediaUrls() {
+  const ids = videos.value.map((video) => String(video?.id || '')).filter(Boolean)
+  if (!ids.length) return
+  try {
+    const resolved = await api.videos.mediaUrls(ids, {
+      includeVideo: true,
+      includeThumbnail: true,
+    })
+    const byId = new Map<string, { video_url?: string; thumbnail_url?: string }>()
+    for (const item of resolved?.items ?? []) {
+      const id = String(item?.id || '')
+      if (!id) continue
+      byId.set(id, item)
+    }
+    videos.value = videos.value.map((video) => {
+      const id = String(video?.id || '')
+      const media = byId.get(id)
+      if (!media) return video
+      const nextVideoUrl = media.video_url || video.video_url
+      const nextThumbnail = media.thumbnail_url || video.thumbnail_url
+      if (nextVideoUrl === video.video_url && nextThumbnail === video.thumbnail_url) return video
+      return {
+        ...video,
+        video_url: nextVideoUrl,
+        thumbnail_url: nextThumbnail,
+      }
+    })
+    scheduleMediaUrlRefresh(resolved?.expires_in)
+  } catch {
+    // Keep existing URLs; list can still render with current data.
+  }
+}
 
 async function fetchVideos() {
   isLoading.value = true
   try {
     const res = await api.videos.list({ limit: 100 })
     videos.value = (res as { items?: any[] })?.items ?? []
+    await refreshVideoMediaUrls()
   } catch {
     videos.value = []
+    clearMediaUrlRefreshTimer()
   } finally {
     isLoading.value = false
   }
 }
 
 onMounted(fetchVideos)
+onBeforeUnmount(() => {
+  clearMediaUrlRefreshTimer()
+})
 
 const filteredVideos = computed(() => {
   return videos.value.filter(video => {

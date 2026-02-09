@@ -211,6 +211,12 @@ interface EditorOpResponse {
   output_video_id?: string
 }
 
+interface VideoMediaUrlItem {
+  id: string
+  video_url?: string
+  thumbnail_url?: string
+}
+
 const route = useRoute()
 const localePath = useLocalePath()
 const api = useApi()
@@ -252,8 +258,11 @@ const centerRef = ref<HTMLDivElement | null>(null)
 const previewRef = ref<{ toggleFullscreen?: () => void } | null>(null)
 const controlsRef = ref<HTMLDivElement | null>(null)
 const previewVolume = ref(1)
-const leftWidth = ref(220)
-const rightWidth = ref(220)
+const COLLAPSED_SIDEBAR_WIDTH = 67
+const DEFAULT_SIDEBAR_WIDTH = 264
+const MIN_SIDEBAR_WIDTH = 216
+const leftWidth = ref(DEFAULT_SIDEBAR_WIDTH)
+const rightWidth = ref(DEFAULT_SIDEBAR_WIDTH)
 const timelineHeight = ref(280)
 const resizerSize = 6
 const previewUrl = ref('')
@@ -283,6 +292,9 @@ let playbackFrame: number | null = null
 let lastFrameTime = 0
 let resizeCleanup: (() => void) | null = null
 let windowResizeCleanup: (() => void) | null = null
+let mediaUrlRefreshTimer: ReturnType<typeof setTimeout> | null = null
+
+const MEDIA_URL_REFRESH_BUFFER_SECONDS = 90
 
 const accountInitial = computed(() => {
   const name = auth.user?.name?.trim()
@@ -293,7 +305,7 @@ const accountInitial = computed(() => {
 })
 
 const desktopGridStyle = computed(() => {
-  const leftColumn = leftCollapsed.value ? '56px' : `${leftWidth.value}px`
+  const leftColumn = leftCollapsed.value ? `${COLLAPSED_SIDEBAR_WIDTH}px` : `${leftWidth.value}px`
   const leftGrip = leftCollapsed.value ? 0 : resizerSize
   return {
     gridTemplateColumns: `${leftColumn} ${leftGrip}px minmax(0, 1fr) ${resizerSize}px ${rightWidth.value}px`,
@@ -362,12 +374,13 @@ watch(
 async function persistProjectState() {
   try {
     if (!projectId.value) return
+    const state = sanitizeProjectStateForPersist({
+      ...exportState(),
+      outputSettings: outputSettings.value,
+    })
     await api.projects.update(projectId.value, {
       name: projectName.value,
-      state: {
-        ...exportState(),
-        outputSettings: outputSettings.value,
-      },
+      state,
     })
     saveState.value = 'saved'
   } catch {
@@ -408,6 +421,80 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
 
+function isProtectedMediaPath(url: string) {
+  return url.includes('/videos/') && (url.includes('/stream') || url.includes('/thumbnail'))
+}
+
+function stripTransientMediaToken(url?: string) {
+  if (!url || !isProtectedMediaPath(url)) return url
+  try {
+    const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
+    const parsed = new URL(url, base)
+    parsed.searchParams.delete('token')
+    if (/^https?:\/\//i.test(url)) return parsed.toString()
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`
+  } catch {
+    const cleaned = url
+      .replace(/([?&])token=[^&]*(&?)/, (_m, sep, tail) => (sep === '?' && tail ? '?' : sep))
+      .replace(/[?&]$/, '')
+    return cleaned
+  }
+}
+
+function sanitizeProjectStateForPersist(state: any) {
+  return {
+    ...state,
+    tracks: (state?.tracks ?? []).map((track: any) => ({
+      ...track,
+      clips: (track?.clips ?? []).map((clip: any) => ({
+        ...clip,
+        sourceUrl: clip?.type === 'video' && clip?.sourceId
+          ? undefined
+          : stripTransientMediaToken(clip?.sourceUrl),
+        posterUrl: clip?.type === 'video' && clip?.sourceId
+          ? undefined
+          : stripTransientMediaToken(clip?.posterUrl),
+      })),
+    })),
+  }
+}
+
+function syncPreviewFallbackMedia() {
+  const firstVideo = tracks.value
+    .flatMap((track) => track.clips)
+    .filter((clip) => clip.type === 'video')
+    .slice()
+    .sort((a, b) => a.startTime - b.startTime)[0]
+  previewUrl.value = firstVideo?.sourceUrl || ''
+  previewPoster.value = firstVideo?.posterUrl || ''
+  previewDuration.value = Math.max(1, duration.value)
+}
+
+function clearMediaUrlRefreshTimer() {
+  if (!mediaUrlRefreshTimer) return
+  clearTimeout(mediaUrlRefreshTimer)
+  mediaUrlRefreshTimer = null
+}
+
+function scheduleMediaUrlRefresh(expiresIn?: number) {
+  clearMediaUrlRefreshTimer()
+  if (typeof expiresIn !== 'number' || !Number.isFinite(expiresIn) || expiresIn <= 0) return
+  const refreshInMs = Math.max(30_000, (expiresIn - MEDIA_URL_REFRESH_BUFFER_SECONDS) * 1000)
+  mediaUrlRefreshTimer = setTimeout(() => {
+    void refreshProjectVideoSources()
+  }, refreshInMs)
+}
+
+function collectTimelineVideoIds() {
+  const ids = new Set<string>()
+  for (const clip of tracks.value.flatMap((track) => track.clips)) {
+    if (clip.type !== 'video' || !clip.sourceId) continue
+    const id = String(clip.sourceId).trim()
+    if (id) ids.add(id)
+  }
+  return Array.from(ids)
+}
+
 function startResize(type: 'left' | 'right' | 'timeline', event: PointerEvent) {
   const grid = gridRef.value
   const center = centerRef.value
@@ -415,8 +502,8 @@ function startResize(type: 'left' | 'right' | 'timeline', event: PointerEvent) {
   const gridRect = grid.getBoundingClientRect()
   const centerRect = center.getBoundingClientRect()
 
-  const minLeft = 180
-  const minRight = 180
+  const minLeft = MIN_SIDEBAR_WIDTH
+  const minRight = MIN_SIDEBAR_WIDTH
   const minCenter = 420
   const minTimeline = 200
   const minPreview = 240
@@ -429,7 +516,7 @@ function startResize(type: 'left' | 'right' | 'timeline', event: PointerEvent) {
     }
 
     if (type === 'right') {
-      const maxRight = Math.max(minRight, gridRect.width - minCenter - (leftCollapsed.value ? 56 : leftWidth.value) - resizerSize * 2)
+      const maxRight = Math.max(minRight, gridRect.width - minCenter - (leftCollapsed.value ? COLLAPSED_SIDEBAR_WIDTH : leftWidth.value) - resizerSize * 2)
       rightWidth.value = clamp(gridRect.right - e.clientX, minRight, maxRight)
       return
     }
@@ -474,7 +561,6 @@ async function loadWorkspace() {
       resetState()
     }
     setProjectName(project?.name || 'Untitled project')
-    await refreshPersistedStreamTokens()
     extraLayers.value = { video: [], graphics: [], audio: [] }
     if (project?.state?.outputSettings) {
       outputSettings.value = { ...outputSettings.value, ...project.state.outputSettings }
@@ -482,6 +568,7 @@ async function loadWorkspace() {
     await loadMediaLibrary()
     hydrateProjectMedia()
     await refreshProjectVideoSources()
+    await refreshPersistedStreamTokens()
     saveState.value = 'saved'
   } catch (error: any) {
     saveState.value = 'error'
@@ -494,13 +581,22 @@ async function refreshPersistedStreamTokens() {
   if (!clipEntries.length) return
   await Promise.all(
     clipEntries.map(async (clip) => {
+      const patch: Partial<EditorClip> = {}
       const source = clip.sourceUrl
-      if (!source || !source.includes('/videos/') || !source.includes('/stream')) return
-      const refreshed = await api.withAccessToken(source)
-      if (!refreshed || refreshed === source) return
-      updateClip(clip.id, { sourceUrl: refreshed }, { recordHistory: false })
+      if (source && isProtectedMediaPath(source)) {
+        const refreshed = await api.withAccessToken(source)
+        if (refreshed && refreshed !== source) patch.sourceUrl = refreshed
+      }
+      const poster = clip.posterUrl
+      if (poster && isProtectedMediaPath(poster)) {
+        const refreshedPoster = await api.withAccessToken(poster)
+        if (refreshedPoster && refreshedPoster !== poster) patch.posterUrl = refreshedPoster
+      }
+      if (!Object.keys(patch).length) return
+      updateClip(clip.id, patch, { recordHistory: false })
     })
   )
+  syncPreviewFallbackMedia()
 }
 
 async function loadMediaLibrary() {
@@ -513,7 +609,7 @@ async function loadMediaLibrary() {
         id: `video-${entry.id}`,
         name: entry.original_filename || entry.filename,
         type: 'video',
-        thumbnail: entry.thumbnail_url || entry.video_url,
+        thumbnail: entry.thumbnail_url || undefined,
         duration: Number(entry.duration) || undefined,
         sourceId: String(entry.id),
         sourceUrl: entry.video_url,
@@ -563,42 +659,59 @@ function hydrateProjectMedia() {
     }
   }
 
-  const firstVideo = tracks.value.find((track) => track.type === 'video')?.clips[0]
-  previewUrl.value = firstVideo?.sourceUrl || ''
-  previewPoster.value = firstVideo?.posterUrl || ''
-  previewDuration.value = Math.max(1, duration.value)
+  syncPreviewFallbackMedia()
 }
 
 async function refreshProjectVideoSources() {
-  const ids = new Set<string>()
-  for (const clip of tracks.value.flatMap((track) => track.clips)) {
-    if (clip.type === 'video' && clip.sourceId) ids.add(String(clip.sourceId))
+  const ids = collectTimelineVideoIds()
+  if (!ids.length) {
+    syncPreviewFallbackMedia()
+    return
   }
-  if (!ids.size) return
 
-  const results = await Promise.all(Array.from(ids).map(async (id) => {
-    try {
-      return await api.videos.get(id)
-    } catch {
-      return null
+  try {
+    const response = await api.videos.mediaUrls(ids, {
+      includeVideo: true,
+      includeThumbnail: true,
+    })
+    const mediaById = new Map<string, VideoMediaUrlItem>()
+    for (const item of response?.items ?? []) {
+      if (!item?.id) continue
+      mediaById.set(String(item.id), item)
     }
-  }))
 
-  results.forEach((video) => {
-    if (!video?.id) return
     for (const clip of tracks.value.flatMap((track) => track.clips)) {
-      if (clip.type !== 'video') continue
-      if (String(clip.sourceId) !== String(video.id)) continue
-      updateClip(clip.id, {
-        sourceUrl: video.video_url || clip.sourceUrl,
-        posterUrl: video.thumbnail_url || clip.posterUrl,
-      }, { recordHistory: false })
-    }
-  })
+      if (clip.type !== 'video' || !clip.sourceId) continue
+      const resolved = mediaById.get(String(clip.sourceId))
+      if (!resolved) continue
 
-  const firstVideo = tracks.value.find((track) => track.type === 'video')?.clips[0]
-  if (firstVideo?.sourceUrl) previewUrl.value = firstVideo.sourceUrl
-  if (firstVideo?.posterUrl) previewPoster.value = firstVideo.posterUrl
+      const patch: Partial<EditorClip> = {}
+      if (resolved.video_url && resolved.video_url !== clip.sourceUrl) patch.sourceUrl = resolved.video_url
+      if (resolved.thumbnail_url && resolved.thumbnail_url !== clip.posterUrl) patch.posterUrl = resolved.thumbnail_url
+      if (!Object.keys(patch).length) continue
+      updateClip(clip.id, patch, { recordHistory: false })
+    }
+
+    mediaItems.value = mediaItems.value.map((item) => {
+      if (item.type !== 'video' || !item.sourceId) return item
+      const resolved = mediaById.get(String(item.sourceId))
+      if (!resolved) return item
+      const sourceUrl = resolved.video_url || item.sourceUrl
+      const thumbnail = resolved.thumbnail_url || item.thumbnail
+      if (sourceUrl === item.sourceUrl && thumbnail === item.thumbnail) return item
+      return {
+        ...item,
+        sourceUrl,
+        thumbnail,
+      }
+    })
+
+    scheduleMediaUrlRefresh(response?.expires_in ?? undefined)
+  } catch {
+    // Keep existing URLs; editor remains usable with prior resolved links.
+  }
+
+  syncPreviewFallbackMedia()
 }
 
 function syncPreviewDuration(nextDuration: number) {
@@ -727,7 +840,7 @@ async function handleAddMedia(item: MediaLibraryItem) {
       ? resolveLayerForGroup('video')
       : resolveLayerForGroup('graphics')
   if (item.type === 'video') {
-    addClip('video', {
+    const clip = addClip('video', {
       type: 'video',
       label: item.name,
       startTime: duration.value,
@@ -736,15 +849,16 @@ async function handleAddMedia(item: MediaLibraryItem) {
       layerGroup: 'video',
       sourceId: item.sourceId,
       sourceUrl: item.sourceUrl,
-      posterUrl: item.thumbnail ?? item.sourceUrl,
+      posterUrl: item.thumbnail,
       position: { x: 0, y: 0 },
       size: { width: 100, height: 100 },
       effects: { speed: 1, fadeIn: 0, fadeOut: 0, filter: 'None' },
     })
-    if (!previewUrl.value && item.sourceUrl) {
+    if (clip && !previewUrl.value && item.sourceUrl) {
       previewUrl.value = item.sourceUrl
       previewPoster.value = item.thumbnail ?? ''
     }
+    void refreshProjectVideoSources()
     toast.info('Video added to the timeline')
     markLocalSaving()
     return
@@ -865,28 +979,21 @@ function handleTimelineTrim(payload: { clipId: string; startTime: number; durati
   const clip = tracks.value.flatMap((track) => track.clips).find((entry) => entry.id === payload.clipId)
   if (!clip) return
 
+  const nextDuration = Math.max(0.1, payload.duration)
+  const previousStartTime = clip.startTime
+  const previousTrimStart = clip.trimStart ?? 0
+  const startDelta = payload.startTime - previousStartTime
+  const hasStartEdgeChange = Math.abs(startDelta) > 0.0001
+  const nextTrimStart = hasStartEdgeChange ? Math.max(0, previousTrimStart + startDelta) : previousTrimStart
+  const nextTrimEnd = nextTrimStart + nextDuration
+
   updateClip(payload.clipId, {
     startTime: payload.startTime,
-    duration: payload.duration,
-    trimStart: payload.startTime,
-    trimEnd: payload.startTime + payload.duration,
+    duration: nextDuration,
+    trimStart: nextTrimStart,
+    trimEnd: nextTrimEnd,
   })
   markLocalSaving()
-
-  if (clip.type === 'video' && clip.sourceId) {
-    const trimStart = Math.max(0, payload.startTime)
-    const trimEnd = Math.max(trimStart + 0.1, trimStart + payload.duration)
-    executeEditorOp('trim_clip', {
-      start: trimStart,
-      end: trimEnd,
-    }, 'Trim applied', clip.id)
-    updateClip(payload.clipId, {
-      startTime: 0,
-      duration: Math.max(0.1, trimEnd - trimStart),
-      trimStart,
-      trimEnd,
-    }, { recordHistory: false })
-  }
 }
 
 function handleTimelineMove(payload: { clipId: string; startTime: number; layer?: number; group?: EditorLayerGroup; createLayer?: boolean }) {
@@ -1236,12 +1343,22 @@ function startPlaybackLoop() {
   })
 }
 
-watch(isPlaying, (playing) => {
-  if (playing) {
-    startPlaybackLoop()
-  } else {
+const hasActiveVideoClipAtPlayhead = computed(() =>
+  clips.value.some((clip) =>
+    clip.type === 'video' &&
+    Boolean(clip.sourceUrl) &&
+    playheadTime.value >= clip.startTime &&
+    playheadTime.value <= clip.startTime + clip.duration
+  )
+)
+
+watch([isPlaying, hasActiveVideoClipAtPlayhead], ([playing, hasActiveVideo]) => {
+  // Keep one timeline clock at a time: video drives when active, RAF drives gaps/graphics-only spans.
+  if (!playing || hasActiveVideo) {
     stopPlaybackLoop()
+    return
   }
+  startPlaybackLoop()
 })
 
 onBeforeUnmount(() => {
@@ -1249,6 +1366,7 @@ onBeforeUnmount(() => {
   if (resizeCleanup) resizeCleanup()
   if (windowResizeCleanup) windowResizeCleanup()
   if (persistTimer) clearTimeout(persistTimer)
+  clearMediaUrlRefreshTimer()
 })
 </script>
 

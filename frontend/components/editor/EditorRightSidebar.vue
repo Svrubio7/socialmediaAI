@@ -174,7 +174,7 @@
               <input v-model="shapeOutline" type="checkbox" class="accent-primary-500" />
             </label>
           </div>
-          <button type="button" class="panel-action" @click="emitShape">Apply shape style</button>
+          <button type="button" class="panel-action" @click="emitShape(true)">Apply shape style</button>
         </template>
 
         <template v-else-if="activeTab === 'effects'">
@@ -202,12 +202,12 @@
       </div>
     </section>
 
-    <nav class="w-14 shrink-0 border-l border-surface-800 py-2">
+    <nav class="w-[4.2rem] shrink-0 border-l border-surface-800 py-2">
       <button
         v-for="item in tabItems"
         :key="item.key"
         type="button"
-        class="mx-1 mb-1.5 flex w-12 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] leading-tight transition-all"
+        class="mx-1 mb-1.5 flex w-[3.6rem] flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] leading-tight transition-all"
         :class="item.key === activeTab ? 'bg-surface-800 text-surface-50 shadow-[inset_0_0_0_1px_rgba(105,117,101,.5)]' : 'text-surface-400 hover:bg-surface-800 hover:text-surface-100'"
         @click="$emit('update:activeTab', item.key)"
       >
