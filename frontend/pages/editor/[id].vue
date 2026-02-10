@@ -83,6 +83,7 @@
             @split="splitSelectedClipAtPlayhead"
             @duplicate="duplicateSelectedClipAction"
             @delete="removeSelectedClipAction"
+            @open-panel="activeRightTab = $event"
           />
         </div>
 
@@ -146,6 +147,9 @@
             @trim-clip="handleTimelineTrim"
             @move-clip="handleTimelineMove"
             @add-layer="handleAddLayer"
+            @remove-layer="handleRemoveLayer"
+            @open-panel="activeRightTab = $event"
+            @apply-transition-between="applyTransitionBetweenClips"
           />
         </div>
       </div>
@@ -242,6 +246,7 @@ const {
   updateClip,
   selectClip,
   removeSelectedClip,
+  removeLayerClips,
   duplicateSelectedClip,
   splitSelectedClip,
   setPlayhead,
@@ -288,8 +293,6 @@ const extraLayers = ref<Record<EditorLayerGroup, number[]>>({
 })
 
 let persistTimer: ReturnType<typeof setTimeout> | null = null
-let playbackFrame: number | null = null
-let lastFrameTime = 0
 let resizeCleanup: (() => void) | null = null
 let windowResizeCleanup: (() => void) | null = null
 let mediaUrlRefreshTimer: ReturnType<typeof setTimeout> | null = null
@@ -852,19 +855,22 @@ function handleAddTransition(transitionName: string) {
     toast.info('Select a clip to apply a transition')
     return
   }
-  const isFade = transitionName.toLowerCase().includes('fade')
-  const base = isFade ? 0.6 : 0.4
+  const nextClip = findAdjacentNextClip(selectedClip.value)
+  if (!nextClip) {
+    toast.info('Drag the next clip against this one to apply a transition')
+    return
+  }
+  const base = transitionName.toLowerCase().includes('fade') ? 0.6 : 0.4
   updateClip(selectedClip.value.id, {
     effects: {
       ...selectedClip.value.effects,
-      fadeIn: base,
-      fadeOut: base,
       transition: transitionName,
       transitionDuration: base,
+      transitionWith: nextClip.id,
     },
   })
   markLocalSaving()
-  toast.success(`${transitionName} applied`)
+  toast.success(`${transitionName} applied between clips`)
 }
 
 async function handleAddMedia(item: MediaLibraryItem) {
@@ -1006,41 +1012,165 @@ function removeSelectedClipAction() {
     toast.info('Select a clip to delete')
     return
   }
+  pruneTransitionsForAll()
   markLocalSaving()
+}
+
+const ATTACH_THRESHOLD_SECONDS = 0.05
+
+function resolveClipGroup(clip: EditorClip) {
+  return clip.layerGroup ?? (clip.type === 'audio' ? 'audio' : clip.type === 'video' ? 'video' : 'graphics')
+}
+
+function getLayerClips(group: EditorLayerGroup, layer: number, excludeId?: string) {
+  return tracks.value
+    .flatMap((track) => track.clips)
+    .filter((entry) => {
+      if (excludeId && entry.id === excludeId) return false
+      const entryGroup = resolveClipGroup(entry)
+      const entryLayer = entry.layer ?? 1
+      return entryGroup === group && entryLayer === layer
+    })
+    .slice()
+    .sort((a, b) => a.startTime - b.startTime)
+}
+
+function clampStartInLayer(group: EditorLayerGroup, layer: number, clipId: string, startTime: number, durationValue: number) {
+  const peers = getLayerClips(group, layer, clipId)
+  const desired = Math.max(0, startTime)
+  const prev = peers.filter((clip) => clip.startTime + clip.duration <= desired).pop()
+  const next = peers.find((clip) => clip.startTime >= desired)
+  const minStart = prev ? prev.startTime + prev.duration : 0
+  const maxStart = next ? next.startTime - durationValue : Number.POSITIVE_INFINITY
+  if (maxStart < minStart) return minStart
+  return Math.min(Math.max(desired, minStart), maxStart)
+}
+
+function getLayerNeighbors(group: EditorLayerGroup, layer: number, clipId: string) {
+  const peers = getLayerClips(group, layer)
+  const index = peers.findIndex((clip) => clip.id === clipId)
+  return {
+    prev: index > 0 ? peers[index - 1] : null,
+    next: index >= 0 && index < peers.length - 1 ? peers[index + 1] : null,
+  }
+}
+
+function findAdjacentNextClip(clip: EditorClip) {
+  const group = resolveClipGroup(clip)
+  if (group !== 'video') return null
+  const layer = clip.layer ?? 1
+  const peers = getLayerClips(group, layer, clip.id)
+  const next = peers.find((entry) => entry.startTime >= clip.startTime + clip.duration - 0.0001)
+  if (!next) return null
+  const gap = next.startTime - (clip.startTime + clip.duration)
+  if (Math.abs(gap) > ATTACH_THRESHOLD_SECONDS) return null
+  return next
+}
+
+function clearClipTransition(clip: EditorClip) {
+  if (!clip.effects?.transition && !clip.effects?.transitionWith) return
+  updateClip(clip.id, {
+    effects: {
+      ...clip.effects,
+      transition: undefined,
+      transitionDuration: undefined,
+      transitionWith: undefined,
+    },
+  }, { recordHistory: false })
+}
+
+function pruneTransitionsForLayer(group: EditorLayerGroup, layer: number) {
+  if (group !== 'video') return
+  const peers = getLayerClips(group, layer)
+  for (let i = 0; i < peers.length; i += 1) {
+    const clip = peers[i]
+    const next = peers[i + 1]
+    const transitionWith = clip.effects?.transitionWith
+    const transitionName = clip.effects?.transition
+    const durationValue = Number(clip.effects?.transitionDuration ?? 0)
+    if (!transitionWith || !transitionName || durationValue <= 0) {
+      if (transitionWith || transitionName) clearClipTransition(clip)
+      continue
+    }
+    const gap = next ? next.startTime - (clip.startTime + clip.duration) : Number.POSITIVE_INFINITY
+    const attached = next && next.id === transitionWith && Math.abs(gap) <= ATTACH_THRESHOLD_SECONDS
+    if (!attached) clearClipTransition(clip)
+  }
+}
+
+function pruneTransitionsForAll() {
+  const layers = new Map<string, Set<number>>()
+  for (const clip of tracks.value.flatMap((track) => track.clips)) {
+    const group = resolveClipGroup(clip)
+    const layer = clip.layer ?? 1
+    if (!layers.has(group)) layers.set(group, new Set())
+    layers.get(group)!.add(layer)
+  }
+  layers.forEach((layerSet, groupKey) => {
+    const group = groupKey as EditorLayerGroup
+    layerSet.forEach((layer) => pruneTransitionsForLayer(group, layer))
+  })
 }
 
 function handleTimelineTrim(payload: { clipId: string; startTime: number; duration: number }) {
   const clip = tracks.value.flatMap((track) => track.clips).find((entry) => entry.id === payload.clipId)
   if (!clip) return
 
-  const nextDuration = Math.max(0.1, payload.duration)
-  const previousStartTime = clip.startTime
+  const group = resolveClipGroup(clip)
+  const layer = clip.layer ?? 1
+  const neighbors = getLayerNeighbors(group, layer, clip.id)
+  let nextStart = payload.startTime
+  let nextDuration = Math.max(0.1, payload.duration)
+  const originalEnd = clip.startTime + clip.duration
+  const isStartTrim = Math.abs(payload.startTime - clip.startTime) > 0.0001
+
+  if (isStartTrim) {
+    if (neighbors.prev) {
+      const prevEnd = neighbors.prev.startTime + neighbors.prev.duration
+      nextStart = Math.max(nextStart, prevEnd)
+    }
+    nextStart = Math.min(nextStart, originalEnd - 0.1)
+    nextDuration = Math.max(0.1, originalEnd - nextStart)
+  } else if (neighbors.next) {
+    const maxDuration = Math.max(0.1, neighbors.next.startTime - clip.startTime)
+    nextDuration = Math.min(nextDuration, maxDuration)
+  }
+
   const previousTrimStart = clip.trimStart ?? 0
-  const startDelta = payload.startTime - previousStartTime
-  const hasStartEdgeChange = Math.abs(startDelta) > 0.0001
-  const nextTrimStart = hasStartEdgeChange ? Math.max(0, previousTrimStart + startDelta) : previousTrimStart
+  const startDelta = nextStart - clip.startTime
+  const nextTrimStart = isStartTrim ? Math.max(0, previousTrimStart + startDelta) : previousTrimStart
   const nextTrimEnd = nextTrimStart + nextDuration
 
   updateClip(payload.clipId, {
-    startTime: payload.startTime,
+    startTime: nextStart,
     duration: nextDuration,
     trimStart: nextTrimStart,
     trimEnd: nextTrimEnd,
   })
+  pruneTransitionsForLayer(group, layer)
   markLocalSaving()
 }
 
 function handleTimelineMove(payload: { clipId: string; startTime: number; layer?: number; group?: EditorLayerGroup; createLayer?: boolean }) {
   const clip = tracks.value.flatMap((track) => track.clips).find((entry) => entry.id === payload.clipId)
   if (!clip) return
-  let nextLayer = payload.layer ?? clip.layer
+  const previousGroup = resolveClipGroup(clip)
+  const previousLayer = clip.layer ?? 1
+  const group = payload.group ?? previousGroup
+  let nextLayer = payload.layer ?? previousLayer
   if (payload.createLayer && payload.group) {
     nextLayer = addLayer(payload.group)
   }
+  const nextStart = clampStartInLayer(group, nextLayer ?? 1, clip.id, payload.startTime, clip.duration)
   updateClip(payload.clipId, {
-    startTime: payload.startTime,
+    startTime: nextStart,
     layer: nextLayer ?? clip.layer,
+    layerGroup: group,
   })
+  pruneTransitionsForLayer(group, nextLayer ?? 1)
+  if (previousGroup !== group || previousLayer !== nextLayer) {
+    pruneTransitionsForLayer(previousGroup, previousLayer)
+  }
   markLocalSaving()
 }
 
@@ -1064,6 +1194,40 @@ function resolveLayerForGroup(group: EditorLayerGroup) {
 
 function handleAddLayer(payload: { group: EditorLayerGroup }) {
   addLayer(payload.group)
+}
+
+function handleRemoveLayer(payload: { group: EditorLayerGroup; layer: number }) {
+  const removed = removeLayerClips(payload.group, payload.layer)
+  if (!removed) {
+    toast.info('Layer is already empty')
+    return
+  }
+  const current = new Set(extraLayers.value[payload.group] ?? [])
+  current.delete(payload.layer)
+  extraLayers.value[payload.group] = Array.from(current)
+  pruneTransitionsForAll()
+  markLocalSaving()
+}
+
+function applyTransitionBetweenClips(payload: { fromClipId: string; toClipId: string; name?: string; duration?: number }) {
+  const fromClip = tracks.value.flatMap((track) => track.clips).find((entry) => entry.id === payload.fromClipId)
+  if (!fromClip) return
+  const transitionName = payload.name
+  const durationValue = Math.max(0, Number(payload.duration) || 0)
+  if (!transitionName || transitionName === 'None' || durationValue <= 0) {
+    clearClipTransition(fromClip)
+    markLocalSaving()
+    return
+  }
+  updateClip(fromClip.id, {
+    effects: {
+      ...fromClip.effects,
+      transition: transitionName,
+      transitionDuration: durationValue,
+      transitionWith: payload.toClipId,
+    },
+  })
+  markLocalSaving()
 }
 
 function togglePlay() {
@@ -1154,11 +1318,24 @@ function applyFade(payload: { fadeIn: number; fadeOut: number; commit?: boolean 
 
 function applyTransition(payload: { name?: string; duration?: number; commit?: boolean }) {
   if (!selectedClip.value) return
+  const nextClip = findAdjacentNextClip(selectedClip.value)
+  if (!payload.name || payload.name === 'None' || (payload.duration ?? 0) <= 0) {
+    clearClipTransition(selectedClip.value)
+    markLocalSaving()
+    return
+  }
+  if (!nextClip) {
+    if (payload.commit) {
+      toast.info('Attach another clip to add a transition')
+    }
+    return
+  }
   updateClip(selectedClip.value.id, {
     effects: {
       ...selectedClip.value.effects,
       transition: payload.name,
       transitionDuration: payload.duration ?? 0,
+      transitionWith: nextClip.id,
     },
   }, { recordHistory: payload.commit === true })
   markLocalSaving()
@@ -1347,56 +1524,7 @@ onMounted(async () => {
   windowResizeCleanup = () => window.removeEventListener('resize', onResize)
 })
 
-function stopPlaybackLoop() {
-  if (playbackFrame) {
-    cancelAnimationFrame(playbackFrame)
-    playbackFrame = null
-  }
-  lastFrameTime = 0
-}
-
-function startPlaybackLoop() {
-  if (playbackFrame) return
-  playbackFrame = requestAnimationFrame(function step(now: number) {
-    if (!isPlaying.value) {
-      stopPlaybackLoop()
-      return
-    }
-    if (!lastFrameTime) lastFrameTime = now
-    const delta = (now - lastFrameTime) / 1000
-    lastFrameTime = now
-    const next = playheadTime.value + delta
-    if (next >= timelineDuration.value) {
-      setPlayhead(timelineDuration.value)
-      isPlaying.value = false
-      stopPlaybackLoop()
-      return
-    }
-    setPlayhead(next)
-    playbackFrame = requestAnimationFrame(step)
-  })
-}
-
-const hasActiveVideoClipAtPlayhead = computed(() =>
-  clips.value.some((clip) =>
-    clip.type === 'video' &&
-    Boolean(clip.sourceUrl) &&
-    playheadTime.value >= clip.startTime &&
-    playheadTime.value <= clip.startTime + clip.duration
-  )
-)
-
-watch([isPlaying, hasActiveVideoClipAtPlayhead], ([playing, hasActiveVideo]) => {
-  // Keep one timeline clock at a time: video drives when active, RAF drives gaps/graphics-only spans.
-  if (!playing || hasActiveVideo) {
-    stopPlaybackLoop()
-    return
-  }
-  startPlaybackLoop()
-})
-
 onBeforeUnmount(() => {
-  stopPlaybackLoop()
   if (resizeCleanup) resizeCleanup()
   if (windowResizeCleanup) windowResizeCleanup()
   if (persistTimer) clearTimeout(persistTimer)

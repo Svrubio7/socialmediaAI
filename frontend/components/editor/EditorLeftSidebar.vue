@@ -110,6 +110,18 @@
               {{ transition }}
             </button>
           </div>
+          <div class="space-y-2">
+            <p class="text-xs uppercase tracking-wide text-surface-100">Wipes</p>
+            <button
+              v-for="transition in wipeTransitionItems"
+              :key="transition"
+              type="button"
+              class="w-full rounded-lg border border-surface-800 bg-surface-800 px-3 py-2.5 text-left text-sm text-surface-50 hover:border-primary-400 transition-colors"
+              @click="$emit('add-transition', transition)"
+            >
+              {{ transition }}
+            </button>
+          </div>
         </template>
 
         <template v-else-if="activeSection === 'graphics'">
@@ -227,6 +239,22 @@ const textStyles = [
 ]
 
 const transitionItems = ['Cross fade', 'Cross blur', 'Burn', 'Horizontal band']
+const wipeTransitionItems = [
+  'Hard wipe down',
+  'Hard wipe up',
+  'Hard wipe left',
+  'Hard wipe right',
+  'Soft wipe down',
+  'Soft wipe up',
+  'Soft wipe left',
+  'Soft wipe right',
+  'Diagonal soft wipe',
+  'Blinds',
+  'Barn doors - vertical',
+  'Barn doors - horizontal',
+  'Circular wipe',
+  'Close',
+]
 const shapeItems = ['Square', 'Circle', 'Outline', 'Arrow']
 const templateItems = ['All templates', 'YouTube', 'Instagram', 'Gaming', 'Corporate']
 const stockCollections = ['Paper', 'Scenery', 'Working', 'Photography']

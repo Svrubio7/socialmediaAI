@@ -293,18 +293,20 @@ const transitionOptions = [
   'Cross blur',
   'Burn',
   'Horizontal band',
-  'Slide left',
-  'Slide right',
-  'Slide up',
-  'Slide down',
-  'Wipe left',
-  'Wipe right',
-  'Wipe up',
-  'Wipe down',
-  'Circle open',
-  'Circle close',
-  'Dissolve',
-  'Pixelize',
+  'Hard wipe down',
+  'Hard wipe up',
+  'Hard wipe left',
+  'Hard wipe right',
+  'Soft wipe down',
+  'Soft wipe up',
+  'Soft wipe left',
+  'Soft wipe right',
+  'Diagonal soft wipe',
+  'Blinds',
+  'Barn doors - vertical',
+  'Barn doors - horizontal',
+  'Circular wipe',
+  'Close',
 ]
 
 const aspectRatios = [
@@ -355,7 +357,8 @@ watch(
     syncing.value = true
     fadeIn.value = clip.effects?.fadeIn ?? fadeIn.value
     fadeOut.value = clip.effects?.fadeOut ?? fadeOut.value
-    transitionName.value = clip.effects?.transition ?? 'None'
+    const storedTransition = clip.effects?.transition ?? 'None'
+    transitionName.value = transitionOptions.includes(storedTransition) ? storedTransition : 'None'
     transitionDuration.value = clip.effects?.transitionDuration ?? 0.6
     audioVolume.value = clip.effects?.volume ?? audioVolume.value
     audioFadeIn.value = clip.effects?.audioFadeIn ?? audioFadeIn.value

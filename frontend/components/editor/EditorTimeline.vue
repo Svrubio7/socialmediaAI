@@ -70,7 +70,7 @@
               <div
                 class="w-20 shrink-0 px-2 text-xs uppercase tracking-wide text-surface-100 flex items-center gap-1 group"
                 @wheel.prevent="onLabelWheel"
-                @contextmenu.prevent="emit('add-layer', { group: track.group ?? 'graphics' })"
+                @contextmenu.prevent="openLayerMenu($event, track)"
               >
                 <span class="flex-1">{{ track.label }}</span>
                 <button
@@ -82,15 +82,25 @@
                   <UiIcon name="Plus" :size="12" />
                 </button>
               </div>
-              <div class="relative flex-1 h-14 rounded-lg border border-surface-800 bg-surface-950/80">
+              <div
+                class="relative flex-1 h-14 rounded-lg border border-surface-800 bg-surface-950/80"
+                @mousemove="onLaneMouseMove($event, track)"
+                @mouseleave="onLaneMouseLeave"
+              >
                 <button
                   v-for="clip in track.clips"
                   :key="clip.id"
                   type="button"
                   class="group absolute top-1 h-12 rounded-md border text-left transition-all cursor-grab active:cursor-grabbing"
-                  :class="clip.id === selectedClipId ? 'border-primary-500 bg-primary-500/15 text-surface-100 shadow-[0_0_0_1px_rgba(105,117,101,.3)]' : 'border-surface-700 bg-surface-800 text-surface-100 hover:border-primary-400'"
+                  :class="[
+                    clip.id === selectedClipId
+                      ? 'border-primary-500 bg-primary-500/15 text-surface-100 shadow-[0_0_0_1px_rgba(105,117,101,.3)]'
+                      : 'border-surface-700 bg-surface-800 text-surface-100 hover:border-primary-400',
+                    snapPulseIds.has(clip.id) ? 'snap-pulse' : '',
+                  ]"
                   :style="clipStyle(clip)"
                   @pointerdown.stop="startClipDrag($event, clip.id)"
+                  @contextmenu.prevent="openClipMenu($event, clip)"
                 >
                   <span class="block truncate px-3 pt-1 text-xs font-normal">{{ clip.label }}</span>
                   <span class="block px-3 text-[11px] text-surface-300/80">{{ formatDuration(clip.duration) }}</span>
@@ -112,6 +122,24 @@
         </div>
 
         <div
+          v-if="gapHover"
+          class="absolute z-40 transition-plus"
+          :style="{ left: `${gapHover.left}px`, top: `${gapHover.top}px` }"
+        >
+          <div class="relative">
+            <button
+              type="button"
+              class="transition-plus-btn"
+              @click.stop="openTransitionMenu($event)"
+              aria-label="Add transition"
+            >
+              <UiIcon name="Plus" :size="12" class="mx-auto" />
+            </button>
+            <span class="transition-plus-tooltip">Add transition</span>
+          </div>
+        </div>
+
+        <div
           class="absolute top-0 bottom-0 z-30 w-0.5 bg-primary-100"
           :style="{ left: `${playhead * pxPerSecond + labelWidth}px` }"
           @pointerdown.prevent="startPlayheadDrag"
@@ -126,11 +154,72 @@
         </div>
       </div>
     </div>
+
+    <div
+      v-if="transitionMenu.open"
+      ref="transitionMenuRef"
+      class="fixed z-[60] w-64 rounded-lg border border-surface-800 bg-surface-950/95 p-3 shadow-xl"
+      :style="{ left: `${transitionMenu.x}px`, top: `${transitionMenu.y}px` }"
+      @click.stop
+    >
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-xs uppercase tracking-[0.2em] text-surface-400">Transition</p>
+        <button type="button" class="text-surface-400 hover:text-surface-100" @click="closeTransitionMenu">
+          <UiIcon name="X" :size="14" />
+        </button>
+      </div>
+      <div class="space-y-1 max-h-40 overflow-auto pr-1">
+        <button
+          v-for="option in transitionOptions"
+          :key="option"
+          type="button"
+          class="w-full rounded-md border px-2 py-1.5 text-left text-xs transition-colors"
+          :class="transitionMenuName === option ? 'border-primary-500 bg-primary-500/15 text-surface-100' : 'border-surface-800 bg-surface-900/70 text-surface-200 hover:border-primary-400'"
+          @click="transitionMenuName = option"
+        >
+          {{ option }}
+        </button>
+      </div>
+      <div class="mt-3 space-y-1">
+        <div class="flex items-center justify-between text-xs text-surface-200">
+          <span>Duration (sec)</span>
+          <input v-model.number="transitionMenuDuration" type="number" min="0" step="0.05" class="w-16 rounded bg-surface-900 border border-surface-800 px-2 py-1 text-right text-xs text-surface-100" />
+        </div>
+        <input v-model.number="transitionMenuDuration" type="range" min="0" max="2" step="0.05" class="w-full accent-primary-500" />
+      </div>
+      <button type="button" class="mt-3 w-full rounded-md border border-primary-500 bg-primary-500/20 px-3 py-2 text-xs text-surface-100 hover:border-primary-400" @click="applyTransitionMenu">
+        Apply transition
+      </button>
+    </div>
+
+    <div
+      v-if="contextMenu.open"
+      ref="contextMenuRef"
+      class="fixed z-[60] w-44 rounded-lg border border-surface-800 bg-surface-950/95 p-2 shadow-xl"
+      :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
+      @click.stop
+    >
+      <template v-if="contextMenu.type === 'clip'">
+        <button type="button" class="menu-item" @click="handleClipMenu('split')">Split</button>
+        <button type="button" class="menu-item" @click="handleClipMenu('duplicate')">Duplicate</button>
+        <button type="button" class="menu-item" @click="handleClipMenu('delete')">Delete</button>
+        <div class="my-1 h-px bg-surface-800" />
+        <button type="button" class="menu-item" @click="handleClipMenu('effects')">Effects</button>
+        <button type="button" class="menu-item" @click="handleClipMenu('filters')">Filters</button>
+        <button type="button" class="menu-item" @click="handleClipMenu('adjust')">Adjust</button>
+        <button type="button" class="menu-item" @click="handleClipMenu('fade')">Fade</button>
+        <button type="button" class="menu-item" @click="handleClipMenu('speed')">Speed</button>
+      </template>
+      <template v-else>
+        <button type="button" class="menu-item" @click="handleLayerMenu('add')">Add layer</button>
+        <button type="button" class="menu-item text-red-200 hover:text-red-50" @click="handleLayerMenu('delete')">Delete layer</button>
+      </template>
+    </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, toRefs } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRefs } from 'vue'
 import type { EditorClip, EditorLayerGroup, EditorTrack } from '~/composables/useEditorState'
 
 interface Props {
@@ -163,6 +252,9 @@ const emit = defineEmits<{
   'trim-clip': [{ clipId: string; startTime: number; duration: number }]
   'move-clip': [{ clipId: string; startTime: number; layer?: number; group?: EditorLayerGroup; createLayer?: boolean }]
   'add-layer': [{ group: EditorLayerGroup }]
+  'remove-layer': [{ group: EditorLayerGroup; layer: number }]
+  'open-panel': [tab: string]
+  'apply-transition-between': [{ fromClipId: string; toClipId: string; name?: string; duration?: number }]
 }>()
 
 const viewportRef = ref<HTMLDivElement | null>(null)
@@ -171,6 +263,19 @@ const temporaryClipBounds = ref<Record<string, { startTime: number; duration: nu
 const hoverLayerId = ref<string | null>(null)
 const hoverCreateGroup = ref<EditorLayerGroup | null>(null)
 const trackRowRefs = new Map<string, HTMLElement>()
+const gapHover = ref<null | { fromClipId: string; toClipId: string; left: number; top: number }>(null)
+const snapPulseIds = ref(new Set<string>())
+const transitionMenu = ref({ open: false, x: 0, y: 0, fromClipId: '', toClipId: '' })
+const transitionMenuName = ref('Cross fade')
+const transitionMenuDuration = ref(0.6)
+const transitionMenuRef = ref<HTMLDivElement | null>(null)
+const contextMenu = ref<{ open: boolean; x: number; y: number; type: 'clip' | 'layer'; clipId?: string; group?: EditorLayerGroup; layer?: number }>({
+  open: false,
+  x: 0,
+  y: 0,
+  type: 'clip',
+})
+const contextMenuRef = ref<HTMLDivElement | null>(null)
 
 const labelWidth = 80
 
@@ -204,6 +309,32 @@ const timelineTicks = computed(() => {
   return ticks
 })
 
+const transitionOptions = [
+  'None',
+  'Cross fade',
+  'Cross blur',
+  'Burn',
+  'Horizontal band',
+  'Hard wipe down',
+  'Hard wipe up',
+  'Hard wipe left',
+  'Hard wipe right',
+  'Soft wipe down',
+  'Soft wipe up',
+  'Soft wipe left',
+  'Soft wipe right',
+  'Diagonal soft wipe',
+  'Blinds',
+  'Barn doors - vertical',
+  'Barn doors - horizontal',
+  'Circular wipe',
+  'Close',
+]
+
+const HOVER_THRESHOLD_PX = 36
+const SNAP_THRESHOLD_PX = 16
+const GAP_TOLERANCE_SECONDS = 0.05
+
 type TrimEdge = 'start' | 'end'
 const trimState = ref<{
   clipId: string
@@ -222,6 +353,151 @@ function clipStyle(clip: EditorClip) {
   return {
     left: `${geometry.startTime * pxPerSecond.value}px`,
     width: `${Math.max(22, geometry.duration * pxPerSecond.value)}px`,
+  }
+}
+
+function clampValue(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function clampFixedMenuPosition(x: number, y: number, menu: HTMLElement | null) {
+  if (!menu) return { x, y }
+  const padding = 12
+  const rect = menu.getBoundingClientRect()
+  const maxX = Math.max(padding, window.innerWidth - rect.width - padding)
+  const maxY = Math.max(padding, window.innerHeight - rect.height - padding)
+  return {
+    x: clampValue(x, padding, maxX),
+    y: clampValue(y, padding, maxY),
+  }
+}
+
+function closeTransitionMenu() {
+  transitionMenu.value = { open: false, x: 0, y: 0, fromClipId: '', toClipId: '' }
+}
+
+function closeContextMenu() {
+  contextMenu.value = { open: false, x: 0, y: 0, type: 'clip' }
+}
+
+function closeMenus() {
+  closeTransitionMenu()
+  closeContextMenu()
+}
+
+function openTransitionMenu(event: MouseEvent) {
+  if (!gapHover.value) return
+  closeContextMenu()
+  const { fromClipId, toClipId } = gapHover.value
+  const fromClip = props.tracks.flatMap((track) => track.clips).find((clip) => clip.id === fromClipId)
+  const storedName = fromClip?.effects?.transition
+  transitionMenuName.value = storedName && transitionOptions.includes(storedName) ? storedName : 'Cross fade'
+  transitionMenuDuration.value = fromClip?.effects?.transitionDuration ?? 0.6
+  transitionMenu.value = {
+    open: true,
+    x: event.clientX,
+    y: event.clientY,
+    fromClipId,
+    toClipId,
+  }
+  nextTick(() => {
+    const pos = clampFixedMenuPosition(transitionMenu.value.x, transitionMenu.value.y, transitionMenuRef.value)
+    transitionMenu.value = { ...transitionMenu.value, x: pos.x, y: pos.y }
+  })
+}
+
+function applyTransitionMenu() {
+  if (!transitionMenu.value.open) return
+  const name = transitionMenuName.value
+  const duration = Number(transitionMenuDuration.value) || 0
+  emit('apply-transition-between', {
+    fromClipId: transitionMenu.value.fromClipId,
+    toClipId: transitionMenu.value.toClipId,
+    name: name === 'None' ? undefined : name,
+    duration,
+  })
+  closeTransitionMenu()
+}
+
+function openClipMenu(event: MouseEvent, clip: EditorClip) {
+  closeTransitionMenu()
+  emit('select-clip', clip.id)
+  contextMenu.value = {
+    open: true,
+    x: event.clientX,
+    y: event.clientY,
+    type: 'clip',
+    clipId: clip.id,
+  }
+  nextTick(() => {
+    const pos = clampFixedMenuPosition(contextMenu.value.x, contextMenu.value.y, contextMenuRef.value)
+    contextMenu.value = { ...contextMenu.value, x: pos.x, y: pos.y }
+  })
+}
+
+function handleClipMenu(action: 'split' | 'duplicate' | 'delete' | 'effects' | 'filters' | 'adjust' | 'fade' | 'speed') {
+  const clipId = contextMenu.value.clipId
+  if (clipId) emit('select-clip', clipId)
+  if (action === 'split') emit('split')
+  if (action === 'duplicate') emit('duplicate')
+  if (action === 'delete') emit('delete')
+  if (action === 'effects') emit('open-panel', 'effects')
+  if (action === 'filters') emit('open-panel', 'filters')
+  if (action === 'adjust') emit('open-panel', 'adjust')
+  if (action === 'fade') emit('open-panel', 'fade')
+  if (action === 'speed') emit('open-panel', 'speed')
+  closeContextMenu()
+}
+
+function openLayerMenu(event: MouseEvent, track: EditorTrack) {
+  if (track.isHeader) return
+  closeTransitionMenu()
+  contextMenu.value = {
+    open: true,
+    x: event.clientX,
+    y: event.clientY,
+    type: 'layer',
+    group: track.group ?? 'graphics',
+    layer: track.layer ?? 1,
+  }
+  nextTick(() => {
+    const pos = clampFixedMenuPosition(contextMenu.value.x, contextMenu.value.y, contextMenuRef.value)
+    contextMenu.value = { ...contextMenu.value, x: pos.x, y: pos.y }
+  })
+}
+
+function handleLayerMenu(action: 'add' | 'delete') {
+  const group = contextMenu.value.group ?? 'graphics'
+  const layer = contextMenu.value.layer ?? 1
+  if (action === 'add') emit('add-layer', { group })
+  if (action === 'delete') emit('remove-layer', { group, layer })
+  closeContextMenu()
+}
+
+function triggerSnapPulse(...clipIds: string[]) {
+  if (!clipIds.length) return
+  const next = new Set(snapPulseIds.value)
+  clipIds.forEach((id) => next.add(id))
+  snapPulseIds.value = next
+  window.setTimeout(() => {
+    const updated = new Set(snapPulseIds.value)
+    clipIds.forEach((id) => updated.delete(id))
+    snapPulseIds.value = updated
+  }, 240)
+}
+
+function setGapHoverAtBoundary(track: EditorTrack, fromClip: EditorClip, toClip: EditorClip) {
+  const rowEl = trackRowRefs.get(track.id)
+  const tracksTop = tracksRef.value?.offsetTop ?? 0
+  const rowTop = rowEl?.offsetTop ?? 0
+  const rowHeight = rowEl?.offsetHeight ?? 56
+  const geometry = temporaryClipBounds.value[fromClip.id] ?? { startTime: fromClip.startTime, duration: fromClip.duration }
+  const boundary = geometry.startTime + geometry.duration
+  gapHover.value = {
+    fromClipId: fromClip.id,
+    toClipId: toClip.id,
+    left: labelWidth + boundary * pxPerSecond.value,
+    top: tracksTop + rowTop + rowHeight / 2,
   }
 }
 
@@ -264,7 +540,46 @@ function onLabelWheel(event: WheelEvent) {
   viewport.scrollTop += event.deltaY
 }
 
+function onLaneMouseMove(event: MouseEvent, track: EditorTrack) {
+  if (track.isHeader || track.group !== 'video') {
+    gapHover.value = null
+    return
+  }
+  if (!track.clips.length) {
+    gapHover.value = null
+    return
+  }
+  const lane = event.currentTarget as HTMLElement
+  const rect = lane.getBoundingClientRect()
+  const scrollLeft = viewportRef.value?.scrollLeft ?? 0
+  const x = event.clientX - rect.left + scrollLeft
+  const time = x / pxPerSecond.value
+  const threshold = HOVER_THRESHOLD_PX / pxPerSecond.value
+  const sorted = track.clips.slice().sort((a, b) => a.startTime - b.startTime)
+  for (let i = 0; i < sorted.length - 1; i += 1) {
+    const a = sorted[i]
+    const b = sorted[i + 1]
+    const boundary = a.startTime + a.duration
+    const rawGap = b.startTime - boundary
+    const gap = Math.abs(rawGap) <= GAP_TOLERANCE_SECONDS ? 0 : rawGap
+    if (gap < 0) continue
+    const extended = Math.min(gap, threshold * 3)
+    const within = time >= boundary - threshold && time <= boundary + Math.max(threshold, extended)
+    if (within) {
+      setGapHoverAtBoundary(track, a, b)
+      return
+    }
+  }
+  gapHover.value = null
+}
+
+function onLaneMouseLeave() {
+  gapHover.value = null
+}
+
 function startTrim(event: PointerEvent, clipId: string, edge: TrimEdge) {
+  closeMenus()
+  gapHover.value = null
   const clip = props.tracks.flatMap((track) => track.clips).find((item) => item.id === clipId)
   if (!clip) return
   trimState.value = {
@@ -293,6 +608,8 @@ const clipDragState = ref<{
 function startClipDrag(event: PointerEvent, clipId: string) {
   const clip = props.tracks.flatMap((track) => track.clips).find((item) => item.id === clipId)
   if (!clip) return
+  closeMenus()
+  gapHover.value = null
   const group = clip.layerGroup ?? (clip.type === 'audio' ? 'audio' : clip.type === 'video' ? 'video' : 'graphics')
   emit('select-clip', clipId)
   clipDragState.value = {
@@ -339,18 +656,69 @@ function getGroupTopRect(group: EditorLayerGroup) {
   return null
 }
 
+function sortedTrackClips(track: EditorTrack, excludeId?: string) {
+  return track.clips
+    .filter((clip) => clip.id !== excludeId)
+    .slice()
+    .sort((a, b) => a.startTime - b.startTime)
+}
+
+function findTrackForClip(clipId: string) {
+  for (const track of props.tracks) {
+    const clip = track.clips.find((item) => item.id === clipId)
+    if (clip) return { track, clip }
+  }
+  return null
+}
+
+function resolveNonOverlappingStart(track: EditorTrack, clip: EditorClip, desiredStart: number) {
+  const sorted = sortedTrackClips(track, clip.id)
+  const desired = Math.max(0, desiredStart)
+  const prev = sorted.filter((clip) => clip.startTime + clip.duration <= desired).pop()
+  const next = sorted.find((clip) => clip.startTime >= desired)
+  const minStart = prev ? prev.startTime + prev.duration : 0
+  const maxStart = next ? next.startTime - clip.duration : Number.POSITIVE_INFINITY
+  let start = clampValue(desired, minStart, Math.max(minStart, maxStart))
+  const snapThreshold = SNAP_THRESHOLD_PX / pxPerSecond.value
+  let snapped = false
+  if (prev && Math.abs(start - minStart) <= snapThreshold) {
+    start = minStart
+    triggerSnapPulse(clip.id, prev.id)
+    setGapHoverAtBoundary(track, prev, clip)
+    snapped = true
+  } else if (next && Math.abs(start - maxStart) <= snapThreshold) {
+    start = maxStart
+    triggerSnapPulse(clip.id, next.id)
+    setGapHoverAtBoundary(track, clip, next)
+    snapped = true
+  }
+  if (!snapped) gapHover.value = null
+  return { start, prev, next }
+}
+
 function onClipDragMove(event: PointerEvent) {
   if (!clipDragState.value) return
   const state = clipDragState.value
   const deltaSeconds = (event.clientX - state.startX) / pxPerSecond.value
   const nextStart = Math.max(0, state.originStart + deltaSeconds)
-  temporaryClipBounds.value[state.clipId] = {
-    startTime: nextStart,
-    duration: state.duration,
-  }
   const targetTrack = getTrackAtPointer(event.clientY)
-  if (targetTrack && targetTrack.group === state.originGroup) {
-    hoverLayerId.value = targetTrack.id
+  const fallbackTrack = props.tracks.find((track) => track.group === state.originGroup && track.layer === state.originLayer)
+  const activeTrack = targetTrack && targetTrack.group === state.originGroup ? targetTrack : fallbackTrack
+  const clip = props.tracks.flatMap((track) => track.clips).find((item) => item.id === state.clipId)
+  if (clip && activeTrack) {
+    const resolved = resolveNonOverlappingStart(activeTrack, clip, nextStart)
+    temporaryClipBounds.value[state.clipId] = {
+      startTime: resolved.start,
+      duration: state.duration,
+    }
+  } else {
+    temporaryClipBounds.value[state.clipId] = {
+      startTime: nextStart,
+      duration: state.duration,
+    }
+  }
+  if (activeTrack && activeTrack.group === state.originGroup) {
+    hoverLayerId.value = activeTrack.id
   } else {
     hoverLayerId.value = null
   }
@@ -390,6 +758,7 @@ function onClipDragEnd() {
   clipDragState.value = null
   hoverLayerId.value = null
   hoverCreateGroup.value = null
+  gapHover.value = null
   temporaryClipBounds.value = {}
   window.removeEventListener('pointermove', onClipDragMove)
   window.removeEventListener('pointerup', onClipDragEnd)
@@ -400,16 +769,32 @@ function onTrimMove(event: PointerEvent) {
   const state = trimState.value
   const deltaSeconds = (event.clientX - state.startX) / pxPerSecond.value
   const minDuration = 0.1
+  const clipEntry = findTrackForClip(state.clipId)
+  if (!clipEntry) return
+  const { track } = clipEntry
+  const others = sortedTrackClips(track, state.clipId)
+  const originalEnd = state.originalStart + state.originalDuration
+  const prev = others.filter((clip) => clip.startTime + clip.duration <= state.originalStart + 0.0001).pop()
+  const next = others.find((clip) => clip.startTime >= originalEnd - 0.0001)
 
   if (state.edge === 'start') {
     const maxStart = state.originalStart + state.originalDuration - minDuration
-    const nextStart = Math.max(0, Math.min(maxStart, state.originalStart + deltaSeconds))
-    const nextDuration = state.originalDuration - (nextStart - state.originalStart)
+    let nextStart = Math.max(0, Math.min(maxStart, state.originalStart + deltaSeconds))
+    if (prev) {
+      const prevEnd = prev.startTime + prev.duration
+      nextStart = Math.max(nextStart, prevEnd)
+    }
+    nextStart = Math.min(nextStart, originalEnd - minDuration)
+    const nextDuration = originalEnd - nextStart
     temporaryClipBounds.value[state.clipId] = { startTime: nextStart, duration: nextDuration }
     return
   }
 
-  const nextDuration = Math.max(minDuration, state.originalDuration + deltaSeconds)
+  let nextDuration = Math.max(minDuration, state.originalDuration + deltaSeconds)
+  if (next) {
+    const maxDuration = Math.max(minDuration, next.startTime - state.originalStart)
+    nextDuration = Math.min(nextDuration, maxDuration)
+  }
   temporaryClipBounds.value[state.clipId] = {
     startTime: state.originalStart,
     duration: nextDuration,
@@ -428,6 +813,7 @@ function onTrimEnd() {
     })
   }
   trimState.value = null
+  gapHover.value = null
   temporaryClipBounds.value = {}
   window.removeEventListener('pointermove', onTrimMove)
   window.removeEventListener('pointerup', onTrimEnd)
@@ -472,10 +858,30 @@ function formatTickLabel(seconds: number, interval: number) {
   return `${minutes}:${secs.toString().padStart(2, '0')}.${hundredths.toString().padStart(2, '0')}`
 }
 
+const onGlobalPointerDown = (event: PointerEvent) => {
+  if (transitionMenu.value.open && transitionMenuRef.value && !transitionMenuRef.value.contains(event.target as Node)) {
+    closeTransitionMenu()
+  }
+  if (contextMenu.value.open && contextMenuRef.value && !contextMenuRef.value.contains(event.target as Node)) {
+    closeContextMenu()
+  }
+}
+
+const onGlobalKeyDown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') closeMenus()
+}
+
+onMounted(() => {
+  window.addEventListener('pointerdown', onGlobalPointerDown)
+  window.addEventListener('keydown', onGlobalKeyDown)
+})
+
 onBeforeUnmount(() => {
   onTrimEnd()
   onClipDragEnd()
   stopPlayheadDrag()
+  window.removeEventListener('pointerdown', onGlobalPointerDown)
+  window.removeEventListener('keydown', onGlobalKeyDown)
 })
 </script>
 
@@ -506,6 +912,80 @@ onBeforeUnmount(() => {
   width: 0.35rem;
   background: rgba(245, 245, 245, 0.95);
   cursor: ew-resize;
+}
+
+.menu-item {
+  width: 100%;
+  border-radius: 0.45rem;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.72rem;
+  text-align: left;
+  color: #e8e9e5;
+  transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.menu-item:hover {
+  background: rgba(105, 117, 101, 0.2);
+  color: #f5f5f5;
+}
+
+.snap-pulse {
+  animation: clip-pulse 220ms ease-out;
+}
+
+.transition-plus {
+  transform: translate(-50%, -50%);
+}
+
+.transition-plus-btn {
+  height: 1.6rem;
+  width: 1.6rem;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(240, 240, 240, 0.9);
+  background: #f5f5f5;
+  color: #1f1f1f;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.transition-plus-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
+}
+
+.transition-plus-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translate(-50%, -6px);
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.35rem;
+  background: rgba(12, 12, 12, 0.9);
+  color: #f5f5f5;
+  font-size: 0.68rem;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.transition-plus:hover .transition-plus-tooltip {
+  opacity: 1;
+  transform: translate(-50%, -10px);
+}
+
+@keyframes clip-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(148, 255, 116, 0.4);
+  }
+  100% {
+    transform: scale(1.02);
+    box-shadow: 0 0 0 8px rgba(148, 255, 116, 0);
+  }
 }
 
 .timeline-container {

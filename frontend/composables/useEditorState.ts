@@ -25,6 +25,7 @@ export interface EditorClip {
     fadeOut?: number
     transition?: string
     transitionDuration?: number
+    transitionWith?: string
     audioFadeIn?: number
     audioFadeOut?: number
     speed?: number
@@ -238,6 +239,7 @@ export function useEditorState() {
         fadeOut: 0,
         transition: undefined,
         transitionDuration: undefined,
+        transitionWith: undefined,
         audioFadeIn: 0,
         audioFadeOut: 0,
         speed: 1,
@@ -285,6 +287,7 @@ export function useEditorState() {
       fadeOut: 0,
       transition: undefined,
       transitionDuration: undefined,
+      transitionWith: undefined,
       audioFadeIn: 0,
       audioFadeOut: 0,
       speed: 1,
@@ -372,15 +375,62 @@ export function useEditorState() {
     return true
   }
 
+  function removeClip(clipId: string) {
+    const found = findClip(tracks.value, clipId)
+    if (!found) return false
+    commitHistory()
+    found.track.clips.splice(found.index, 1)
+    if (selectedClipId.value === clipId) selectedClipId.value = null
+    return true
+  }
+
+  function removeLayerClips(group: EditorLayerGroup, layer: number) {
+    commitHistory()
+    let removed = 0
+    for (const track of tracks.value) {
+      track.clips = track.clips.filter((clip) => {
+        const clipGroup = clip.layerGroup ?? inferLayerGroup(clip.type)
+        const clipLayer = clip.layer ?? 1
+        const shouldRemove = clipGroup === group && clipLayer === layer
+        if (shouldRemove) removed += 1
+        return !shouldRemove
+      })
+    }
+    if (removed && selectedClipId.value) {
+      const stillExists = tracks.value.some((track) => track.clips.some((clip) => clip.id === selectedClipId.value))
+      if (!stillExists) selectedClipId.value = null
+    }
+    return removed
+  }
+
   function duplicateSelectedClip() {
     if (!selectedClip.value) return null
     commitHistory()
     const clip = deepClone(selectedClip.value)
     clip.id = nextClipId('dup')
-    clip.startTime = clip.startTime + 0.35
+    if (clip.effects) {
+      clip.effects.transition = undefined
+      clip.effects.transitionDuration = undefined
+      clip.effects.transitionWith = undefined
+    }
     const group = clip.layerGroup ?? inferLayerGroup(clip.type)
     clip.layerGroup = group
     clip.layer = selectedClip.value?.layer ?? clip.layer ?? nextLayerIndex(group)
+    const layer = clip.layer ?? 1
+    const siblings = tracks.value
+      .flatMap((track) => track.clips)
+      .filter((entry) => (entry.layerGroup ?? inferLayerGroup(entry.type)) === group && (entry.layer ?? 1) === layer && entry.id !== clip.id)
+      .slice()
+      .sort((a, b) => a.startTime - b.startTime)
+    let nextStart = (selectedClip.value?.startTime ?? clip.startTime) + clip.duration
+    for (const sibling of siblings) {
+      const siblingStart = sibling.startTime
+      const siblingEnd = sibling.startTime + sibling.duration
+      if (nextStart + clip.duration <= siblingStart) break
+      if (nextStart >= siblingEnd) continue
+      nextStart = siblingEnd
+    }
+    clip.startTime = nextStart
 
     const track = tracks.value.find((item) => {
       if (clip.type === 'audio') return item.type === 'audio'
@@ -423,6 +473,12 @@ export function useEditorState() {
       trimStart: rightTrimStart,
       trimEnd: Math.max(rightTrimStart + MIN_DURATION, rightTrimEnd),
       label: `${clip.label} (2)`,
+      effects: {
+        ...clip.effects,
+        transition: undefined,
+        transitionDuration: undefined,
+        transitionWith: undefined,
+      },
     }
 
     found.track.clips.splice(found.index, 1, {
@@ -431,6 +487,12 @@ export function useEditorState() {
       trimStart,
       trimEnd: Math.max(trimStart + MIN_DURATION, leftTrimEnd),
       label: `${clip.label} (1)`,
+      effects: {
+        ...clip.effects,
+        transition: undefined,
+        transitionDuration: undefined,
+        transitionWith: undefined,
+      },
     }, rightClip)
 
     sortTrackClips(found.track)
@@ -492,6 +554,8 @@ export function useEditorState() {
     updateClip,
     selectClip,
     removeSelectedClip,
+    removeClip,
+    removeLayerClips,
     duplicateSelectedClip,
     splitSelectedClip,
     updateSelectedClipTrim,
