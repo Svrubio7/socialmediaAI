@@ -483,15 +483,16 @@ export const useApi = () => {
 
   // Editor projects
   const projects = {
-    list: (params?: { page?: number; limit?: number }) => {
+    list: (params?: { page?: number; limit?: number; sourceVideoId?: string }) => {
       const query = new URLSearchParams()
       if (params?.page) query.set('page', params.page.toString())
       if (params?.limit) query.set('limit', params.limit.toString())
+      if (params?.sourceVideoId) query.set('source_video_id', params.sourceVideoId)
       return get<any>(`/projects?${query}`)
     },
     get: (id: string) => get<any>(`/projects/${id}`),
-    create: (body: { name?: string; description?: string }) => post<any>('/projects', body),
-    update: (id: string, body: { name?: string; description?: string; state?: Record<string, unknown> }) =>
+    create: (body: { name?: string; description?: string; source_video_id?: string }) => post<any>('/projects', body),
+    update: (id: string, body: { name?: string; description?: string; state?: Record<string, unknown>; source_video_id?: string }) =>
       patch<any>(`/projects/${id}`, body),
     delete: (id: string) => del(`/projects/${id}`),
     export: (id: string, body?: { output_title?: string; output_settings?: Record<string, unknown> }) =>

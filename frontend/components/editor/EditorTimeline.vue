@@ -184,12 +184,21 @@ const progressPercent = computed(() => {
 const timelineTicks = computed(() => {
   const ticks: { time: number; left: number; label: string }[] = []
   const total = Math.max(props.duration, 1)
-  const interval = props.zoom < 0.5 ? 2 : props.zoom > 2 ? 0.5 : 1
+  const minTickPx = 72
+  const intervals = [0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300]
+  const px = pxPerSecond.value
+  let interval = intervals[intervals.length - 1]
+  for (const candidate of intervals) {
+    if (candidate * px >= minTickPx) {
+      interval = candidate
+      break
+    }
+  }
   for (let t = 0; t <= total + 0.0001; t += interval) {
     ticks.push({
       time: t,
-      left: labelWidth + t * pxPerSecond.value,
-      label: formatDuration(t),
+      left: labelWidth + t * px,
+      label: formatTickLabel(t, interval),
     })
   }
   return ticks
@@ -448,6 +457,17 @@ function formatDuration(seconds: number) {
   const safe = Math.max(0, seconds || 0)
   const minutes = Math.floor(safe / 60)
   const secs = Math.floor(safe % 60)
+  const hundredths = Math.floor((safe % 1) * 100)
+  return `${minutes}:${secs.toString().padStart(2, '0')}.${hundredths.toString().padStart(2, '0')}`
+}
+
+function formatTickLabel(seconds: number, interval: number) {
+  const safe = Math.max(0, seconds || 0)
+  const minutes = Math.floor(safe / 60)
+  const secs = Math.floor(safe % 60)
+  if (interval >= 1) {
+    return `${minutes}:${secs.toString().padStart(2, '0')}`
+  }
   const hundredths = Math.floor((safe % 1) * 100)
   return `${minutes}:${secs.toString().padStart(2, '0')}.${hundredths.toString().padStart(2, '0')}`
 }

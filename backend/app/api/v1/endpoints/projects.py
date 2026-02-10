@@ -28,6 +28,7 @@ class ProjectListItem(BaseModel):
     id: str
     name: str
     description: Optional[str] = None
+    source_video_id: Optional[str] = None
     last_opened_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
@@ -50,12 +51,14 @@ class ProjectListResponse(BaseModel):
 class ProjectCreateRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    source_video_id: Optional[str] = None
 
 
 class ProjectUpdateRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     state: Optional[Dict[str, Any]] = None
+    source_video_id: Optional[str] = None
 
 
 class ProjectExportRequest(BaseModel):
@@ -93,14 +96,47 @@ def _extract_asset_ids(state: Dict[str, Any]) -> List[str]:
     return asset_ids
 
 
+def _resolve_source_video_id(
+    raw_id: Optional[str],
+    db: Session,
+    current_user: User,
+) -> Optional[UUID]:
+    if not raw_id:
+        return None
+    try:
+        resolved_id = UUID(raw_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid source video id",
+        ) from exc
+    video = db.query(Video).filter(
+        Video.id == resolved_id,
+        Video.user_id == current_user.id,
+    ).first()
+    if not video:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source video not found")
+    return resolved_id
+
+
 @router.get("", response_model=ProjectListResponse)
 async def list_projects(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
+    source_video_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     query = db.query(EditorProject).filter(EditorProject.user_id == current_user.id)
+    if source_video_id:
+        try:
+            resolved_id = UUID(source_video_id)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid source video id",
+            ) from exc
+        query = query.filter(EditorProject.source_video_id == resolved_id)
     total = query.count()
     items = query.order_by(EditorProject.updated_at.desc()).offset((page - 1) * limit).limit(limit).all()
     return ProjectListResponse(
@@ -109,6 +145,7 @@ async def list_projects(
                 id=str(p.id),
                 name=p.name,
                 description=p.description,
+                source_video_id=str(p.source_video_id) if p.source_video_id else None,
                 last_opened_at=p.last_opened_at,
                 created_at=p.created_at,
                 updated_at=p.updated_at,
@@ -127,13 +164,21 @@ async def create_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    name = (payload.name or "").strip() or "Untitled project"
+    raw_name = (payload.name or "").strip()
+    if payload.source_video_id and not raw_name:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Project name is required for video projects",
+        )
+    name = raw_name or "Untitled project"
+    source_video_id = _resolve_source_video_id(payload.source_video_id, db, current_user)
     project = EditorProject(
         id=uuid4(),
         user_id=current_user.id,
         name=name,
         description=(payload.description or "").strip() or None,
         state={},
+        source_video_id=source_video_id,
     )
     db.add(project)
     db.commit()
@@ -143,6 +188,7 @@ async def create_project(
         name=project.name,
         description=project.description,
         state=project.state or {},
+        source_video_id=str(project.source_video_id) if project.source_video_id else None,
         last_opened_at=project.last_opened_at,
         created_at=project.created_at,
         updated_at=project.updated_at,
@@ -171,6 +217,7 @@ async def get_project(
         name=project.name,
         description=project.description,
         state=project.state or {},
+        source_video_id=str(project.source_video_id) if project.source_video_id else None,
         last_opened_at=project.last_opened_at,
         created_at=project.created_at,
         updated_at=project.updated_at,
@@ -197,6 +244,11 @@ async def update_project(
         project.description = payload.description.strip() or None
     if payload.state is not None:
         project.state = payload.state
+    if payload.source_video_id is not None:
+        if payload.source_video_id.strip() == "":
+            project.source_video_id = None
+        else:
+            project.source_video_id = _resolve_source_video_id(payload.source_video_id, db, current_user)
 
     db.commit()
     db.refresh(project)
@@ -205,6 +257,7 @@ async def update_project(
         name=project.name,
         description=project.description,
         state=project.state or {},
+        source_video_id=str(project.source_video_id) if project.source_video_id else None,
         last_opened_at=project.last_opened_at,
         created_at=project.created_at,
         updated_at=project.updated_at,

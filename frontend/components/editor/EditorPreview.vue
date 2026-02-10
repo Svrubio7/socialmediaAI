@@ -1,5 +1,5 @@
 <template>
-  <section class="flex-1 min-h-0 flex flex-col bg-surface-900">
+  <section class="flex-1 min-h-0 h-full w-full flex flex-col bg-surface-900">
     <div class="flex-1 min-h-0 p-2 lg:p-3">
       <div ref="frameRef" class="relative h-full w-full rounded-xl border border-surface-800 bg-surface-950/70 overflow-hidden">
         <div class="absolute inset-0 flex items-center justify-center">
@@ -44,7 +44,7 @@
                     :key="activeVideoKey"
                     :src="activeVideoSrc"
                     :poster="clipPosterSource(clip)"
-                    class="h-full w-full rounded-md border border-surface-700 bg-black"
+                    class="h-full w-full rounded-md border border-surface-700 bg-black block"
                     :style="mediaStyle(clip)"
                     preload="auto"
                     playsinline
@@ -217,6 +217,7 @@ const MAX_PREVIEW_RECOVERY_ATTEMPTS = 2
 const DEFAULT_STAGE_RATIO = 16 / 9
 const frameSize = ref({ width: 0, height: 0 })
 let frameResizeObserver: ResizeObserver | null = null
+let windowResizeCleanup: (() => void) | null = null
 
 const imageExtensions = [
   '.jpg',
@@ -319,7 +320,7 @@ const stageAspectRatio = computed(() => {
 const stageStyle = computed<CSSProperties>(() => {
   const width = frameSize.value.width
   const height = frameSize.value.height
-  if (!width || !height) {
+  if (!width || !height || width < 8 || height < 8) {
     return {
       width: '100%',
       height: '100%',
@@ -632,19 +633,23 @@ function onActiveVideoError() {
 
 function clipOpacity(clip: EditorClip) {
   if (clip.type === 'video' && primaryVideoClip.value?.id === clip.id && !activeVideoClip.value) {
-    const base = clip.effects?.opacity ?? clip.style?.opacity ?? 1
-    return Math.max(0, Math.min(1, base))
+    const base = Number(clip.effects?.opacity ?? clip.style?.opacity ?? 1)
+    const safeBase = Number.isFinite(base) ? base : 1
+    return Math.max(0, Math.min(1, safeBase))
   }
-  const localTime = currentTime.value - clip.startTime
+  const localTime = Number(currentTime.value) - Number(clip.startTime)
   if (localTime < 0 || localTime > clip.duration) return 0
-  const fadeIn = clip.effects?.fadeIn ?? 0
-  const fadeOut = clip.effects?.fadeOut ?? 0
+  const fadeIn = Number(clip.effects?.fadeIn ?? 0)
+  const fadeOut = Number(clip.effects?.fadeOut ?? 0)
   const remaining = clip.duration - localTime
   let opacity = 1
   if (fadeIn > 0) opacity = Math.min(opacity, Math.max(0, localTime / fadeIn))
   if (fadeOut > 0) opacity = Math.min(opacity, Math.max(0, remaining / fadeOut))
-  const base = clip.effects?.opacity ?? clip.style?.opacity ?? 1
-  return opacity * base
+  const base = Number(clip.effects?.opacity ?? clip.style?.opacity ?? 1)
+  const safeBase = Number.isFinite(base) ? base : 1
+  const combined = opacity * safeBase
+  if (!Number.isFinite(combined)) return 1
+  return Math.max(0, Math.min(1, combined))
 }
 
 function clipFilter(clip: EditorClip) {
@@ -687,7 +692,11 @@ function clipZIndex(clip: EditorClip) {
 function clipBoxStyle(clip: EditorClip): CSSProperties {
   const position = clip.position ?? { x: 0, y: 0 }
   const size = clip.size ?? { width: 100, height: 100 }
-  const rotation = clip.rotation ?? 0
+  const x = Number(position.x)
+  const y = Number(position.y)
+  const width = Number(size.width)
+  const height = Number(size.height)
+  const rotation = Number(clip.rotation ?? 0)
   const rawBlend = clip.effects?.blendMode
   const cssBlendMap: Record<string, string> = {
     softlight: 'soft-light',
@@ -695,17 +704,43 @@ function clipBoxStyle(clip: EditorClip): CSSProperties {
   }
   const blendMode = rawBlend && rawBlend !== 'normal' ? (cssBlendMap[rawBlend] || rawBlend) : undefined
   const filter = clipFilter(clip)
-  return {
-    left: `${position.x}%`,
-    top: `${position.y}%`,
-    width: `${size.width}%`,
-    height: `${size.height}%`,
-    transform: `rotate(${rotation}deg)`,
-    opacity: clipOpacity(clip),
+  const safeX = Number.isFinite(x) ? x : 0
+  const safeY = Number.isFinite(y) ? y : 0
+  const safeWidth = Number.isFinite(width) && width > 0 ? width : 100
+  const safeHeight = Number.isFinite(height) && height > 0 ? height : 100
+  const isNormalized =
+    safeWidth <= 1.2 &&
+    safeHeight <= 1.2 &&
+    safeX >= 0 &&
+    safeY >= 0 &&
+    safeX <= 1.2 &&
+    safeY <= 1.2
+  const normalizedX = isNormalized ? safeX * 100 : safeX
+  const normalizedY = isNormalized ? safeY * 100 : safeY
+  const normalizedWidth = isNormalized ? safeWidth * 100 : safeWidth
+  const normalizedHeight = isNormalized ? safeHeight * 100 : safeHeight
+  const safeRotation = Number.isFinite(rotation) ? rotation : 0
+  const safeOpacity = clipOpacity(clip)
+  const style: CSSProperties = {
+    left: `${normalizedX}%`,
+    top: `${normalizedY}%`,
+    width: `${normalizedWidth}%`,
+    height: `${normalizedHeight}%`,
+    opacity: safeOpacity,
     zIndex: clipZIndex(clip),
-    filter,
-    mixBlendMode: blendMode as CSSProperties['mixBlendMode'],
   }
+  if (Math.abs(safeRotation) > 0.01) {
+    style.transform = `rotate(${safeRotation}deg)`
+    style.transformOrigin = 'center center'
+    style.willChange = 'transform'
+  }
+  if (filter) {
+    style.filter = filter
+  }
+  if (blendMode) {
+    style.mixBlendMode = blendMode as CSSProperties['mixBlendMode']
+  }
+  return style
 }
 
 function mediaStyle(clip: EditorClip): CSSProperties {
@@ -837,27 +872,57 @@ onBeforeUnmount(() => {
     frameResizeObserver.disconnect()
     frameResizeObserver = null
   }
+  if (windowResizeCleanup) {
+    windowResizeCleanup()
+    windowResizeCleanup = null
+  }
   onClipPointerUp()
 })
 
 onMounted(() => {
+  const applySize = (width: number, height: number) => {
+    if (!Number.isFinite(width) || !Number.isFinite(height)) return
+    const safeWidth = Math.max(0, width)
+    const safeHeight = Math.max(0, height)
+    frameSize.value = {
+      width: safeWidth,
+      height: safeHeight,
+    }
+  }
+
   const measure = () => {
     const rect = frameRef.value?.getBoundingClientRect()
     if (!rect) return
-    frameSize.value = {
-      width: rect.width,
-      height: rect.height,
-    }
+    applySize(rect.width, rect.height)
   }
 
   measure()
 
   if (typeof ResizeObserver !== 'undefined' && frameRef.value) {
-    frameResizeObserver = new ResizeObserver(() => {
+    frameResizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (entry?.contentRect) {
+        applySize(entry.contentRect.width, entry.contentRect.height)
+        return
+      }
       measure()
     })
     frameResizeObserver.observe(frameRef.value)
   }
+
+  const onResize = () => measure()
+  window.addEventListener('resize', onResize)
+  windowResizeCleanup = () => window.removeEventListener('resize', onResize)
+
+  let tries = 0
+  const maxTries = 12
+  const rafMeasure = () => {
+    tries += 1
+    if (frameSize.value.width > 8 && frameSize.value.height > 8) return
+    if (tries >= maxTries) return
+    requestAnimationFrame(rafMeasure)
+  }
+  requestAnimationFrame(rafMeasure)
 })
 
 defineExpose({

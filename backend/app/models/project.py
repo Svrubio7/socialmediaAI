@@ -17,6 +17,7 @@ class EditorProject(Base, TimestampMixin):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_video_id = Column(UUID(as_uuid=True), ForeignKey("videos.id", ondelete="SET NULL"), nullable=True, index=True)
 
     name = Column(String(255), nullable=False)
     description = Column(String(500), nullable=True)
@@ -24,6 +25,7 @@ class EditorProject(Base, TimestampMixin):
     last_opened_at = Column(DateTime, nullable=True)
 
     user = relationship("User", back_populates="projects")
+    source_video = relationship("Video", foreign_keys=[source_video_id])
 
     def __repr__(self):
         return f"<EditorProject(id={self.id}, name={self.name})>"

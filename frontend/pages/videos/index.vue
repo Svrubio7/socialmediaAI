@@ -121,6 +121,42 @@
         </div>
       </template>
     </UiModal>
+
+    <UiModal v-model="showExistingProject" title="Project already exists" size="md">
+      <p class="text-sm text-surface-200">
+        This video already has its own project, are you sure you want start a new one?
+      </p>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <UiButton variant="ghost" class="rounded-xl" @click="resetProjectFlow">
+            Cancel
+          </UiButton>
+          <UiButton variant="secondary" class="rounded-xl" @click="openExistingProject">
+            Keep editing
+          </UiButton>
+          <UiButton variant="primary" class="rounded-xl" @click="startNewProjectFromWarning">
+            Start new project
+          </UiButton>
+        </div>
+      </template>
+    </UiModal>
+
+    <UiModal v-model="showProjectNameModal" title="Name your project" size="md">
+      <form class="space-y-4" @submit.prevent="createProjectFromVideo">
+        <div>
+          <label class="label text-sm">Project name</label>
+          <UiInput v-model="newProjectName" placeholder="e.g. Instagram cutdown" required />
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <UiButton variant="ghost" type="button" class="rounded-xl" @click="resetProjectFlow">
+            Cancel
+          </UiButton>
+          <UiButton variant="primary" type="submit" class="rounded-xl" :disabled="creatingProject">
+            {{ creatingProject ? 'Creating...' : 'Create project' }}
+          </UiButton>
+        </div>
+      </form>
+    </UiModal>
   </div>
 </template>
 
@@ -144,6 +180,13 @@ const isLoading = ref(true)
 const fileInput = ref<HTMLInputElement | null>(null)
 const videos = ref<any[]>([])
 const analyzingId = ref<string | null>(null)
+const pendingVideo = ref<any | null>(null)
+const existingProject = ref<any | null>(null)
+const showExistingProject = ref(false)
+const showProjectNameModal = ref(false)
+const newProjectName = ref('')
+const checkingProject = ref(false)
+const creatingProject = ref(false)
 let mediaUrlRefreshTimer: ReturnType<typeof setTimeout> | null = null
 const MEDIA_URL_REFRESH_BUFFER_SECONDS = 90
 
@@ -302,76 +345,146 @@ function inferAspectRatio(width?: number, height?: number) {
   return best.key
 }
 
-const editVideo = async (video: any) => {
-  if (!video) return
+function buildProjectState(video: any, projectName: string) {
+  const duration = Math.max(0.1, Number(video.duration) || 1)
+  const clipId = `video-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  const baseEffects = {
+    fadeIn: 0,
+    fadeOut: 0,
+    transition: undefined,
+    transitionDuration: undefined,
+    audioFadeIn: 0,
+    audioFadeOut: 0,
+    speed: 1,
+    filter: 'None',
+    brightness: 0,
+    contrast: 1,
+    saturation: 1,
+    gamma: 1,
+    hue: 0,
+    blur: 0,
+    opacity: 1,
+    volume: 1,
+    blendMode: 'normal',
+    overlayColor: 'transparent',
+    overlayOpacity: 0,
+    overlayBlend: 'soft-light',
+  }
+  return {
+    projectName,
+    tracks: [
+      {
+        id: 'track-video',
+        type: 'video',
+        label: 'Video',
+        clips: [
+          {
+            id: clipId,
+            type: 'video',
+            label: projectName,
+            startTime: 0,
+            duration,
+            layer: 1,
+            layerGroup: 'video',
+            sourceId: video.id,
+            sourceUrl: video.video_url,
+            posterUrl: video.thumbnail_url,
+            trimStart: 0,
+            trimEnd: duration,
+            aspectRatio: inferAspectRatio(video.width, video.height),
+            fitMode: 'fit',
+            position: { x: 0, y: 0 },
+            size: { width: 100, height: 100 },
+            lockAspectRatio: true,
+            effects: { ...baseEffects },
+          },
+        ],
+      },
+      { id: 'track-graphics', type: 'graphics', label: 'Graphics', clips: [] },
+      { id: 'track-audio', type: 'audio', label: 'Audio', clips: [] },
+    ],
+    selectedClipId: clipId,
+    playheadTime: 0,
+    timelineZoom: 1,
+  }
+}
+
+function openProjectNameModal(video: any) {
+  pendingVideo.value = video
+  newProjectName.value = (video?.original_filename || video?.filename || '').trim()
+  showProjectNameModal.value = true
+}
+
+function resetProjectFlow() {
+  showExistingProject.value = false
+  showProjectNameModal.value = false
+  existingProject.value = null
+  pendingVideo.value = null
+  newProjectName.value = ''
+}
+
+async function createProjectFromVideo() {
+  const video = pendingVideo.value
+  if (!video || creatingProject.value) return
+  const name = newProjectName.value.trim()
+  if (!name) {
+    toast.error('Project name is required')
+    return
+  }
+  creatingProject.value = true
   try {
-    const projectName = video.original_filename || video.filename || 'Untitled project'
-    const project = await api.projects.create({ name: projectName })
-    const duration = Math.max(0.1, Number(video.duration) || 1)
-    const clipId = `video-${Date.now()}-${Math.random().toString(16).slice(2)}`
-    const baseEffects = {
-      fadeIn: 0,
-      fadeOut: 0,
-      transition: undefined,
-      transitionDuration: undefined,
-      audioFadeIn: 0,
-      audioFadeOut: 0,
-      speed: 1,
-      filter: 'None',
-      brightness: 0,
-      contrast: 1,
-      saturation: 1,
-      gamma: 1,
-      hue: 0,
-      blur: 0,
-      opacity: 1,
-      volume: 1,
-      blendMode: 'normal',
-      overlayColor: 'transparent',
-      overlayOpacity: 0,
-      overlayBlend: 'soft-light',
-    }
-    const state = {
-      projectName: project.name || projectName,
-      tracks: [
-        {
-          id: 'track-video',
-          type: 'video',
-          label: 'Video',
-          clips: [
-            {
-              id: clipId,
-              type: 'video',
-              label: projectName,
-              startTime: 0,
-              duration,
-              layer: 1,
-              layerGroup: 'video',
-              sourceId: video.id,
-              sourceUrl: video.video_url,
-              posterUrl: video.thumbnail_url,
-              trimStart: 0,
-              trimEnd: duration,
-              aspectRatio: inferAspectRatio(video.width, video.height),
-              fitMode: 'fit',
-              position: { x: 0, y: 0 },
-              size: { width: 100, height: 100 },
-              lockAspectRatio: true,
-              effects: { ...baseEffects },
-            },
-          ],
-        },
-        { id: 'track-graphics', type: 'graphics', label: 'Graphics', clips: [] },
-        { id: 'track-audio', type: 'audio', label: 'Audio', clips: [] },
-      ],
-      selectedClipId: clipId,
-      playheadTime: 0,
-      timelineZoom: 1,
-    }
+    const project = await api.projects.create({ name, source_video_id: String(video.id) })
+    const state = buildProjectState(video, project?.name || name)
     await api.projects.update(project.id, { state })
+    resetProjectFlow()
     await navigateTo(localePath(`/editor/${project.id}`))
   } catch (e: any) {
     toast.error(e?.data?.detail ?? e?.message ?? 'Could not open editor')
+  } finally {
+    creatingProject.value = false
+  }
+}
+
+async function openExistingProject() {
+  if (!existingProject.value?.id) return
+  const projectId = existingProject.value.id
+  resetProjectFlow()
+  await navigateTo(localePath(`/editor/${projectId}`))
+}
+
+function startNewProjectFromWarning() {
+  showExistingProject.value = false
+  if (pendingVideo.value) {
+    openProjectNameModal(pendingVideo.value)
+  }
+}
+
+const editVideo = async (video: any) => {
+  if (!video || checkingProject.value) return
+  pendingVideo.value = video
+  checkingProject.value = true
+  try {
+    const res = await api.projects.list({ limit: 1, sourceVideoId: String(video.id) })
+    let project = res?.items?.[0]
+    if (!project) {
+      const fallback = await api.projects.list({ limit: 50 })
+      const targetName = (video.original_filename || video.filename || '').trim().toLowerCase()
+      if (targetName) {
+        project = (fallback?.items ?? []).find((item: any) =>
+          (item?.name || '').trim().toLowerCase() === targetName
+        )
+      }
+    }
+    if (project) {
+      existingProject.value = project
+      showExistingProject.value = true
+      return
+    }
+    openProjectNameModal(video)
+  } catch (e: any) {
+    toast.error(e?.data?.detail ?? e?.message ?? 'Could not check existing projects')
+  } finally {
+    checkingProject.value = false
   }
 }
 </script>

@@ -78,6 +78,16 @@
               <template #icon-left><UiIcon name="ExternalLink" :size="14" /></template>
               Open workspace
             </UiButton>
+            <UiButton
+              variant="ghost"
+              size="sm"
+              class="rounded-xl text-red-400 hover:text-red-300 hover:bg-red-500/10"
+              :loading="deletingProjectId === p.id"
+              @click="deleteProject(p.id)"
+            >
+              <template #icon-left><UiIcon name="Trash2" :size="14" /></template>
+              Delete
+            </UiButton>
           </div>
         </div>
       </div>
@@ -193,6 +203,7 @@ const projectsLoading = ref(true)
 const showCreateProject = ref(false)
 const creatingProject = ref(false)
 const newProjectName = ref('')
+const deletingProjectId = ref<string | null>(null)
 
 const showCreateTemplate = ref(false)
 const templatesLoading = ref(true)
@@ -241,6 +252,26 @@ async function createProject() {
     toast.error(e?.data?.detail ?? 'Failed to create project')
   } finally {
     creatingProject.value = false
+  }
+}
+
+function confirmDeleteProject() {
+  if (!import.meta.client) return false
+  return window.confirm('Delete this project? This cannot be undone.')
+}
+
+async function deleteProject(id: string) {
+  if (!id || deletingProjectId.value) return
+  if (!confirmDeleteProject()) return
+  deletingProjectId.value = id
+  try {
+    await api.projects.delete(id)
+    projects.value = projects.value.filter((p) => p.id !== id)
+    toast.success('Project deleted')
+  } catch (e: any) {
+    toast.error(e?.data?.detail ?? 'Failed to delete project')
+  } finally {
+    deletingProjectId.value = null
   }
 }
 

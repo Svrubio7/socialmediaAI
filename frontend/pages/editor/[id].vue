@@ -62,7 +62,7 @@
           </div>
         </div>
 
-        <div class="flex-1 min-h-0">
+        <div class="flex-1 min-h-0 h-full">
           <EditorPreview
             ref="previewRef"
             :clips="clips"
@@ -295,6 +295,11 @@ let windowResizeCleanup: (() => void) | null = null
 let mediaUrlRefreshTimer: ReturnType<typeof setTimeout> | null = null
 
 const MEDIA_URL_REFRESH_BUFFER_SECONDS = 90
+const runtimeConfig = useRuntimeConfig()
+const apiBaseUrl = computed(() => {
+  const raw = (runtimeConfig.public.apiUrl || '').trim()
+  return raw ? raw.replace(/\/$/, '') : ''
+})
 
 const accountInitial = computed(() => {
   const name = auth.user?.name?.trim()
@@ -568,6 +573,7 @@ async function loadWorkspace() {
     await loadMediaLibrary()
     hydrateProjectMedia()
     await refreshProjectVideoSources()
+    applyVideoClipFallbacks()
     await refreshPersistedStreamTokens()
     saveState.value = 'saved'
   } catch (error: any) {
@@ -596,6 +602,34 @@ async function refreshPersistedStreamTokens() {
       updateClip(clip.id, patch, { recordHistory: false })
     })
   )
+  syncPreviewFallbackMedia()
+}
+
+function buildStreamUrl(sourceId: string) {
+  if (!apiBaseUrl.value) return ''
+  return `${apiBaseUrl.value}/videos/${sourceId}/stream`
+}
+
+function buildThumbnailUrl(sourceId: string) {
+  if (!apiBaseUrl.value) return ''
+  return `${apiBaseUrl.value}/videos/${sourceId}/thumbnail`
+}
+
+function applyVideoClipFallbacks() {
+  for (const clip of tracks.value.flatMap((track) => track.clips)) {
+    if (clip.type !== 'video' || !clip.sourceId) continue
+    const patch: Partial<EditorClip> = {}
+    if (!clip.sourceUrl) {
+      const streamUrl = buildStreamUrl(String(clip.sourceId))
+      if (streamUrl) patch.sourceUrl = streamUrl
+    }
+    if (!clip.posterUrl) {
+      const thumbUrl = buildThumbnailUrl(String(clip.sourceId))
+      if (thumbUrl) patch.posterUrl = thumbUrl
+    }
+    if (!Object.keys(patch).length) continue
+    updateClip(clip.id, patch, { recordHistory: false })
+  }
   syncPreviewFallbackMedia()
 }
 
