@@ -125,6 +125,8 @@
           v-if="gapHover"
           class="absolute z-40 transition-plus"
           :style="{ left: `${gapHover.left}px`, top: `${gapHover.top}px` }"
+          @mouseenter="onGapHoverEnter"
+          @mouseleave="onGapHoverLeave"
         >
           <div class="relative">
             <button
@@ -264,6 +266,7 @@ const hoverLayerId = ref<string | null>(null)
 const hoverCreateGroup = ref<EditorLayerGroup | null>(null)
 const trackRowRefs = new Map<string, HTMLElement>()
 const gapHover = ref<null | { fromClipId: string; toClipId: string; left: number; top: number }>(null)
+const plusHovering = ref(false)
 const snapPulseIds = ref(new Set<string>())
 const transitionMenu = ref({ open: false, x: 0, y: 0, fromClipId: '', toClipId: '' })
 const transitionMenuName = ref('Cross fade')
@@ -331,9 +334,10 @@ const transitionOptions = [
   'Close',
 ]
 
-const HOVER_THRESHOLD_PX = 36
+const BOUNDARY_ACTIVATION_RADIUS_PX = 24
 const SNAP_THRESHOLD_PX = 16
 const GAP_TOLERANCE_SECONDS = 0.05
+let gapHoverHideTimer: ReturnType<typeof setTimeout> | null = null
 
 type TrimEdge = 'start' | 'end'
 const trimState = ref<{
@@ -385,8 +389,24 @@ function closeMenus() {
   closeContextMenu()
 }
 
+function clearGapHoverHideTimer() {
+  if (!gapHoverHideTimer) return
+  clearTimeout(gapHoverHideTimer)
+  gapHoverHideTimer = null
+}
+
+function scheduleGapHoverHide() {
+  clearGapHoverHideTimer()
+  gapHoverHideTimer = setTimeout(() => {
+    if (!plusHovering.value && !transitionMenu.value.open) {
+      gapHover.value = null
+    }
+  }, 90)
+}
+
 function openTransitionMenu(event: MouseEvent) {
   if (!gapHover.value) return
+  clearGapHoverHideTimer()
   closeContextMenu()
   const { fromClipId, toClipId } = gapHover.value
   const fromClip = props.tracks.flatMap((track) => track.clips).find((clip) => clip.id === fromClipId)
@@ -404,6 +424,16 @@ function openTransitionMenu(event: MouseEvent) {
     const pos = clampFixedMenuPosition(transitionMenu.value.x, transitionMenu.value.y, transitionMenuRef.value)
     transitionMenu.value = { ...transitionMenu.value, x: pos.x, y: pos.y }
   })
+}
+
+function onGapHoverEnter() {
+  plusHovering.value = true
+  clearGapHoverHideTimer()
+}
+
+function onGapHoverLeave() {
+  plusHovering.value = false
+  if (!transitionMenu.value.open) scheduleGapHoverHide()
 }
 
 function applyTransitionMenu() {
@@ -486,19 +516,90 @@ function triggerSnapPulse(...clipIds: string[]) {
   }, 240)
 }
 
-function setGapHoverAtBoundary(track: EditorTrack, fromClip: EditorClip, toClip: EditorClip) {
+function setGapHoverAtBoundary(track: EditorTrack, fromClip: EditorClip, toClip: EditorClip, boundaryTime?: number) {
   const rowEl = trackRowRefs.get(track.id)
   const tracksTop = tracksRef.value?.offsetTop ?? 0
   const rowTop = rowEl?.offsetTop ?? 0
   const rowHeight = rowEl?.offsetHeight ?? 56
-  const geometry = temporaryClipBounds.value[fromClip.id] ?? { startTime: fromClip.startTime, duration: fromClip.duration }
-  const boundary = geometry.startTime + geometry.duration
+  const fromGeometry = clipGeometry(fromClip)
+  const toGeometry = clipGeometry(toClip)
+  const fromEdge = fromGeometry.startTime + fromGeometry.duration
+  const toEdge = toGeometry.startTime
+  const boundary = Number.isFinite(boundaryTime ?? Number.NaN)
+    ? Number(boundaryTime)
+    : (fromEdge + toEdge) / 2
   gapHover.value = {
     fromClipId: fromClip.id,
     toClipId: toClip.id,
     left: labelWidth + boundary * pxPerSecond.value,
     top: tracksTop + rowTop + rowHeight / 2,
   }
+}
+
+function getAttachedBoundaries(track: EditorTrack) {
+  const boundaries: Array<{
+    fromClip: EditorClip
+    toClip: EditorClip
+    boundarySec: number
+    fromEdgeSec: number
+    toEdgeSec: number
+  }> = []
+  if (track.isHeader || track.group !== 'video') return boundaries
+  const sorted = track.clips
+    .slice()
+    .sort((a, b) => clipGeometry(a).startTime - clipGeometry(b).startTime)
+  for (let i = 0; i < sorted.length - 1; i += 1) {
+    const fromClip = sorted[i]
+    const toClip = sorted[i + 1]
+    const fromBounds = clipGeometry(fromClip)
+    const toBounds = clipGeometry(toClip)
+    const fromEdgeSec = fromBounds.startTime + fromBounds.duration
+    const toEdgeSec = toBounds.startTime
+    const gap = toEdgeSec - fromEdgeSec
+    if (Math.abs(gap) > GAP_TOLERANCE_SECONDS) continue
+    boundaries.push({
+      fromClip,
+      toClip,
+      boundarySec: (fromEdgeSec + toEdgeSec) / 2,
+      fromEdgeSec,
+      toEdgeSec,
+    })
+  }
+  return boundaries
+}
+
+function findNearestBoundary(track: EditorTrack, pointerTime: number) {
+  const pointerPx = pointerTime * pxPerSecond.value
+  const boundaries = getAttachedBoundaries(track)
+  let best:
+    | {
+        fromClip: EditorClip
+        toClip: EditorClip
+        boundarySec: number
+        distancePx: number
+      }
+    | null = null
+
+  for (const boundary of boundaries) {
+    const centerPx = boundary.boundarySec * pxPerSecond.value
+    const fromEdgePx = boundary.fromEdgeSec * pxPerSecond.value
+    const toEdgePx = boundary.toEdgeSec * pxPerSecond.value
+    const distancePx = Math.min(
+      Math.abs(pointerPx - centerPx),
+      Math.abs(pointerPx - fromEdgePx),
+      Math.abs(pointerPx - toEdgePx),
+    )
+    if (distancePx > BOUNDARY_ACTIVATION_RADIUS_PX) continue
+    if (!best || distancePx < best.distancePx) {
+      best = {
+        fromClip: boundary.fromClip,
+        toClip: boundary.toClip,
+        boundarySec: boundary.boundarySec,
+        distancePx,
+      }
+    }
+  }
+  return best
 }
 
 function onRulerClick(event: MouseEvent) {
@@ -541,12 +642,13 @@ function onLabelWheel(event: WheelEvent) {
 }
 
 function onLaneMouseMove(event: MouseEvent, track: EditorTrack) {
+  clearGapHoverHideTimer()
   if (track.isHeader || track.group !== 'video') {
-    gapHover.value = null
+    if (!plusHovering.value) gapHover.value = null
     return
   }
   if (!track.clips.length) {
-    gapHover.value = null
+    if (!plusHovering.value) gapHover.value = null
     return
   }
   const lane = event.currentTarget as HTMLElement
@@ -554,31 +656,23 @@ function onLaneMouseMove(event: MouseEvent, track: EditorTrack) {
   const scrollLeft = viewportRef.value?.scrollLeft ?? 0
   const x = event.clientX - rect.left + scrollLeft
   const time = x / pxPerSecond.value
-  const threshold = HOVER_THRESHOLD_PX / pxPerSecond.value
-  const sorted = track.clips.slice().sort((a, b) => a.startTime - b.startTime)
-  for (let i = 0; i < sorted.length - 1; i += 1) {
-    const a = sorted[i]
-    const b = sorted[i + 1]
-    const boundary = a.startTime + a.duration
-    const rawGap = b.startTime - boundary
-    const gap = Math.abs(rawGap) <= GAP_TOLERANCE_SECONDS ? 0 : rawGap
-    if (gap < 0) continue
-    const extended = Math.min(gap, threshold * 3)
-    const within = time >= boundary - threshold && time <= boundary + Math.max(threshold, extended)
-    if (within) {
-      setGapHoverAtBoundary(track, a, b)
-      return
-    }
+  const nearest = findNearestBoundary(track, time)
+  if (nearest) {
+    setGapHoverAtBoundary(track, nearest.fromClip, nearest.toClip, nearest.boundarySec)
+    return
   }
-  gapHover.value = null
+  if (!plusHovering.value) gapHover.value = null
 }
 
 function onLaneMouseLeave() {
-  gapHover.value = null
+  if (plusHovering.value || transitionMenu.value.open) return
+  scheduleGapHoverHide()
 }
 
 function startTrim(event: PointerEvent, clipId: string, edge: TrimEdge) {
   closeMenus()
+  plusHovering.value = false
+  clearGapHoverHideTimer()
   gapHover.value = null
   const clip = props.tracks.flatMap((track) => track.clips).find((item) => item.id === clipId)
   if (!clip) return
@@ -609,6 +703,8 @@ function startClipDrag(event: PointerEvent, clipId: string) {
   const clip = props.tracks.flatMap((track) => track.clips).find((item) => item.id === clipId)
   if (!clip) return
   closeMenus()
+  plusHovering.value = false
+  clearGapHoverHideTimer()
   gapHover.value = null
   const group = clip.layerGroup ?? (clip.type === 'audio' ? 'audio' : clip.type === 'video' ? 'video' : 'graphics')
   emit('select-clip', clipId)
@@ -684,12 +780,12 @@ function resolveNonOverlappingStart(track: EditorTrack, clip: EditorClip, desire
   if (prev && Math.abs(start - minStart) <= snapThreshold) {
     start = minStart
     triggerSnapPulse(clip.id, prev.id)
-    setGapHoverAtBoundary(track, prev, clip)
+    setGapHoverAtBoundary(track, prev, clip, start)
     snapped = true
   } else if (next && Math.abs(start - maxStart) <= snapThreshold) {
     start = maxStart
     triggerSnapPulse(clip.id, next.id)
-    setGapHoverAtBoundary(track, clip, next)
+    setGapHoverAtBoundary(track, clip, next, start + clip.duration)
     snapped = true
   }
   if (!snapped) gapHover.value = null
@@ -738,6 +834,25 @@ function onClipDragEnd() {
   const targetTrack = hoverLayerId.value
     ? props.tracks.find((track) => track.id === hoverLayerId.value)
     : null
+  const originTrack = findTrackForClip(state.clipId)?.track ?? null
+  const activeTrack = targetTrack && targetTrack.group === state.originGroup
+    ? targetTrack
+    : originTrack
+  let attachedBoundary: null | { track: EditorTrack; fromClip: EditorClip; toClip: EditorClip; boundarySec: number } = null
+  if (activeTrack && activeTrack.group === 'video') {
+    const candidates = getAttachedBoundaries(activeTrack).filter((entry) =>
+      entry.fromClip.id === state.clipId || entry.toClip.id === state.clipId
+    )
+    const first = candidates[0]
+    if (first) {
+      attachedBoundary = {
+        track: activeTrack,
+        fromClip: first.fromClip,
+        toClip: first.toClip,
+        boundarySec: first.boundarySec,
+      }
+    }
+  }
   if (finalBounds) {
     if (hoverCreateGroup.value && hoverCreateGroup.value === state.originGroup) {
       emit('move-clip', {
@@ -758,7 +873,18 @@ function onClipDragEnd() {
   clipDragState.value = null
   hoverLayerId.value = null
   hoverCreateGroup.value = null
-  gapHover.value = null
+  plusHovering.value = false
+  clearGapHoverHideTimer()
+  if (attachedBoundary) {
+    setGapHoverAtBoundary(
+      attachedBoundary.track,
+      attachedBoundary.fromClip,
+      attachedBoundary.toClip,
+      attachedBoundary.boundarySec
+    )
+  } else {
+    gapHover.value = null
+  }
   temporaryClipBounds.value = {}
   window.removeEventListener('pointermove', onClipDragMove)
   window.removeEventListener('pointerup', onClipDragEnd)
@@ -813,6 +939,8 @@ function onTrimEnd() {
     })
   }
   trimState.value = null
+  plusHovering.value = false
+  clearGapHoverHideTimer()
   gapHover.value = null
   temporaryClipBounds.value = {}
   window.removeEventListener('pointermove', onTrimMove)
@@ -877,6 +1005,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  clearGapHoverHideTimer()
   onTrimEnd()
   onClipDragEnd()
   stopPlayheadDrag()

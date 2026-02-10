@@ -57,7 +57,6 @@
                     @loadedmetadata="onVideoMetadata(clip)"
                     @loadeddata="onVideoData(clip)"
                     @canplay="onVideoCanPlay(clip)"
-                    @timeupdate="onVideoTimeUpdate(clip)"
                     @error="onVideoError(clip)"
                   />
                   <template v-else-if="clip.type === 'video'">
@@ -226,7 +225,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRefs, watch, type CSSProperties } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRefs, watch, type CSSProperties, type ComponentPublicInstance } from 'vue'
 import type { EditorClip } from '~/composables/useEditorState'
 
 interface Props {
@@ -274,6 +273,7 @@ const frameRef = ref<HTMLDivElement | null>(null)
 const stageRef = ref<HTMLDivElement | null>(null)
 const videoRefs = ref(new Map<string, HTMLVideoElement>())
 const videoErrorCount = ref<Record<string, number>>({})
+const sourceDurations = ref<Record<string, number>>({})
 const contextMenu = ref<{ open: boolean; x: number; y: number; clipId?: string }>({ open: false, x: 0, y: 0 })
 const contextMenuRef = ref<HTMLDivElement | null>(null)
 const isFullscreen = ref(false)
@@ -283,6 +283,8 @@ const volumeValue = computed(() => props.volume ?? 1)
 const fallbackPoster = computed(() => props.fallbackPoster || '')
 const MAX_PREVIEW_RECOVERY_ATTEMPTS = 2
 const DEFAULT_STAGE_RATIO = 16 / 9
+const TIMELINE_WRITE_THRESHOLD = 0.01
+const PLAYING_DRIFT_SEEK_THRESHOLD = 0.35
 const frameSize = ref({ width: 0, height: 0 })
 let frameResizeObserver: ResizeObserver | null = null
 let windowResizeCleanup: (() => void) | null = null
@@ -309,6 +311,22 @@ function isLikelyImage(url?: string) {
 
 function clampValue(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
+}
+
+function sourceKeyForClip(clip: EditorClip) {
+  const sourceId = String(clip.sourceId ?? '').trim()
+  if (sourceId) return `id:${sourceId}`
+  const sourceUrl = String(clip.sourceUrl ?? '').trim()
+  if (sourceUrl) return `url:${sourceUrl}`
+  return ''
+}
+
+function getKnownSourceDuration(clip: EditorClip) {
+  const key = sourceKeyForClip(clip)
+  if (!key) return null
+  const value = Number(sourceDurations.value[key] ?? 0)
+  if (!Number.isFinite(value) || value <= 0) return null
+  return value
 }
 
 const visualClips = computed(() =>
@@ -347,14 +365,74 @@ interface TransitionPair {
   fromId: string
   toId: string
   cutTime: number
+  t0: number
+  t1: number
   duration: number
   name: string
   fromClip: EditorClip
   toClip: EditorClip
+  mode: 'centered' | 'post_cut'
+  outgoingSampleStart: number
 }
 
 function isClipActive(clip: EditorClip, time: number) {
   return time >= clip.startTime && time <= clip.startTime + clip.duration
+}
+
+function resolveTransitionWindow(clip: EditorClip, next: EditorClip, requestedDuration: number) {
+  const desired = Math.min(Math.max(0, requestedDuration), clip.duration, next.duration, 2)
+  if (desired <= 0.01) return null
+
+  const cutTime = next.startTime
+  const outSpeed = Math.max(0.01, clip.effects?.speed ?? 1)
+  const inSpeed = Math.max(0.01, next.effects?.speed ?? 1)
+  const outTrim = getTrimRange(clip)
+  const inTrim = getTrimRange(next)
+  const outSourceDuration = getKnownSourceDuration(clip)
+
+  // Handle available after clip out-point and before next clip in-point.
+  const outHandleSource = outSourceDuration ? Math.max(0, outSourceDuration - outTrim.trimEnd) : 0
+  const inHandleSource = Math.max(0, inTrim.trimStart)
+  const outHandleTimeline = outHandleSource / outSpeed
+  const inHandleTimeline = inHandleSource / inSpeed
+
+  const maxPre = Math.min(desired, clip.duration, inHandleTimeline)
+  const maxPost = Math.min(desired, next.duration, outHandleTimeline)
+  const centeredHalf = desired / 2
+
+  let pre = Math.min(centeredHalf, maxPre)
+  let post = Math.min(desired - pre, maxPost)
+
+  if (pre + post < desired) {
+    const preRoom = Math.max(0, maxPre - pre)
+    const addPre = Math.min(desired - (pre + post), preRoom)
+    pre += addPre
+    post = Math.min(desired - pre, maxPost)
+  }
+
+  const centeredDuration = pre + post
+  if (centeredDuration > 0.01) {
+    return {
+      cutTime,
+      t0: cutTime - pre,
+      t1: cutTime + post,
+      duration: centeredDuration,
+      mode: 'centered' as const,
+      outgoingSampleStart: cutTime - pre,
+    }
+  }
+
+  // Fallback that never freezes: post-cut window with outgoing remap.
+  const fallbackDuration = Math.min(desired, clip.duration, next.duration)
+  if (fallbackDuration <= 0.01) return null
+  return {
+    cutTime,
+    t0: cutTime,
+    t1: cutTime + fallbackDuration,
+    duration: fallbackDuration,
+    mode: 'post_cut' as const,
+    outgoingSampleStart: clip.startTime + Math.max(0, clip.duration - fallbackDuration),
+  }
 }
 
 const transitionPairs = computed<TransitionPair[]>(() => {
@@ -377,15 +455,20 @@ const transitionPairs = computed<TransitionPair[]>(() => {
       if (clip.effects?.transitionWith !== next.id) continue
       const gap = next.startTime - (clip.startTime + clip.duration)
       if (Math.abs(gap) > ATTACH_THRESHOLD_SECONDS) continue
-      const safeDuration = Math.min(Math.max(0, duration), clip.duration, next.duration, 2)
+      const window = resolveTransitionWindow(clip, next, duration)
+      if (!window) continue
       pairs.push({
         fromId: clip.id,
         toId: next.id,
-        cutTime: next.startTime,
-        duration: safeDuration,
+        cutTime: window.cutTime,
+        t0: window.t0,
+        t1: window.t1,
+        duration: window.duration,
         name,
         fromClip: clip,
         toClip: next,
+        mode: window.mode,
+        outgoingSampleStart: window.outgoingSampleStart,
       })
     }
   })
@@ -407,7 +490,7 @@ const transitionInMap = computed(() => {
 const activeTransition = computed<TransitionPair | null>(() => {
   if (!transitionPairs.value.length) return null
   const now = currentTime.value
-  const matches = transitionPairs.value.filter((pair) => now >= pair.cutTime && now <= pair.cutTime + pair.duration)
+  const matches = transitionPairs.value.filter((pair) => now >= pair.t0 && now <= pair.t1)
   if (!matches.length) return null
   const sorted = matches.slice().sort((a, b) => clipZIndex(a.toClip) - clipZIndex(b.toClip))
   return sorted[sorted.length - 1] ?? null
@@ -439,6 +522,20 @@ const primaryVideoClip = computed<EditorClip | null>(() => {
 const secondaryVideoClip = computed<EditorClip | null>(() => {
   if (!activeTransition.value) return null
   return activeTransition.value.fromClip
+})
+
+const clockVideoClip = computed<EditorClip | null>(() => {
+  if (!activeTransition.value) return activeVideoClip.value
+  return currentTime.value < activeTransition.value.cutTime
+    ? activeTransition.value.fromClip
+    : activeTransition.value.toClip
+})
+
+const playbackVideoClipIds = computed(() => {
+  if (!playing.value) return []
+  if (activeTransition.value) return [activeTransition.value.fromId, activeTransition.value.toId]
+  if (activeVideoClip.value) return [activeVideoClip.value.id]
+  return []
 })
 
 const activeVideoClips = computed(() => {
@@ -562,13 +659,28 @@ function canRenderVideo(clip: EditorClip) {
   return true
 }
 
+function resolveVideoRefElement(el: Element | ComponentPublicInstance | null) {
+  if (!el) return null
+  if (el instanceof HTMLVideoElement) return el
+  if ('$el' in el) {
+    const root = (el as { $el?: unknown }).$el
+    if (root instanceof HTMLVideoElement) return root
+    if (root instanceof Element) {
+      const nestedVideo = root.querySelector('video')
+      if (nestedVideo instanceof HTMLVideoElement) return nestedVideo
+    }
+  }
+  return null
+}
+
 function setVideoRef(id: string) {
-  return (el: HTMLVideoElement | null) => {
-    if (!el) {
+  return (el: Element | ComponentPublicInstance | null) => {
+    const video = resolveVideoRefElement(el)
+    if (!video) {
       videoRefs.value.delete(id)
       return
     }
-    videoRefs.value.set(id, el)
+    videoRefs.value.set(id, video)
     const clip = activeVideoMap.value.get(id)
     if (clip) syncVideoElement(clip, true)
   }
@@ -598,6 +710,37 @@ function getClipMediaTime(clip: EditorClip, timelineTime: number) {
   return Math.min(Math.max(trimStart, local), trimEnd)
 }
 
+function getClipMediaTimeWithTransitionHandles(clip: EditorClip, timelineTime: number) {
+  const transitionOut = transitionOutMap.value.get(clip.id)
+  const transitionIn = transitionInMap.value.get(clip.id)
+  const outActive = transitionOut && timelineTime >= transitionOut.t0 && timelineTime <= transitionOut.t1 ? transitionOut : null
+  const inActive = transitionIn && timelineTime >= transitionIn.t0 && timelineTime <= transitionIn.t1 ? transitionIn : null
+
+  if (!outActive && !inActive) return getClipMediaTime(clip, timelineTime)
+
+  const { trimStart, trimEnd } = getTrimRange(clip)
+  const speed = Math.max(0.01, clip.effects?.speed ?? 1)
+  let sampleTime = timelineTime
+  let minMediaTime = trimStart
+  let maxMediaTime = trimEnd
+
+  if (outActive) {
+    if (outActive.mode === 'post_cut') {
+      sampleTime = outActive.outgoingSampleStart + (timelineTime - outActive.t0)
+    } else {
+      const sourceDuration = getKnownSourceDuration(clip)
+      if (sourceDuration) maxMediaTime = Math.max(trimEnd, sourceDuration)
+    }
+  }
+
+  if (inActive) {
+    minMediaTime = 0
+  }
+
+  const mediaTime = (sampleTime - clip.startTime) * speed + trimStart
+  return clampValue(mediaTime, minMediaTime, Math.max(minMediaTime + 0.01, maxMediaTime))
+}
+
 function mapMediaTimeToTimeline(clip: EditorClip, mediaTime: number) {
   const { trimStart } = getTrimRange(clip)
   const speed = Math.max(0.01, clip.effects?.speed ?? 1)
@@ -620,15 +763,12 @@ function getVideoElement(clipId: string) {
 function syncVideoElement(clip: EditorClip, force = false) {
   const video = getVideoElement(clip.id)
   if (!video) return
-  const isSecondary = secondaryVideoClip.value?.id === clip.id && activeTransition.value
-  const targetTime = isSecondary
-    ? getClipMediaTime(clip, clip.startTime + clip.duration)
-    : getClipMediaTime(clip, currentTime.value)
+  const targetTime = getClipMediaTimeWithTransitionHandles(clip, currentTime.value)
   const drift = Number.isFinite(targetTime) ? Math.abs(video.currentTime - targetTime) : 0
-  const isPlaying = Boolean(playing.value && primaryVideoClip.value?.id === clip.id)
-  const needsSeek = force || !isPlaying || drift > 1
-  const threshold = force ? 0.02 : 0.05
-  if (Number.isFinite(targetTime) && needsSeek && drift > threshold) {
+  const isClockClip = Boolean(playing.value && clockVideoClip.value?.id === clip.id)
+  const seekThreshold = force ? 0.01 : (isClockClip ? PLAYING_DRIFT_SEEK_THRESHOLD : 0.05)
+  const shouldSeek = force || !playing.value || drift > PLAYING_DRIFT_SEEK_THRESHOLD
+  if (Number.isFinite(targetTime) && shouldSeek && drift > seekThreshold) {
     try {
       video.currentTime = targetTime
     } catch {
@@ -637,17 +777,16 @@ function syncVideoElement(clip: EditorClip, force = false) {
   }
   const rate = Math.max(0.01, clip.effects?.speed ?? 1)
   if (video.playbackRate !== rate) video.playbackRate = rate
+  const isAudibleClip = Boolean(playing.value && clockVideoClip.value?.id === clip.id)
   const baseVolume = volumeValue.value
   const clipVolume = clip.effects?.volume ?? 1
-  const nextVolume = Math.max(0, Math.min(1, baseVolume * clipVolume))
+  const nextVolume = isAudibleClip ? Math.max(0, Math.min(1, baseVolume * clipVolume)) : 0
   video.volume = nextVolume
   video.muted = nextVolume <= 0
 }
 
 async function syncActiveVideoPlayback() {
-  const primaryId = primaryVideoClip.value?.id
-  const hasActive = Boolean(activeVideoClip.value)
-  const shouldPlayPrimary = Boolean(playing.value && hasActive && primaryId)
+  const playbackSet = new Set(playbackVideoClipIds.value)
   let playbackFailed = false
   for (const [clipId, video] of videoRefs.value.entries()) {
     const clip = activeVideoMap.value.get(clipId)
@@ -656,7 +795,7 @@ async function syncActiveVideoPlayback() {
       continue
     }
     syncVideoElement(clip)
-    if (!shouldPlayPrimary || clipId !== primaryId) {
+    if (!playbackSet.has(clipId)) {
       if (!video.paused) video.pause()
       continue
     }
@@ -682,93 +821,79 @@ function syncActiveVideoTimes(force = false) {
   activeVideoClips.value.forEach((clip) => syncVideoElement(clip, force))
 }
 
-let videoTimelineFrame: number | null = null
-let gapPlaybackFrame: number | null = null
+type PlaybackClockMode = 'idle' | 'video-clock' | 'gap-clock'
+let playbackClockFrame: number | null = null
 let lastGapTime = 0
 
-function stopVideoTimelineSync() {
-  if (!videoTimelineFrame) return
-  cancelAnimationFrame(videoTimelineFrame)
-  videoTimelineFrame = null
-}
-
-function stopGapPlayback() {
-  if (!gapPlaybackFrame) return
-  cancelAnimationFrame(gapPlaybackFrame)
-  gapPlaybackFrame = null
+function stopPlaybackClock() {
+  if (playbackClockFrame) {
+    cancelAnimationFrame(playbackClockFrame)
+    playbackClockFrame = null
+  }
   lastGapTime = 0
 }
 
-function syncTimelineFromVideo() {
+function resolvePlaybackClockMode(): PlaybackClockMode {
+  if (!playing.value) return 'idle'
+  if (clockVideoClip.value) return 'video-clock'
+  return 'gap-clock'
+}
+
+function finishPlaybackAtTimelineEnd() {
+  emit('update:currentTime', duration.value)
+  emit('update:playing', false)
+  stopPlaybackClock()
+}
+
+function runPlaybackClock(now: number) {
+  const mode = resolvePlaybackClockMode()
+  if (mode === 'idle') {
+    stopPlaybackClock()
+    return
+  }
+
+  if (mode === 'video-clock') {
+    lastGapTime = 0
+    const clockClip = clockVideoClip.value
+    const video = clockClip ? getVideoElement(clockClip.id) : null
+    if (clockClip && video && Number.isFinite(video.currentTime)) {
+      const nextTime = clampValue(
+        mapMediaTimeToTimeline(clockClip, Number(video.currentTime)),
+        0,
+        duration.value
+      )
+      if (nextTime >= duration.value - 0.001) {
+        finishPlaybackAtTimelineEnd()
+        return
+      }
+      if (Math.abs(nextTime - currentTime.value) > TIMELINE_WRITE_THRESHOLD) {
+        emit('update:currentTime', nextTime)
+      }
+    }
+  } else {
+    if (!lastGapTime) lastGapTime = now
+    const delta = Math.max(0, (now - lastGapTime) / 1000)
+    lastGapTime = now
+    const next = clampValue(currentTime.value + delta, 0, duration.value)
+    if (next >= duration.value - 0.001) {
+      finishPlaybackAtTimelineEnd()
+      return
+    }
+    if (Math.abs(next - currentTime.value) > TIMELINE_WRITE_THRESHOLD) {
+      emit('update:currentTime', next)
+    }
+  }
+
+  playbackClockFrame = requestAnimationFrame(runPlaybackClock)
+}
+
+function ensurePlaybackClock() {
   if (!playing.value) {
-    stopVideoTimelineSync()
+    stopPlaybackClock()
     return
   }
-  const primary = primaryVideoClip.value
-  if (!primary || !activeVideoClip.value) {
-    stopVideoTimelineSync()
-    return
-  }
-  const video = getVideoElement(primary.id)
-  if (!video || !Number.isFinite(video.currentTime)) {
-    videoTimelineFrame = requestAnimationFrame(syncTimelineFromVideo)
-    return
-  }
-  const nextTime = mapMediaTimeToTimeline(primary, Number(video.currentTime))
-  if (nextTime >= duration.value - 0.001) {
-    emit('update:currentTime', duration.value)
-    emit('update:playing', false)
-    stopVideoTimelineSync()
-    return
-  }
-  if (Math.abs(nextTime - currentTime.value) > 0.016) {
-    emit('update:currentTime', nextTime)
-  }
-  videoTimelineFrame = requestAnimationFrame(syncTimelineFromVideo)
-}
-
-function startVideoTimelineSync() {
-  if (videoTimelineFrame) return
-  videoTimelineFrame = requestAnimationFrame(syncTimelineFromVideo)
-}
-
-function syncTimelineThroughGap(now: number) {
-  if (!playing.value || activeVideoClip.value) {
-    stopGapPlayback()
-    return
-  }
-  if (!lastGapTime) lastGapTime = now
-  const delta = (now - lastGapTime) / 1000
-  lastGapTime = now
-  const next = currentTime.value + delta
-  if (next >= duration.value) {
-    emit('update:currentTime', duration.value)
-    emit('update:playing', false)
-    stopGapPlayback()
-    return
-  }
-  emit('update:currentTime', next)
-  gapPlaybackFrame = requestAnimationFrame(syncTimelineThroughGap)
-}
-
-function startGapPlayback() {
-  if (gapPlaybackFrame) return
-  gapPlaybackFrame = requestAnimationFrame(syncTimelineThroughGap)
-}
-
-function updatePlaybackClock() {
-  if (!playing.value) {
-    stopVideoTimelineSync()
-    stopGapPlayback()
-    return
-  }
-  if (activeVideoClip.value) {
-    stopGapPlayback()
-    startVideoTimelineSync()
-    return
-  }
-  stopVideoTimelineSync()
-  startGapPlayback()
+  if (playbackClockFrame) return
+  playbackClockFrame = requestAnimationFrame(runPlaybackClock)
 }
 
 watch(
@@ -776,7 +901,7 @@ watch(
   () => {
     syncActiveVideoTimes(true)
     void syncActiveVideoPlayback()
-    updatePlaybackClock()
+    ensurePlaybackClock()
   },
   { immediate: true }
 )
@@ -788,15 +913,15 @@ watch(currentTime, () => {
 watch(playing, () => {
   syncActiveVideoTimes(true)
   void syncActiveVideoPlayback()
-  updatePlaybackClock()
+  ensurePlaybackClock()
 })
 
 watch(
-  () => activeVideoClip.value?.id,
+  () => clockVideoClip.value?.id,
   () => {
     syncActiveVideoTimes(true)
     void syncActiveVideoPlayback()
-    updatePlaybackClock()
+    ensurePlaybackClock()
   }
 )
 
@@ -809,6 +934,13 @@ function onVideoMetadata(clip: EditorClip) {
   if (!video) return
   const measuredDuration = Number(video.duration || 0)
   if (Number.isFinite(measuredDuration) && measuredDuration > 0) {
+    const key = sourceKeyForClip(clip)
+    if (key) {
+      sourceDurations.value = {
+        ...sourceDurations.value,
+        [key]: measuredDuration,
+      }
+    }
     emit('update:clip-meta', { clipId: clip.id, duration: measuredDuration })
   }
   syncVideoElement(clip, true)
@@ -819,27 +951,17 @@ function onVideoData(clip: EditorClip) {
     videoErrorCount.value = { ...videoErrorCount.value, [clip.id]: 0 }
   }
   syncVideoElement(clip, true)
-  if (playing.value) void syncActiveVideoPlayback()
+  if (playing.value) {
+    void syncActiveVideoPlayback()
+    ensurePlaybackClock()
+  }
 }
 
 function onVideoCanPlay(clip: EditorClip) {
   syncVideoElement(clip, true)
-  if (playing.value) void syncActiveVideoPlayback()
-}
-
-function onVideoTimeUpdate(clip: EditorClip) {
-  if (!playing.value) return
-  if (!primaryVideoClip.value || clip.id !== primaryVideoClip.value.id) return
-  const video = getVideoElement(clip.id)
-  if (!video || !Number.isFinite(video.currentTime)) return
-  const nextTime = mapMediaTimeToTimeline(clip, Number(video.currentTime))
-  if (nextTime >= duration.value - 0.001) {
-    emit('update:currentTime', duration.value)
-    emit('update:playing', false)
-    return
-  }
-  if (Math.abs(nextTime - currentTime.value) > 0.016) {
-    emit('update:currentTime', nextTime)
+  if (playing.value) {
+    void syncActiveVideoPlayback()
+    ensurePlaybackClock()
   }
 }
 
@@ -866,10 +988,11 @@ function easeInOut(value: number) {
 
 function transitionProgress(pair?: TransitionPair | null) {
   if (!pair || pair.duration <= 0) return null
-  const start = pair.cutTime
-  const end = pair.cutTime + pair.duration
-  if (currentTime.value < start || currentTime.value > end) return null
-  return (currentTime.value - start) / pair.duration
+  const length = pair.t1 - pair.t0
+  if (length <= 0.0001) return null
+  if (currentTime.value < pair.t0 || currentTime.value > pair.t1) return null
+  const u = clampValue((currentTime.value - pair.t0) / length, 0, 1)
+  return easeInOut(u)
 }
 
 function clampPercent(value: number) {
@@ -915,42 +1038,41 @@ function transitionStyleForClip(clip: EditorClip): CSSProperties | null {
   const inName = inTransition?.name
 
   if (inTransition && inProgress !== null && inName) {
-    const eased = easeInOut(inProgress)
     switch (inName) {
       case 'Hard wipe right':
-        return buildHardWipe('right', eased)
+        return buildHardWipe('right', inProgress)
       case 'Hard wipe left':
-        return buildHardWipe('left', eased)
+        return buildHardWipe('left', inProgress)
       case 'Hard wipe down':
-        return buildHardWipe('down', eased)
+        return buildHardWipe('down', inProgress)
       case 'Hard wipe up':
-        return buildHardWipe('up', eased)
+        return buildHardWipe('up', inProgress)
       case 'Soft wipe right':
-        return buildSoftMask(90, eased)
+        return buildSoftMask(90, inProgress)
       case 'Soft wipe left':
-        return buildSoftMask(270, eased)
+        return buildSoftMask(270, inProgress)
       case 'Soft wipe down':
-        return buildSoftMask(180, eased)
+        return buildSoftMask(180, inProgress)
       case 'Soft wipe up':
-        return buildSoftMask(0, eased)
+        return buildSoftMask(0, inProgress)
       case 'Diagonal soft wipe':
-        return buildSoftMask(135, eased)
+        return buildSoftMask(135, inProgress)
       case 'Blinds': {
-        const stepped = Math.floor(eased * 8) / 8
+        const stepped = Math.floor(inProgress * 8) / 8
         return buildHardWipe('right', stepped)
       }
       case 'Barn doors - vertical':
-        return buildBarnDoors(true, eased)
+        return buildBarnDoors(true, inProgress)
       case 'Barn doors - horizontal':
-        return buildBarnDoors(false, eased)
+        return buildBarnDoors(false, inProgress)
       case 'Circular wipe':
-        return { clipPath: `circle(${eased * 120}% at 50% 50%)` }
+        return { clipPath: `circle(${inProgress * 120}% at 50% 50%)` }
       case 'Cross blur':
-        return { filter: `blur(${(1 - eased) * 12}px)` }
+        return { filter: `blur(${(1 - inProgress) * 12}px)` }
       case 'Burn':
-        return { filter: `brightness(${1 + (1 - eased) * 0.6})` }
+        return { filter: `brightness(${1 + (1 - inProgress) * 0.6})` }
       case 'Horizontal band': {
-        const band = clampPercent(10 + eased * 90)
+        const band = clampPercent(10 + inProgress * 90)
         return { clipPath: `inset(${50 - band / 2}% 0 ${50 - band / 2}% 0)` }
       }
       default:
@@ -959,14 +1081,13 @@ function transitionStyleForClip(clip: EditorClip): CSSProperties | null {
   }
 
   if (outTransition && outProgress !== null && outName) {
-    const eased = easeInOut(outProgress)
     switch (outName) {
       case 'Close':
-        return { clipPath: `circle(${(1 - eased) * 120}% at 50% 50%)` }
+        return { clipPath: `circle(${(1 - outProgress) * 120}% at 50% 50%)` }
       case 'Cross blur':
-        return { filter: `blur(${eased * 12}px)` }
+        return { filter: `blur(${outProgress * 12}px)` }
       case 'Burn':
-        return { filter: `brightness(${1 + eased * 0.6})` }
+        return { filter: `brightness(${1 + outProgress * 0.6})` }
       default:
         return null
     }
@@ -1005,8 +1126,8 @@ function clipOpacity(clip: EditorClip) {
   const safeBase = Number.isFinite(base) ? base : 1
   let combined = opacity * safeBase
   if (usesOpacity) {
-    if (outProgress !== null) combined *= 1 - easeInOut(outProgress)
-    if (inProgress !== null) combined *= easeInOut(inProgress)
+    if (outProgress !== null) combined *= 1 - outProgress
+    if (inProgress !== null) combined *= inProgress
   }
   if (!Number.isFinite(combined)) return 1
   return Math.max(0, Math.min(1, combined))
@@ -1241,8 +1362,6 @@ function onFrameMouseLeave() {
     clearTimeout(fullscreenHideTimer)
     fullscreenHideTimer = null
   }
-  stopVideoTimelineSync()
-  stopGapPlayback()
 }
 
 function handleFullscreenChange() {
@@ -1349,6 +1468,7 @@ function formatTime(seconds: number) {
 }
 
 onBeforeUnmount(() => {
+  stopPlaybackClock()
   if (frameResizeObserver) {
     frameResizeObserver.disconnect()
     frameResizeObserver = null

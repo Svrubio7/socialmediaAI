@@ -769,10 +769,6 @@ function syncPreviewDuration(nextDuration: number) {
 function syncClipMeta(payload: { clipId: string; duration?: number }) {
   const clip = tracks.value.flatMap((track) => track.clips).find((entry) => entry.id === payload.clipId)
   if (!clip || !payload.duration || !Number.isFinite(payload.duration)) return
-  updateClip(clip.id, {
-    duration: Math.max(0.1, payload.duration),
-    trimEnd: Math.max(0.1, payload.duration),
-  }, { recordHistory: false })
   if (clip.type === 'video') {
     previewDuration.value = Math.max(previewDuration.value, payload.duration)
   }
@@ -1067,6 +1063,22 @@ function findAdjacentNextClip(clip: EditorClip) {
   return next
 }
 
+function isAttachedAdjacentPair(fromClip: EditorClip, toClip: EditorClip) {
+  const fromGroup = resolveClipGroup(fromClip)
+  const toGroup = resolveClipGroup(toClip)
+  if (fromGroup !== 'video' || toGroup !== 'video') return false
+  const fromLayer = fromClip.layer ?? 1
+  const toLayer = toClip.layer ?? 1
+  if (fromLayer !== toLayer) return false
+  const layerClips = getLayerClips('video', fromLayer)
+  const fromIndex = layerClips.findIndex((clip) => clip.id === fromClip.id)
+  if (fromIndex < 0 || fromIndex >= layerClips.length - 1) return false
+  const next = layerClips[fromIndex + 1]
+  if (!next || next.id !== toClip.id) return false
+  const gap = next.startTime - (fromClip.startTime + fromClip.duration)
+  return Math.abs(gap) <= ATTACH_THRESHOLD_SECONDS
+}
+
 function clearClipTransition(clip: EditorClip) {
   if (!clip.effects?.transition && !clip.effects?.transitionWith) return
   updateClip(clip.id, {
@@ -1211,6 +1223,7 @@ function handleRemoveLayer(payload: { group: EditorLayerGroup; layer: number }) 
 
 function applyTransitionBetweenClips(payload: { fromClipId: string; toClipId: string; name?: string; duration?: number }) {
   const fromClip = tracks.value.flatMap((track) => track.clips).find((entry) => entry.id === payload.fromClipId)
+  const toClip = tracks.value.flatMap((track) => track.clips).find((entry) => entry.id === payload.toClipId)
   if (!fromClip) return
   const transitionName = payload.name
   const durationValue = Math.max(0, Number(payload.duration) || 0)
@@ -1219,12 +1232,18 @@ function applyTransitionBetweenClips(payload: { fromClipId: string; toClipId: st
     markLocalSaving()
     return
   }
+  if (!toClip || !isAttachedAdjacentPair(fromClip, toClip)) {
+    clearClipTransition(fromClip)
+    toast.info('Transitions only apply to attached adjacent clips on the same video layer')
+    markLocalSaving()
+    return
+  }
   updateClip(fromClip.id, {
     effects: {
       ...fromClip.effects,
       transition: transitionName,
       transitionDuration: durationValue,
-      transitionWith: payload.toClipId,
+      transitionWith: toClip.id,
     },
   })
   markLocalSaving()
