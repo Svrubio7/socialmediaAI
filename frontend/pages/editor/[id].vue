@@ -74,6 +74,7 @@
             :show-controls="false"
             :fallback-url="previewUrl"
             :fallback-poster="previewPoster"
+            :crop-mode="cropMode"
             @update:current-time="setPlayhead"
             @update:playing="isPlaying = $event"
             @update:volume="previewVolume = $event"
@@ -84,6 +85,7 @@
             @duplicate="duplicateSelectedClipAction"
             @delete="removeSelectedClipAction"
             @open-panel="activeRightTab = $event"
+            @set-crop-mode="cropMode = $event"
           />
         </div>
 
@@ -150,6 +152,7 @@
             @remove-layer="handleRemoveLayer"
             @open-panel="activeRightTab = $event"
             @apply-transition-between="applyTransitionBetweenClips"
+            @drop-media="handleDropMediaOnTimeline"
           />
         </div>
       </div>
@@ -163,6 +166,7 @@
         class="hidden lg:flex"
         :active-tab="activeRightTab"
         :selected-clip="selectedClip"
+        :crop-mode="cropMode"
         @update:active-tab="activeRightTab = $event"
         @apply:fade="applyFade"
         @apply:transition="applyTransition"
@@ -173,6 +177,8 @@
         @apply:color="applyColorAdjust"
         @apply:aspect="applyAspectRatio"
         @apply:shape="applyShapeStyle"
+        @set-crop-mode="cropMode = $event"
+        @reset-crop="resetSelectedVideoCrop"
       />
     </div>
 
@@ -190,7 +196,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { EditorClip, EditorLayerGroup, EditorTrack } from '~/composables/useEditorState'
+import type { EditorClip, EditorLayerGroup, EditorTrack, EditorTransitionName } from '~/composables/useEditorState'
 import { useEditorState } from '~/composables/useEditorState'
 
 definePageMeta({
@@ -263,6 +269,7 @@ const centerRef = ref<HTMLDivElement | null>(null)
 const previewRef = ref<{ toggleFullscreen?: () => void } | null>(null)
 const controlsRef = ref<HTMLDivElement | null>(null)
 const previewVolume = ref(1)
+const cropMode = ref(false)
 const COLLAPSED_SIDEBAR_WIDTH = 67
 const DEFAULT_SIDEBAR_WIDTH = 264
 const MIN_SIDEBAR_WIDTH = 216
@@ -285,6 +292,8 @@ const outputSettings = ref({
   fps: 30,
   bitrate: '8M',
 })
+
+const SUPPORTED_TRANSITIONS: EditorTransitionName[] = ['Cross fade', 'Hard wipe']
 
 const extraLayers = ref<Record<EditorLayerGroup, number[]>>({
   video: [],
@@ -379,6 +388,12 @@ watch(
   }
 )
 
+watch(selectedClip, (clip) => {
+  if (!clip || clip.type !== 'video') {
+    cropMode.value = false
+  }
+})
+
 async function persistProjectState() {
   try {
     if (!projectId.value) return
@@ -429,6 +444,41 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
 
+function normalizeTransitionName(value?: string): EditorTransitionName | undefined {
+  if (!value) return undefined
+  if (SUPPORTED_TRANSITIONS.includes(value as EditorTransitionName)) {
+    return value as EditorTransitionName
+  }
+  const normalized = value.trim().toLowerCase()
+  if (!normalized || normalized === 'none' || normalized === 'cut') return undefined
+  if (normalized === 'crossfade' || normalized === 'fade') return 'Cross fade'
+  if (normalized.includes('wipe')) return 'Hard wipe'
+  return undefined
+}
+
+function normalizeCrop(crop?: { x?: number; y?: number; width?: number; height?: number }) {
+  const x = clamp(Number(crop?.x ?? 0), 0, 1)
+  const y = clamp(Number(crop?.y ?? 0), 0, 1)
+  const width = clamp(Number(crop?.width ?? 1), 0.05, 1)
+  const height = clamp(Number(crop?.height ?? 1), 0.05, 1)
+  const clampedWidth = Math.min(width, 1 - x)
+  const clampedHeight = Math.min(height, 1 - y)
+  return {
+    x,
+    y,
+    width: Math.max(0.05, clampedWidth),
+    height: Math.max(0.05, clampedHeight),
+  }
+}
+
+function normalizeShapeType(value?: string): 'square' | 'circle' | 'outline' | 'arrow' {
+  const next = (value ?? '').trim().toLowerCase()
+  if (next === 'circle') return 'circle'
+  if (next === 'outline') return 'outline'
+  if (next === 'arrow') return 'arrow'
+  return 'square'
+}
+
 function isProtectedMediaPath(url: string) {
   return url.includes('/videos/') && (url.includes('/stream') || url.includes('/thumbnail'))
 }
@@ -454,15 +504,32 @@ function sanitizeProjectStateForPersist(state: any) {
     ...state,
     tracks: (state?.tracks ?? []).map((track: any) => ({
       ...track,
-      clips: (track?.clips ?? []).map((clip: any) => ({
-        ...clip,
-        sourceUrl: clip?.type === 'video' && clip?.sourceId
-          ? undefined
-          : stripTransientMediaToken(clip?.sourceUrl),
-        posterUrl: clip?.type === 'video' && clip?.sourceId
-          ? undefined
-          : stripTransientMediaToken(clip?.posterUrl),
-      })),
+      clips: (track?.clips ?? []).map((clip: any) => {
+        const transition = normalizeTransitionName(clip?.effects?.transition)
+        const normalizedCrop = clip?.type === 'video' ? normalizeCrop(clip?.crop) : clip?.crop
+        return {
+          ...clip,
+          crop: normalizedCrop,
+          effects: {
+            ...(clip?.effects ?? {}),
+            transition,
+            transitionDuration: transition ? clip?.effects?.transitionDuration : undefined,
+            transitionWith: transition ? clip?.effects?.transitionWith : undefined,
+          },
+          style: clip?.type === 'shape'
+            ? {
+                ...(clip?.style ?? {}),
+                shapeType: normalizeShapeType(clip?.style?.shapeType || clip?.label),
+              }
+            : clip?.style,
+          sourceUrl: clip?.type === 'video' && clip?.sourceId
+            ? undefined
+            : stripTransientMediaToken(clip?.sourceUrl),
+          posterUrl: clip?.type === 'video' && clip?.sourceId
+            ? undefined
+            : stripTransientMediaToken(clip?.posterUrl),
+        }
+      }),
     })),
   }
 }
@@ -562,6 +629,7 @@ function syncTimelineHeight() {
 async function loadWorkspace() {
   try {
     saveState.value = 'saving'
+    cropMode.value = false
     const project = await api.projects.get(projectId.value)
     if (project?.state && project.state.tracks) {
       loadState(project.state)
@@ -578,6 +646,7 @@ async function loadWorkspace() {
     await refreshProjectVideoSources()
     applyVideoClipFallbacks()
     await refreshPersistedStreamTokens()
+    pruneTransitionsForAll()
     saveState.value = 'saved'
   } catch (error: any) {
     saveState.value = 'error'
@@ -828,6 +897,13 @@ function handleAddText(styleName: string) {
 
 function handleAddShape(shapeName: string) {
   const layer = resolveLayerForGroup('graphics')
+  const shapeMap: Record<string, 'square' | 'circle' | 'outline' | 'arrow'> = {
+    square: 'square',
+    circle: 'circle',
+    outline: 'outline',
+    arrow: 'arrow',
+  }
+  const shapeType = shapeMap[shapeName.trim().toLowerCase()] ?? 'square'
   const clip = addClip('graphics', {
     type: 'shape',
     label: shapeName,
@@ -838,7 +914,7 @@ function handleAddShape(shapeName: string) {
     position: { x: 24, y: 18 },
     size: { width: 38, height: 38 },
     lockAspectRatio: false,
-    style: { color: '#8f8cae', outline: false },
+    style: { color: '#8f8cae', outline: false, shapeType },
   })
   if (clip) {
     activeRightTab.value = 'shape'
@@ -856,38 +932,47 @@ function handleAddTransition(transitionName: string) {
     toast.info('Drag the next clip against this one to apply a transition')
     return
   }
-  const base = transitionName.toLowerCase().includes('fade') ? 0.6 : 0.4
+  const normalizedTransition = normalizeTransitionName(transitionName)
+  if (!normalizedTransition) {
+    toast.info('Only Cross fade and Hard wipe are available in stabilization mode')
+    return
+  }
+  const base = normalizedTransition === 'Cross fade' ? 0.6 : 0.4
   updateClip(selectedClip.value.id, {
     effects: {
       ...selectedClip.value.effects,
-      transition: transitionName,
+      transition: normalizedTransition,
       transitionDuration: base,
       transitionWith: nextClip.id,
     },
   })
   markLocalSaving()
-  toast.success(`${transitionName} applied between clips`)
+  toast.success(`${normalizedTransition} applied between clips`)
 }
 
-async function handleAddMedia(item: MediaLibraryItem) {
-  const layer = item.type === 'audio'
-    ? resolveLayerForGroup('audio')
-    : item.type === 'video'
-      ? resolveLayerForGroup('video')
-      : resolveLayerForGroup('graphics')
+async function handleAddMedia(
+  item: MediaLibraryItem,
+  placement?: { group?: EditorLayerGroup; layer?: number; startTime?: number },
+) {
+  const group = placement?.group ?? (item.type === 'audio' ? 'audio' : item.type === 'video' ? 'video' : 'graphics')
+  const layer = placement?.layer ?? resolveLayerForGroup(group)
+  const requestedStart = placement?.startTime ?? (item.type === 'video' ? duration.value : playheadTime.value)
+  const layerValue = layer ?? 1
   if (item.type === 'video') {
+    const startTime = clampStartInLayer('video', layerValue, '__new__', requestedStart, item.duration ?? 4)
     const clip = addClip('video', {
       type: 'video',
       label: item.name,
-      startTime: duration.value,
+      startTime,
       duration: item.duration ?? 4,
-      layer,
+      layer: layerValue,
       layerGroup: 'video',
       sourceId: item.sourceId,
       sourceUrl: item.sourceUrl,
       posterUrl: item.thumbnail,
       position: { x: 0, y: 0 },
       size: { width: 100, height: 100 },
+      crop: { x: 0, y: 0, width: 1, height: 1 },
       effects: { speed: 1, fadeIn: 0, fadeOut: 0, filter: 'None' },
     })
     if (clip && !previewUrl.value && item.sourceUrl) {
@@ -901,12 +986,13 @@ async function handleAddMedia(item: MediaLibraryItem) {
   }
 
   if (item.type === 'audio') {
+    const startTime = clampStartInLayer('audio', layerValue, '__new__', requestedStart, 6)
     addClip('audio', {
       type: 'audio',
       label: item.name,
-      startTime: playheadTime.value,
+      startTime,
       duration: 6,
-      layer,
+      layer: layerValue,
       layerGroup: 'audio',
       sourceId: item.sourceId,
       sourceUrl: item.sourceUrl,
@@ -916,12 +1002,13 @@ async function handleAddMedia(item: MediaLibraryItem) {
     return
   }
 
+  const startTime = clampStartInLayer('graphics', layerValue, '__new__', requestedStart, 3)
   addClip('graphics', {
     type: 'image',
     label: item.name,
-    startTime: playheadTime.value,
+    startTime,
     duration: 3,
-    layer,
+    layer: layerValue,
     layerGroup: 'graphics',
     sourceId: item.sourceId,
     sourceUrl: item.sourceUrl,
@@ -931,6 +1018,20 @@ async function handleAddMedia(item: MediaLibraryItem) {
     lockAspectRatio: true,
   })
   markLocalSaving()
+}
+
+function handleDropMediaOnTimeline(payload: {
+  group: EditorLayerGroup
+  layer: number
+  startTime: number
+  media: MediaLibraryItem
+}) {
+  const media = mediaItems.value.find((item) => item.id === payload.media.id) ?? payload.media
+  void handleAddMedia(media, {
+    group: payload.group,
+    layer: payload.layer,
+    startTime: payload.startTime,
+  })
 }
 
 const imageExtensions = new Set([
@@ -1098,7 +1199,7 @@ function pruneTransitionsForLayer(group: EditorLayerGroup, layer: number) {
     const clip = peers[i]
     const next = peers[i + 1]
     const transitionWith = clip.effects?.transitionWith
-    const transitionName = clip.effects?.transition
+    const transitionName = normalizeTransitionName(clip.effects?.transition)
     const durationValue = Number(clip.effects?.transitionDuration ?? 0)
     if (!transitionWith || !transitionName || durationValue <= 0) {
       if (transitionWith || transitionName) clearClipTransition(clip)
@@ -1225,9 +1326,9 @@ function applyTransitionBetweenClips(payload: { fromClipId: string; toClipId: st
   const fromClip = tracks.value.flatMap((track) => track.clips).find((entry) => entry.id === payload.fromClipId)
   const toClip = tracks.value.flatMap((track) => track.clips).find((entry) => entry.id === payload.toClipId)
   if (!fromClip) return
-  const transitionName = payload.name
+  const transitionName = normalizeTransitionName(payload.name)
   const durationValue = Math.max(0, Number(payload.duration) || 0)
-  if (!transitionName || transitionName === 'None' || durationValue <= 0) {
+  if (!transitionName || durationValue <= 0) {
     clearClipTransition(fromClip)
     markLocalSaving()
     return
@@ -1338,7 +1439,8 @@ function applyFade(payload: { fadeIn: number; fadeOut: number; commit?: boolean 
 function applyTransition(payload: { name?: string; duration?: number; commit?: boolean }) {
   if (!selectedClip.value) return
   const nextClip = findAdjacentNextClip(selectedClip.value)
-  if (!payload.name || payload.name === 'None' || (payload.duration ?? 0) <= 0) {
+  const transitionName = normalizeTransitionName(payload.name)
+  if (!transitionName || (payload.duration ?? 0) <= 0) {
     clearClipTransition(selectedClip.value)
     markLocalSaving()
     return
@@ -1352,7 +1454,7 @@ function applyTransition(payload: { name?: string; duration?: number; commit?: b
   updateClip(selectedClip.value.id, {
     effects: {
       ...selectedClip.value.effects,
-      transition: payload.name,
+      transition: transitionName,
       transitionDuration: payload.duration ?? 0,
       transitionWith: nextClip.id,
     },
@@ -1463,7 +1565,7 @@ function applyAspectRatio(payload: { ratio: string; fitMode: 'fit' | 'fill' | 's
   markLocalSaving()
 }
 
-function applyShapeStyle(payload: { color: string; outline: boolean; commit?: boolean }) {
+function applyShapeStyle(payload: { color: string; outline: boolean; shapeType: 'square' | 'circle' | 'outline' | 'arrow'; commit?: boolean }) {
   if (!selectedClip.value || selectedClip.value.type !== 'shape') {
     toast.info('Select a shape clip first')
     return
@@ -1473,8 +1575,17 @@ function applyShapeStyle(payload: { color: string; outline: boolean; commit?: bo
       ...selectedClip.value.style,
       color: payload.color,
       outline: payload.outline,
+      shapeType: normalizeShapeType(payload.shapeType),
     },
   }, { recordHistory: payload.commit === true })
+  markLocalSaving()
+}
+
+function resetSelectedVideoCrop() {
+  if (!selectedClip.value || selectedClip.value.type !== 'video') return
+  updateClip(selectedClip.value.id, {
+    crop: { x: 0, y: 0, width: 1, height: 1 },
+  })
   markLocalSaving()
 }
 

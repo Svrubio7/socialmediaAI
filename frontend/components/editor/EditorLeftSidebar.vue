@@ -61,7 +61,9 @@
             v-for="item in filteredMediaItems"
             :key="item.id"
             type="button"
+            draggable="true"
             class="w-full rounded-lg border border-surface-800 bg-surface-950/60 p-2 text-left hover:border-primary-400 transition-colors"
+            @dragstart="onMediaDragStart($event, item)"
             @click="$emit('add-media', item)"
           >
             <div class="aspect-video rounded-md overflow-hidden bg-surface-800 mb-2 relative">
@@ -99,21 +101,9 @@
             Drag a transition between clips on the timeline.
           </div>
           <div class="space-y-2">
-            <p class="text-xs uppercase tracking-wide text-surface-100">Fades &amp; blurs</p>
+            <p class="text-xs uppercase tracking-wide text-surface-100">Transitions</p>
             <button
               v-for="transition in transitionItems"
-              :key="transition"
-              type="button"
-              class="w-full rounded-lg border border-surface-800 bg-surface-800 px-3 py-2.5 text-left text-sm text-surface-50 hover:border-primary-400 transition-colors"
-              @click="$emit('add-transition', transition)"
-            >
-              {{ transition }}
-            </button>
-          </div>
-          <div class="space-y-2">
-            <p class="text-xs uppercase tracking-wide text-surface-100">Wipes</p>
-            <button
-              v-for="transition in wipeTransitionItems"
               :key="transition"
               type="button"
               class="w-full rounded-lg border border-surface-800 bg-surface-800 px-3 py-2.5 text-left text-sm text-surface-50 hover:border-primary-400 transition-colors"
@@ -238,23 +228,7 @@ const textStyles = [
   { name: 'Bubble', preview: 'Bubble', previewClass: 'bg-[#94ff74] text-[#1f2a19] text-lg' },
 ]
 
-const transitionItems = ['Cross fade', 'Cross blur', 'Burn', 'Horizontal band']
-const wipeTransitionItems = [
-  'Hard wipe down',
-  'Hard wipe up',
-  'Hard wipe left',
-  'Hard wipe right',
-  'Soft wipe down',
-  'Soft wipe up',
-  'Soft wipe left',
-  'Soft wipe right',
-  'Diagonal soft wipe',
-  'Blinds',
-  'Barn doors - vertical',
-  'Barn doors - horizontal',
-  'Circular wipe',
-  'Close',
-]
+const transitionItems = ['Cross fade', 'Hard wipe']
 const shapeItems = ['Square', 'Circle', 'Outline', 'Arrow']
 const templateItems = ['All templates', 'YouTube', 'Instagram', 'Gaming', 'Corporate']
 const stockCollections = ['Paper', 'Scenery', 'Working', 'Photography']
@@ -284,6 +258,13 @@ function formatDuration(seconds: number) {
   const minutes = Math.floor(total / 60)
   const secs = total % 60
   return `${minutes}:${secs.toString().padStart(2, '0')}`
+}
+
+function onMediaDragStart(event: DragEvent, item: MediaItem) {
+  if (!event.dataTransfer) return
+  event.dataTransfer.effectAllowed = 'copy'
+  event.dataTransfer.setData('application/x-editor-media', JSON.stringify(item))
+  event.dataTransfer.setData('text/plain', item.id)
 }
 </script>
 

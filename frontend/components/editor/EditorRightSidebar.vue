@@ -163,10 +163,30 @@
             </button>
           </div>
           <button type="button" class="panel-action mt-3" @click="emitAspect(true)">Apply ratio</button>
+          <div v-if="selectedClip?.type === 'video'" class="mt-3 space-y-2">
+            <button
+              type="button"
+              class="panel-action"
+              @click="emit('set-crop-mode', !cropMode)"
+            >
+              {{ cropMode ? 'Disable crop mode' : 'Enable crop mode' }}
+            </button>
+            <button
+              type="button"
+              class="panel-action"
+              @click="emit('reset-crop')"
+            >
+              Reset crop
+            </button>
+          </div>
         </template>
 
         <template v-else-if="activeTab === 'shape'">
           <div class="space-y-3">
+            <label class="text-sm text-surface-100 block">Shape</label>
+            <select v-model="shapeType" class="w-full rounded bg-surface-950/60 border border-surface-800 px-2 py-2 text-sm text-surface-100 capitalize">
+              <option v-for="type in shapeTypes" :key="type" :value="type">{{ type }}</option>
+            </select>
             <label class="text-sm text-surface-100 block">Colour</label>
             <input v-model="shapeColor" type="color" class="h-10 w-full rounded bg-surface-950/60 border border-surface-800 p-1" />
             <label class="inline-flex items-center justify-between w-full rounded-md border border-surface-800 bg-surface-950/60 px-3 py-2 text-sm text-surface-100">
@@ -225,15 +245,18 @@ import type { EditorClip, EditorFitMode } from '~/composables/useEditorState'
 interface Props {
   activeTab: string
   selectedClip?: EditorClip | null
+  cropMode?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   selectedClip: null,
+  cropMode: false,
 })
 
 const {
   activeTab,
   selectedClip,
+  cropMode,
 } = toRefs(props)
 
 const emit = defineEmits<{
@@ -246,7 +269,9 @@ const emit = defineEmits<{
   'apply:layer': [{ opacity: number; blendMode: string; commit?: boolean }]
   'apply:color': [{ brightness: number; contrast: number; saturation: number; gamma: number; commit?: boolean }]
   'apply:aspect': [{ ratio: string; fitMode: EditorFitMode; width: number; height: number; commit?: boolean }]
-  'apply:shape': [{ color: string; outline: boolean; commit?: boolean }]
+  'apply:shape': [{ color: string; outline: boolean; shapeType: 'square' | 'circle' | 'outline' | 'arrow'; commit?: boolean }]
+  'set-crop-mode': [enabled: boolean]
+  'reset-crop': []
 }>()
 
 const tabItems = [
@@ -273,6 +298,7 @@ const filterSearch = ref('')
 const selectedFilter = ref('None')
 const shapeColor = ref('#8f8cae')
 const shapeOutline = ref(false)
+const shapeType = ref<'square' | 'circle' | 'outline' | 'arrow'>('square')
 const opacityValue = ref(1)
 const blendMode = ref('normal')
 
@@ -286,27 +312,12 @@ const syncing = ref(false)
 
 const speedPresets = [0.1, 1, 2, 4, 16]
 const fitModes: EditorFitMode[] = ['fit', 'fill', 'stretch']
+const shapeTypes = ['square', 'circle', 'outline', 'arrow'] as const
 const blendModes = ['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'hardlight', 'softlight', 'difference', 'exclusion']
 const transitionOptions = [
   'None',
   'Cross fade',
-  'Cross blur',
-  'Burn',
-  'Horizontal band',
-  'Hard wipe down',
-  'Hard wipe up',
-  'Hard wipe left',
-  'Hard wipe right',
-  'Soft wipe down',
-  'Soft wipe up',
-  'Soft wipe left',
-  'Soft wipe right',
-  'Diagonal soft wipe',
-  'Blinds',
-  'Barn doors - vertical',
-  'Barn doors - horizontal',
-  'Circular wipe',
-  'Close',
+  'Hard wipe',
 ]
 
 const aspectRatios = [
@@ -367,6 +378,15 @@ watch(
     selectedFilter.value = clip.effects?.filter ?? selectedFilter.value
     shapeColor.value = clip.style?.color ?? shapeColor.value
     shapeOutline.value = clip.style?.outline ?? shapeOutline.value
+    const shapeByLabel = String(clip.label || '').trim().toLowerCase()
+    const fallbackShape = shapeByLabel === 'circle'
+      ? 'circle'
+      : shapeByLabel === 'outline'
+        ? 'outline'
+        : shapeByLabel === 'arrow'
+          ? 'arrow'
+          : 'square'
+    shapeType.value = (clip.style?.shapeType as 'square' | 'circle' | 'outline' | 'arrow') ?? fallbackShape
     opacityValue.value = clip.effects?.opacity ?? opacityValue.value
     blendMode.value = clip.effects?.blendMode ?? blendMode.value
     selectedAspectRatio.value = clip.aspectRatio ?? selectedAspectRatio.value
@@ -422,7 +442,7 @@ watch([selectedAspectRatio, fitMode], () => {
   emitAspect()
 })
 
-watch([shapeColor, shapeOutline], () => {
+watch([shapeColor, shapeOutline, shapeType], () => {
   if (syncing.value) return
   emitShape()
 })
@@ -499,6 +519,7 @@ function emitShape(commit = false) {
   emit('apply:shape', {
     color: shapeColor.value,
     outline: shapeOutline.value,
+    shapeType: shapeType.value,
     commit,
   })
 }

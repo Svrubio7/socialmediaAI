@@ -86,6 +86,8 @@
                 class="relative flex-1 h-14 rounded-lg border border-surface-800 bg-surface-950/80"
                 @mousemove="onLaneMouseMove($event, track)"
                 @mouseleave="onLaneMouseLeave"
+                @dragover.prevent
+                @drop="onLaneDrop($event, track)"
               >
                 <button
                   v-for="clip in track.clips"
@@ -96,7 +98,7 @@
                     clip.id === selectedClipId
                       ? 'border-primary-500 bg-primary-500/15 text-surface-100 shadow-[0_0_0_1px_rgba(105,117,101,.3)]'
                       : 'border-surface-700 bg-surface-800 text-surface-100 hover:border-primary-400',
-                    snapPulseIds.has(clip.id) ? 'snap-pulse' : '',
+                    snapPulseIds.has(clip.id) ? 'snap-highlight' : '',
                   ]"
                   :style="clipStyle(clip)"
                   @pointerdown.stop="startClipDrag($event, clip.id)"
@@ -257,6 +259,7 @@ const emit = defineEmits<{
   'remove-layer': [{ group: EditorLayerGroup; layer: number }]
   'open-panel': [tab: string]
   'apply-transition-between': [{ fromClipId: string; toClipId: string; name?: string; duration?: number }]
+  'drop-media': [{ group: EditorLayerGroup; layer: number; startTime: number; media: { id: string; type: 'video' | 'image' | 'audio'; name: string; duration?: number; storagePath?: string; sourceId?: string; sourceUrl?: string; thumbnail?: string } }]
 }>()
 
 const viewportRef = ref<HTMLDivElement | null>(null)
@@ -315,23 +318,7 @@ const timelineTicks = computed(() => {
 const transitionOptions = [
   'None',
   'Cross fade',
-  'Cross blur',
-  'Burn',
-  'Horizontal band',
-  'Hard wipe down',
-  'Hard wipe up',
-  'Hard wipe left',
-  'Hard wipe right',
-  'Soft wipe down',
-  'Soft wipe up',
-  'Soft wipe left',
-  'Soft wipe right',
-  'Diagonal soft wipe',
-  'Blinds',
-  'Barn doors - vertical',
-  'Barn doors - horizontal',
-  'Circular wipe',
-  'Close',
+  'Hard wipe',
 ]
 
 const BOUNDARY_ACTIVATION_RADIUS_PX = 24
@@ -669,6 +656,27 @@ function onLaneMouseLeave() {
   scheduleGapHoverHide()
 }
 
+function onLaneDrop(event: DragEvent, track: EditorTrack) {
+  if (track.isHeader || !event.dataTransfer) return
+  const raw = event.dataTransfer.getData('application/x-editor-media')
+  if (!raw) return
+  try {
+    const media = JSON.parse(raw)
+    const lane = event.currentTarget as HTMLElement
+    const rect = lane.getBoundingClientRect()
+    const scrollLeft = viewportRef.value?.scrollLeft ?? 0
+    const x = event.clientX - rect.left + scrollLeft
+    emit('drop-media', {
+      group: track.group ?? 'graphics',
+      layer: track.layer ?? 1,
+      startTime: Math.max(0, x / pxPerSecond.value),
+      media,
+    })
+  } catch {
+    // Ignore invalid payloads from unrelated drags.
+  }
+}
+
 function startTrim(event: PointerEvent, clipId: string, edge: TrimEdge) {
   closeMenus()
   plusHovering.value = false
@@ -686,6 +694,7 @@ function startTrim(event: PointerEvent, clipId: string, edge: TrimEdge) {
   temporaryClipBounds.value = {}
   window.addEventListener('pointermove', onTrimMove)
   window.addEventListener('pointerup', onTrimEnd)
+  window.addEventListener('pointercancel', onTrimEnd)
 }
 
 const clipDragState = ref<{
@@ -721,6 +730,7 @@ function startClipDrag(event: PointerEvent, clipId: string) {
   temporaryClipBounds.value = {}
   window.addEventListener('pointermove', onClipDragMove)
   window.addEventListener('pointerup', onClipDragEnd)
+  window.addEventListener('pointercancel', onClipDragEnd)
 }
 
 function setTrackRowRef(id: string, el: HTMLElement | null) {
@@ -888,6 +898,7 @@ function onClipDragEnd() {
   temporaryClipBounds.value = {}
   window.removeEventListener('pointermove', onClipDragMove)
   window.removeEventListener('pointerup', onClipDragEnd)
+  window.removeEventListener('pointercancel', onClipDragEnd)
 }
 
 function onTrimMove(event: PointerEvent) {
@@ -945,6 +956,7 @@ function onTrimEnd() {
   temporaryClipBounds.value = {}
   window.removeEventListener('pointermove', onTrimMove)
   window.removeEventListener('pointerup', onTrimEnd)
+  window.removeEventListener('pointercancel', onTrimEnd)
 }
 
 function startPlayheadDrag(event: PointerEvent) {
@@ -1058,8 +1070,10 @@ onBeforeUnmount(() => {
   color: #f5f5f5;
 }
 
-.snap-pulse {
-  animation: clip-pulse 220ms ease-out;
+.snap-highlight {
+  border-color: rgba(148, 255, 116, 0.95);
+  background: rgba(148, 255, 116, 0.12);
+  transition: background 140ms ease, border-color 140ms ease;
 }
 
 .transition-plus {
@@ -1081,8 +1095,8 @@ onBeforeUnmount(() => {
 }
 
 .transition-plus-btn:hover {
-  transform: scale(1.05);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
+  transform: none;
+  box-shadow: 0 7px 15px rgba(0, 0, 0, 0.4);
 }
 
 .transition-plus-tooltip {
@@ -1104,17 +1118,6 @@ onBeforeUnmount(() => {
 .transition-plus:hover .transition-plus-tooltip {
   opacity: 1;
   transform: translate(-50%, -10px);
-}
-
-@keyframes clip-pulse {
-  0% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(148, 255, 116, 0.4);
-  }
-  100% {
-    transform: scale(1.02);
-    box-shadow: 0 0 0 8px rgba(148, 255, 116, 0);
-  }
 }
 
 .timeline-container {

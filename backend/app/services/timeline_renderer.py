@@ -13,6 +13,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from PIL import Image, ImageColor, ImageDraw
 
 
 def _as_float(value: Any, default: float = 0.0) -> float:
@@ -172,27 +173,17 @@ def _normalize_transition(name: Optional[str]) -> Optional[str]:
         "cross fade": "fade",
         "crossfade": "fade",
         "fade": "fade",
-        "cross blur": "hblur",
-        "blur": "hblur",
-        "burn": "fadeblack",
-        "horizontal band": "hlslice",
-        "slide left": "slideleft",
-        "slide right": "slideright",
-        "slide up": "slideup",
-        "slide down": "slidedown",
+        "hard wipe": "wipeleft",
+        "hard wipe left": "wipeleft",
+        "hard wipe right": "wipeleft",
+        "hard wipe up": "wipeleft",
+        "hard wipe down": "wipeleft",
         "wipe left": "wipeleft",
-        "wipe right": "wiperight",
-        "wipe up": "wipeup",
-        "wipe down": "wipedown",
-        "circle open": "circleopen",
-        "circle close": "circleclose",
-        "dissolve": "dissolve",
-        "pixelize": "pixelize",
+        "wipe right": "wipeleft",
+        "wipe up": "wipeleft",
+        "wipe down": "wipeleft",
     }
-    if key in mapping:
-        return mapping[key]
-    # Allow direct ffmpeg xfade transition names.
-    return key
+    return mapping.get(key)
 
 
 class TimelineRenderer:
@@ -304,6 +295,25 @@ class TimelineRenderer:
 
         vf: List[str] = []
         af: List[str] = []
+
+        crop_cfg = clip.get("crop") or {}
+        if isinstance(crop_cfg, dict):
+            src_info = _ffprobe_info(input_path)
+            src_width = _as_int(src_info.get("width"), 0)
+            src_height = _as_int(src_info.get("height"), 0)
+            if src_width > 1 and src_height > 1:
+                crop_x = _clamp(_as_float(crop_cfg.get("x"), 0.0), 0.0, 1.0)
+                crop_y = _clamp(_as_float(crop_cfg.get("y"), 0.0), 0.0, 1.0)
+                crop_w = _clamp(_as_float(crop_cfg.get("width"), 1.0), 0.05, 1.0)
+                crop_h = _clamp(_as_float(crop_cfg.get("height"), 1.0), 0.05, 1.0)
+                px_w = max(2, int(round(src_width * crop_w)))
+                px_h = max(2, int(round(src_height * crop_h)))
+                px_x = int(round(src_width * crop_x))
+                px_y = int(round(src_height * crop_y))
+                px_x = max(0, min(px_x, src_width - px_w))
+                px_y = max(0, min(px_y, src_height - px_h))
+                if px_w < src_width or px_h < src_height or px_x > 0 or px_y > 0:
+                    vf.append(f"crop={px_w}:{px_h}:{px_x}:{px_y}")
 
         scale = self._scale_filter(clip.get("fitMode") or "fit", settings["width"], settings["height"])
         if scale:
@@ -672,6 +682,58 @@ class TimelineRenderer:
         ]
         self._run(cmd)
 
+    def _parse_rgba(self, color: str, alpha: float = 1.0) -> Tuple[int, int, int, int]:
+        try:
+            r, g, b = ImageColor.getrgb(color or "#8f8cae")
+        except Exception:
+            r, g, b = (143, 140, 174)
+        a = int(_clamp(alpha, 0.0, 1.0) * 255)
+        return (r, g, b, a)
+
+    def _render_shape_overlay(
+        self,
+        output_path: str,
+        shape_type: str,
+        width: int,
+        height: int,
+        color: str,
+        outline: bool,
+    ) -> None:
+        w = max(2, int(width))
+        h = max(2, int(height))
+        rgba = self._parse_rgba(color, 1.0)
+        image = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        stroke_width = max(2, min(w, h) // 20)
+        inset = max(1, stroke_width // 2)
+        bounds = [inset, inset, w - inset - 1, h - inset - 1]
+        kind = (shape_type or "").strip().lower()
+
+        if kind == "circle":
+            draw.ellipse(bounds, fill=rgba, outline=self._parse_rgba("#ffffff", 0.9) if outline else None, width=stroke_width if outline else 0)
+        elif kind == "outline":
+            draw.rectangle(bounds, outline=rgba, width=stroke_width)
+        elif kind == "arrow":
+            points = [
+                (0, int(h * 0.22)),
+                (int(w * 0.66), int(h * 0.22)),
+                (int(w * 0.66), 0),
+                (w - 1, int(h * 0.5)),
+                (int(w * 0.66), h - 1),
+                (int(w * 0.66), int(h * 0.78)),
+                (0, int(h * 0.78)),
+            ]
+            draw.polygon(points, fill=rgba)
+            if outline:
+                draw.line(points + [points[0]], fill=self._parse_rgba("#ffffff", 0.9), width=max(1, stroke_width // 2))
+        else:
+            if outline:
+                draw.rectangle(bounds, fill=rgba, outline=self._parse_rgba("#ffffff", 0.9), width=max(1, stroke_width // 2))
+            else:
+                draw.rectangle(bounds, fill=rgba)
+
+        image.save(output_path, format="PNG")
+
     def _overlay_shape(
         self,
         base_path: str,
@@ -890,17 +952,13 @@ class TimelineRenderer:
             if abs(next_start - prev_end) > 0.05:
                 continue
             prev_effects = prev_clip.get("effects") or {}
-            next_effects = next_clip.get("effects") or {}
-            trans_name = _normalize_transition(prev_effects.get("transition") or next_effects.get("transition"))
+            transition_with = str(prev_effects.get("transitionWith") or "").strip()
+            next_clip_id = str(next_clip.get("id") or "").strip()
+            raw_transition = prev_effects.get("transition")
+            if transition_with and next_clip_id and transition_with != next_clip_id:
+                raw_transition = None
+            trans_name = _normalize_transition(raw_transition)
             duration = _as_float(prev_effects.get("transitionDuration"), 0.0)
-            if duration <= 0:
-                duration = _as_float(next_effects.get("transitionDuration"), 0.0)
-            if duration <= 0:
-                fade_out = _as_float(prev_effects.get("fadeOut"), 0.0)
-                fade_in = _as_float(next_effects.get("fadeIn"), 0.0)
-                if fade_out > 0 and fade_in > 0:
-                    trans_name = trans_name or "fade"
-                    duration = min(fade_out, fade_in)
             if not trans_name or duration <= 0:
                 continue
             max_dur = min(
@@ -1130,9 +1188,28 @@ class TimelineRenderer:
                 self._overlay_text(current_path, text, start, end, x, y, font_size, color, opacity, out_path)
             elif clip.get("type") == "shape":
                 style = clip.get("style") or {}
-                color = _hex_to_ffmpeg_color(style.get("color") or "#8f8cae", opacity)
+                shape_type = str(style.get("shapeType") or clip.get("label") or "square").strip().lower()
+                color = str(style.get("color") or "#8f8cae")
                 outline = bool(style.get("outline"))
-                self._overlay_shape(current_path, start, end, x, y, w, h, color, outline, opacity, out_path)
+                shape_path = str(temp_dir / f"shape_{overlay_index}.png")
+                self._render_shape_overlay(shape_path, shape_type, w, h, color, outline)
+                self._overlay_image(
+                    current_path,
+                    shape_path,
+                    start,
+                    end,
+                    x_expr,
+                    y_expr,
+                    w,
+                    h,
+                    opacity_expr,
+                    "stretch",
+                    rotation,
+                    blend_mode,
+                    width,
+                    height,
+                    out_path,
+                )
             else:
                 continue
 

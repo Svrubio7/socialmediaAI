@@ -38,7 +38,8 @@
                 <div
                   v-for="clip in renderClips"
                   :key="clip.id"
-                  class="absolute group"
+                  class="absolute group overflow-hidden"
+                  :data-clip-id="clip.id"
                   :style="clipBoxStyle(clip)"
                   :class="clip.id === selectedClipId ? 'ring-2 ring-primary-400/70' : ''"
                   @pointerdown.stop="onClipPointerDown($event, clip)"
@@ -106,6 +107,18 @@
                     aria-label="Resize clip"
                     @pointerdown.stop="onClipPointerDown($event, clip, 'resize')"
                   />
+                  <div
+                    v-if="showCropOverlay(clip)"
+                    class="absolute inset-0 z-40"
+                    @pointerdown.stop="onCropPointerDown($event, clip, 'move')"
+                  >
+                    <div class="crop-window absolute" :style="cropWindowStyle(clip)">
+                      <span class="crop-handle crop-handle-tl" @pointerdown.stop="onCropPointerDown($event, clip, 'tl')" />
+                      <span class="crop-handle crop-handle-tr" @pointerdown.stop="onCropPointerDown($event, clip, 'tr')" />
+                      <span class="crop-handle crop-handle-bl" @pointerdown.stop="onCropPointerDown($event, clip, 'bl')" />
+                      <span class="crop-handle crop-handle-br" @pointerdown.stop="onCropPointerDown($event, clip, 'br')" />
+                    </div>
+                  </div>
                 </div>
               </template>
             </div>
@@ -238,6 +251,7 @@ interface Props {
   showControls?: boolean
   fallbackUrl?: string
   fallbackPoster?: string
+  cropMode?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -246,6 +260,7 @@ const props = withDefaults(defineProps<Props>(), {
   showControls: true,
   fallbackUrl: '',
   fallbackPoster: '',
+  cropMode: false,
 })
 
 const {
@@ -267,6 +282,7 @@ const emit = defineEmits<{
   split: []
   duplicate: []
   delete: []
+  'set-crop-mode': [enabled: boolean]
 }>()
 
 const frameRef = ref<HTMLDivElement | null>(null)
@@ -341,25 +357,9 @@ const videoClips = computed(() => visualClips.value.filter((clip) => clip.type =
 const ATTACH_THRESHOLD_SECONDS = 0.05
 const ALLOWED_TRANSITIONS = new Set([
   'Cross fade',
-  'Cross blur',
-  'Burn',
-  'Horizontal band',
-  'Hard wipe down',
-  'Hard wipe up',
-  'Hard wipe left',
-  'Hard wipe right',
-  'Soft wipe down',
-  'Soft wipe up',
-  'Soft wipe left',
-  'Soft wipe right',
-  'Diagonal soft wipe',
-  'Blinds',
-  'Barn doors - vertical',
-  'Barn doors - horizontal',
-  'Circular wipe',
-  'Close',
+  'Hard wipe',
 ])
-const OPACITY_TRANSITIONS = new Set(['Cross fade', 'Cross blur', 'Burn', 'Horizontal band'])
+const OPACITY_TRANSITIONS = new Set(['Cross fade'])
 
 interface TransitionPair {
   fromId: string
@@ -450,7 +450,7 @@ const transitionPairs = computed<TransitionPair[]>(() => {
       const next = sorted[i + 1]
       const name = clip.effects?.transition
       const duration = Number(clip.effects?.transitionDuration ?? 0)
-      if (!name || name === 'None' || name === 'Cut' || duration <= 0) continue
+      if (!name || duration <= 0) continue
       if (!ALLOWED_TRANSITIONS.has(name)) continue
       if (clip.effects?.transitionWith !== next.id) continue
       const gap = next.startTime - (clip.startTime + clip.duration)
@@ -929,6 +929,13 @@ watch(volumeValue, () => {
   syncActiveVideoTimes(true)
 })
 
+watch(
+  () => props.cropMode,
+  (enabled) => {
+    if (!enabled) onCropPointerUp()
+  }
+)
+
 function onVideoMetadata(clip: EditorClip) {
   const video = getVideoElement(clip.id)
   if (!video) return
@@ -1007,87 +1014,15 @@ function buildHardWipe(direction: 'left' | 'right' | 'up' | 'down', progress: nu
   return { clipPath: `inset(${100 - pct}% 0 0 0)` }
 }
 
-function buildSoftMask(angle: number, progress: number) {
-  const edge = clampPercent(progress * 100)
-  const softness = 12
-  const start = clampPercent(edge - softness)
-  const end = clampPercent(edge + softness)
-  const gradient = `linear-gradient(${angle}deg, black ${start}%, black ${edge}%, transparent ${end}%)`
-  return {
-    WebkitMaskImage: gradient,
-    maskImage: gradient,
-    WebkitMaskSize: '100% 100%',
-    maskSize: '100% 100%',
-    WebkitMaskRepeat: 'no-repeat',
-    maskRepeat: 'no-repeat',
-  } as CSSProperties
-}
-
-function buildBarnDoors(vertical: boolean, progress: number) {
-  const inset = clampPercent(50 - progress * 50)
-  if (vertical) return { clipPath: `inset(0 ${inset}% 0 ${inset}%)` }
-  return { clipPath: `inset(${inset}% 0 ${inset}% 0)` }
-}
-
 function transitionStyleForClip(clip: EditorClip): CSSProperties | null {
-  const outTransition = transitionOutMap.value.get(clip.id)
   const inTransition = transitionInMap.value.get(clip.id)
-  const outProgress = transitionProgress(outTransition)
   const inProgress = transitionProgress(inTransition)
-  const outName = outTransition?.name
   const inName = inTransition?.name
 
   if (inTransition && inProgress !== null && inName) {
     switch (inName) {
-      case 'Hard wipe right':
+      case 'Hard wipe':
         return buildHardWipe('right', inProgress)
-      case 'Hard wipe left':
-        return buildHardWipe('left', inProgress)
-      case 'Hard wipe down':
-        return buildHardWipe('down', inProgress)
-      case 'Hard wipe up':
-        return buildHardWipe('up', inProgress)
-      case 'Soft wipe right':
-        return buildSoftMask(90, inProgress)
-      case 'Soft wipe left':
-        return buildSoftMask(270, inProgress)
-      case 'Soft wipe down':
-        return buildSoftMask(180, inProgress)
-      case 'Soft wipe up':
-        return buildSoftMask(0, inProgress)
-      case 'Diagonal soft wipe':
-        return buildSoftMask(135, inProgress)
-      case 'Blinds': {
-        const stepped = Math.floor(inProgress * 8) / 8
-        return buildHardWipe('right', stepped)
-      }
-      case 'Barn doors - vertical':
-        return buildBarnDoors(true, inProgress)
-      case 'Barn doors - horizontal':
-        return buildBarnDoors(false, inProgress)
-      case 'Circular wipe':
-        return { clipPath: `circle(${inProgress * 120}% at 50% 50%)` }
-      case 'Cross blur':
-        return { filter: `blur(${(1 - inProgress) * 12}px)` }
-      case 'Burn':
-        return { filter: `brightness(${1 + (1 - inProgress) * 0.6})` }
-      case 'Horizontal band': {
-        const band = clampPercent(10 + inProgress * 90)
-        return { clipPath: `inset(${50 - band / 2}% 0 ${50 - band / 2}% 0)` }
-      }
-      default:
-        return null
-    }
-  }
-
-  if (outTransition && outProgress !== null && outName) {
-    switch (outName) {
-      case 'Close':
-        return { clipPath: `circle(${(1 - outProgress) * 120}% at 50% 50%)` }
-      case 'Cross blur':
-        return { filter: `blur(${outProgress * 12}px)` }
-      case 'Burn':
-        return { filter: `brightness(${1 + outProgress * 0.6})` }
       default:
         return null
     }
@@ -1173,13 +1108,7 @@ function clipZIndex(clip: EditorClip) {
 function clipStackOrder(clip: EditorClip) {
   let z = clipZIndex(clip)
   if (primaryVideoClip.value && secondaryVideoClip.value) {
-    const transitionName = activeTransition.value?.name
-    const incomingOnTop = transitionName !== 'Close'
-    if (incomingOnTop) {
-      if (clip.id === primaryVideoClip.value.id && secondaryVideoClip.value.id !== clip.id) {
-        z += 0.2
-      }
-    } else if (clip.id === secondaryVideoClip.value.id && primaryVideoClip.value.id !== clip.id) {
+    if (clip.id === primaryVideoClip.value.id && secondaryVideoClip.value.id !== clip.id) {
       z += 0.2
     }
   }
@@ -1255,15 +1184,53 @@ function clipBoxStyle(clip: EditorClip): CSSProperties {
 function mediaStyle(clip: EditorClip): CSSProperties {
   const fitMode = clip.fitMode ?? 'fit'
   const objectFit = fitMode === 'fill' ? 'cover' : fitMode === 'stretch' ? 'fill' : 'contain'
-  return {
+  const style: CSSProperties = {
     objectFit: objectFit as CSSProperties['objectFit'],
   }
+  if (clip.type !== 'video') return style
+  const crop = clip.crop ?? { x: 0, y: 0, width: 1, height: 1 }
+  const x = clampValue(Number(crop.x ?? 0), 0, 1)
+  const y = clampValue(Number(crop.y ?? 0), 0, 1)
+  const width = clampValue(Number(crop.width ?? 1), 0.05, 1)
+  const height = clampValue(Number(crop.height ?? 1), 0.05, 1)
+  const hasCrop = Math.abs(x) > 0.0001 || Math.abs(y) > 0.0001 || Math.abs(width - 1) > 0.0001 || Math.abs(height - 1) > 0.0001
+  if (!hasCrop) return style
+  style.objectFit = 'fill'
+  style.transformOrigin = 'top left'
+  style.transform = `translate(${-((x / width) * 100)}%, ${-((y / height) * 100)}%) scale(${1 / width}, ${1 / height})`
+  style.willChange = 'transform'
+  return style
 }
 
 function shapeStyle(clip: EditorClip): CSSProperties {
+  const fillColor = clip.style?.color ?? '#8f8cae80'
+  const useOutline = Boolean(clip.style?.outline)
+  const shapeType = (clip.style?.shapeType ?? 'square').toLowerCase()
+  if (shapeType === 'outline') {
+    return {
+      background: 'transparent',
+      border: `2px solid ${fillColor}`,
+      borderRadius: '0.35rem',
+    }
+  }
+  if (shapeType === 'circle') {
+    return {
+      background: fillColor,
+      border: useOutline ? '2px solid rgba(255,255,255,.7)' : 'none',
+      borderRadius: '9999px',
+    }
+  }
+  if (shapeType === 'arrow') {
+    return {
+      background: fillColor,
+      border: useOutline ? '1px solid rgba(255,255,255,.7)' : 'none',
+      clipPath: 'polygon(0 22%,66% 22%,66% 0,100% 50%,66% 100%,66% 78%,0 78%)',
+    }
+  }
   return {
-    background: clip.style?.color ?? '#8f8cae80',
-    border: clip.style?.outline ? '2px solid rgba(255,255,255,.7)' : 'none',
+    background: fillColor,
+    border: useOutline ? '2px solid rgba(255,255,255,.7)' : 'none',
+    borderRadius: '0.35rem',
   }
 }
 
@@ -1383,7 +1350,9 @@ const onGlobalPointerDown = (event: PointerEvent) => {
 }
 
 const onGlobalKeyDown = (event: KeyboardEvent) => {
-  if (event.key === 'Escape') closeContextMenu()
+  if (event.key !== 'Escape') return
+  closeContextMenu()
+  if (props.cropMode) emit('set-crop-mode', false)
 }
 
 function onVolumeInput(event: Event) {
@@ -1393,6 +1362,9 @@ function onVolumeInput(event: Event) {
 }
 
 type DragMode = 'move' | 'resize'
+type CropHandle = 'move' | 'tl' | 'tr' | 'bl' | 'br'
+
+const MIN_CROP_SIZE = 0.08
 const dragState = ref<{
   mode: DragMode
   clipId: string
@@ -1405,7 +1377,106 @@ const dragState = ref<{
   lockAspectRatio: boolean
 } | null>(null)
 
+const cropState = ref<{
+  clipId: string
+  handle: CropHandle
+  startX: number
+  startY: number
+  originCrop: { x: number; y: number; width: number; height: number }
+  rect: DOMRect
+} | null>(null)
+
+function getClipCrop(clip: EditorClip) {
+  const crop = clip.crop ?? { x: 0, y: 0, width: 1, height: 1 }
+  const x = clampValue(Number(crop.x ?? 0), 0, 1)
+  const y = clampValue(Number(crop.y ?? 0), 0, 1)
+  const width = clampValue(Number(crop.width ?? 1), MIN_CROP_SIZE, 1)
+  const height = clampValue(Number(crop.height ?? 1), MIN_CROP_SIZE, 1)
+  return {
+    x,
+    y,
+    width: Math.max(MIN_CROP_SIZE, Math.min(width, 1 - x)),
+    height: Math.max(MIN_CROP_SIZE, Math.min(height, 1 - y)),
+  }
+}
+
+function showCropOverlay(clip: EditorClip) {
+  return Boolean(props.cropMode && clip.type === 'video' && clip.id === selectedClipId.value)
+}
+
+function cropWindowStyle(clip: EditorClip): CSSProperties {
+  const crop = getClipCrop(clip)
+  return {
+    left: `${crop.x * 100}%`,
+    top: `${crop.y * 100}%`,
+    width: `${crop.width * 100}%`,
+    height: `${crop.height * 100}%`,
+    boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)',
+  }
+}
+
+function onCropPointerDown(event: PointerEvent, clip: EditorClip, handle: CropHandle) {
+  const target = (event.currentTarget as HTMLElement).closest(`[data-clip-id="${clip.id}"]`) as HTMLElement | null
+  if (!target) return
+  cropState.value = {
+    clipId: clip.id,
+    handle,
+    startX: event.clientX,
+    startY: event.clientY,
+    originCrop: getClipCrop(clip),
+    rect: target.getBoundingClientRect(),
+  }
+  window.addEventListener('pointermove', onCropPointerMove)
+  window.addEventListener('pointerup', onCropPointerUp)
+  window.addEventListener('pointercancel', onCropPointerUp)
+}
+
+function onCropPointerMove(event: PointerEvent) {
+  const state = cropState.value
+  if (!state) return
+  const clip = visualClips.value.find((entry) => entry.id === state.clipId)
+  if (!clip) return
+  const dx = (event.clientX - state.startX) / Math.max(1, state.rect.width)
+  const dy = (event.clientY - state.startY) / Math.max(1, state.rect.height)
+  const origin = state.originCrop
+  let next = { ...origin }
+
+  if (state.handle === 'move') {
+    next.x = clampValue(origin.x + dx, 0, 1 - origin.width)
+    next.y = clampValue(origin.y + dy, 0, 1 - origin.height)
+  } else {
+    if (state.handle === 'tl' || state.handle === 'bl') {
+      const maxLeft = origin.x + origin.width - MIN_CROP_SIZE
+      next.x = clampValue(origin.x + dx, 0, maxLeft)
+      next.width = clampValue(origin.width - (next.x - origin.x), MIN_CROP_SIZE, 1 - next.x)
+    }
+    if (state.handle === 'tr' || state.handle === 'br') {
+      next.width = clampValue(origin.width + dx, MIN_CROP_SIZE, 1 - origin.x)
+    }
+    if (state.handle === 'tl' || state.handle === 'tr') {
+      const maxTop = origin.y + origin.height - MIN_CROP_SIZE
+      next.y = clampValue(origin.y + dy, 0, maxTop)
+      next.height = clampValue(origin.height - (next.y - origin.y), MIN_CROP_SIZE, 1 - next.y)
+    }
+    if (state.handle === 'bl' || state.handle === 'br') {
+      next.height = clampValue(origin.height + dy, MIN_CROP_SIZE, 1 - origin.y)
+    }
+  }
+
+  emit('update:clip', state.clipId, {
+    crop: next,
+  })
+}
+
+function onCropPointerUp() {
+  cropState.value = null
+  window.removeEventListener('pointermove', onCropPointerMove)
+  window.removeEventListener('pointerup', onCropPointerUp)
+  window.removeEventListener('pointercancel', onCropPointerUp)
+}
+
 function onClipPointerDown(event: PointerEvent, clip: EditorClip, mode: DragMode = 'move') {
+  if (showCropOverlay(clip)) return
   closeContextMenu()
   emit('select-clip', clip.id)
   const position = clip.position ?? { x: 0, y: 0 }
@@ -1423,6 +1494,7 @@ function onClipPointerDown(event: PointerEvent, clip: EditorClip, mode: DragMode
   }
   window.addEventListener('pointermove', onClipPointerMove)
   window.addEventListener('pointerup', onClipPointerUp)
+  window.addEventListener('pointercancel', onClipPointerUp)
 }
 
 function onClipPointerMove(event: PointerEvent) {
@@ -1457,6 +1529,7 @@ function onClipPointerUp() {
   dragState.value = null
   window.removeEventListener('pointermove', onClipPointerMove)
   window.removeEventListener('pointerup', onClipPointerUp)
+  window.removeEventListener('pointercancel', onClipPointerUp)
 }
 
 function formatTime(seconds: number) {
@@ -1484,6 +1557,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
   window.removeEventListener('pointerdown', onGlobalPointerDown)
   window.removeEventListener('keydown', onGlobalKeyDown)
+  onCropPointerUp()
   onClipPointerUp()
 })
 
@@ -1589,5 +1663,43 @@ defineExpose({
 .overlay-tool:hover {
   color: #f5f5f5;
   background: #252622;
+}
+
+.crop-window {
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  cursor: move;
+}
+
+.crop-handle {
+  position: absolute;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(20, 20, 20, 0.8);
+  background: #f5f5f5;
+}
+
+.crop-handle-tl {
+  top: -0.35rem;
+  left: -0.35rem;
+  cursor: nwse-resize;
+}
+
+.crop-handle-tr {
+  top: -0.35rem;
+  right: -0.35rem;
+  cursor: nesw-resize;
+}
+
+.crop-handle-bl {
+  bottom: -0.35rem;
+  left: -0.35rem;
+  cursor: nesw-resize;
+}
+
+.crop-handle-br {
+  bottom: -0.35rem;
+  right: -0.35rem;
+  cursor: nwse-resize;
 }
 </style>

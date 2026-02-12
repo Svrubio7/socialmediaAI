@@ -4,6 +4,8 @@ export type EditorTrackType = 'video' | 'graphics' | 'audio' | 'layer'
 export type EditorClipType = 'video' | 'text' | 'image' | 'shape' | 'audio'
 export type EditorLayerGroup = 'video' | 'graphics' | 'audio'
 export type EditorFitMode = 'fit' | 'fill' | 'stretch'
+export type EditorTransitionName = 'Cross fade' | 'Hard wipe'
+export type EditorShapeType = 'square' | 'circle' | 'outline' | 'arrow'
 
 export interface EditorClip {
   id: string
@@ -18,12 +20,13 @@ export interface EditorClip {
   posterUrl?: string
   trimStart?: number
   trimEnd?: number
+  crop?: { x: number; y: number; width: number; height: number } // normalized source crop (0..1)
   aspectRatio?: string
   fitMode?: EditorFitMode
   effects?: {
     fadeIn?: number
     fadeOut?: number
-    transition?: string
+    transition?: EditorTransitionName
     transitionDuration?: number
     transitionWith?: string
     audioFadeIn?: number
@@ -52,6 +55,7 @@ export interface EditorClip {
     color?: string
     outline?: boolean
     opacity?: number
+    shapeType?: EditorShapeType
   }
   keyframes?: Array<{
     time: number
@@ -82,6 +86,7 @@ interface EditorSnapshot {
 
 const MIN_DURATION = 0.1
 let clipCounter = 0
+const SUPPORTED_TRANSITIONS: EditorTransitionName[] = ['Cross fade', 'Hard wipe']
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
@@ -89,6 +94,42 @@ function clamp(value: number, min: number, max: number) {
 
 function deepClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
+}
+
+function normalizeTransitionName(value?: string): EditorTransitionName | undefined {
+  if (!value) return undefined
+  if (SUPPORTED_TRANSITIONS.includes(value as EditorTransitionName)) {
+    return value as EditorTransitionName
+  }
+  const key = value.trim().toLowerCase()
+  if (!key || key === 'none' || key === 'cut') return undefined
+  if (key === 'crossfade' || key === 'fade') return 'Cross fade'
+  if (key.includes('wipe')) return 'Hard wipe'
+  return undefined
+}
+
+function normalizeCrop(input?: { x?: number; y?: number; width?: number; height?: number }) {
+  if (!input) return { x: 0, y: 0, width: 1, height: 1 }
+  const x = clamp(Number(input.x ?? 0), 0, 1)
+  const y = clamp(Number(input.y ?? 0), 0, 1)
+  const width = clamp(Number(input.width ?? 1), 0.05, 1)
+  const height = clamp(Number(input.height ?? 1), 0.05, 1)
+  const clampedWidth = Math.min(width, 1 - x)
+  const clampedHeight = Math.min(height, 1 - y)
+  return {
+    x,
+    y,
+    width: Math.max(0.05, clampedWidth),
+    height: Math.max(0.05, clampedHeight),
+  }
+}
+
+function normalizeShapeType(value?: string): EditorShapeType {
+  const next = (value ?? '').trim().toLowerCase()
+  if (next === 'circle') return 'circle'
+  if (next === 'outline') return 'outline'
+  if (next === 'arrow') return 'arrow'
+  return 'square'
 }
 
 function createInitialTracks(): EditorTrack[] {
@@ -179,6 +220,26 @@ export function useEditorState() {
     track.clips.sort((a, b) => a.startTime - b.startTime)
   }
 
+  function clampStartInLayer(layerGroup: EditorLayerGroup, layer: number, clipId: string | null, desiredStart: number, clipDuration: number) {
+    const peers = tracks.value
+      .flatMap((track) => track.clips)
+      .filter((clip) => {
+        const group = clip.layerGroup ?? inferLayerGroup(clip.type)
+        const sameLayer = (clip.layer ?? 1) === layer
+        if (clipId && clip.id === clipId) return false
+        return group === layerGroup && sameLayer
+      })
+      .slice()
+      .sort((a, b) => a.startTime - b.startTime)
+    const desired = Math.max(0, desiredStart)
+    const prev = peers.filter((clip) => clip.startTime + clip.duration <= desired).pop()
+    const next = peers.find((clip) => clip.startTime >= desired)
+    const minStart = prev ? prev.startTime + prev.duration : 0
+    const maxStart = next ? next.startTime - clipDuration : Number.POSITIVE_INFINITY
+    if (maxStart < minStart) return minStart
+    return clamp(desired, minStart, maxStart)
+  }
+
   function setProjectName(value: string) {
     projectName.value = value.trim() || 'Untitled project'
   }
@@ -189,7 +250,31 @@ export function useEditorState() {
 
   function loadState(state: Partial<EditorSnapshot>) {
     projectName.value = state.projectName ?? projectName.value
-    tracks.value = state.tracks ? deepClone(state.tracks) : createInitialTracks()
+    const loadedTracks = state.tracks ? deepClone(state.tracks) : createInitialTracks()
+    tracks.value = loadedTracks.map((track) => ({
+      ...track,
+      clips: (track.clips ?? []).map((clip) => {
+        const effects = clip.effects ?? {}
+        return {
+          ...clip,
+          crop: normalizeCrop(clip.crop),
+          effects: {
+            ...effects,
+            transition: normalizeTransitionName(effects.transition),
+            transitionDuration: normalizeTransitionName(effects.transition) ? effects.transitionDuration : undefined,
+            transitionWith: normalizeTransitionName(effects.transition) ? effects.transitionWith : undefined,
+          },
+          style: clip.style
+            ? {
+                ...clip.style,
+                ...(clip.type === 'shape'
+                  ? { shapeType: normalizeShapeType(clip.style.shapeType || clip.label) }
+                  : {}),
+              }
+            : (clip.type === 'shape' ? { shapeType: 'square' } : undefined),
+        }
+      }),
+    }))
     selectedClipId.value = state.selectedClipId ?? null
     playheadTime.value = state.playheadTime ?? 0
     timelineZoom.value = state.timelineZoom ?? 1
@@ -322,16 +407,37 @@ export function useEditorState() {
       posterUrl: clipInput.posterUrl,
       trimStart: clipInput.trimStart,
       trimEnd: clipInput.trimEnd,
+      crop: clipInput.type === 'video' || resolvedType === 'video' ? normalizeCrop(clipInput.crop) : undefined,
       aspectRatio: clipInput.aspectRatio,
       fitMode: clipInput.fitMode ?? 'fit',
-      effects: clipInput.effects ? { ...baseEffects, ...clipInput.effects } : { ...baseEffects },
+      effects: clipInput.effects
+        ? {
+            ...baseEffects,
+            ...clipInput.effects,
+            transition: normalizeTransitionName(clipInput.effects.transition),
+          }
+        : { ...baseEffects },
       position: clipInput.position ? { ...clipInput.position } : undefined,
       size: clipInput.size ? { ...clipInput.size } : undefined,
       rotation: clipInput.rotation ?? 0,
       lockAspectRatio: clipInput.lockAspectRatio ?? true,
       text: clipInput.text,
-      style: clipInput.style ? { ...clipInput.style } : undefined,
+      style: clipInput.style
+        ? {
+            ...clipInput.style,
+            ...(resolvedType === 'shape'
+              ? { shapeType: normalizeShapeType(clipInput.style.shapeType || clipInput.label) }
+              : {}),
+          }
+        : (resolvedType === 'shape' ? { shapeType: normalizeShapeType(clipInput.label) } : undefined),
     }
+
+    if (clip.effects && !clip.effects.transition) {
+      clip.effects.transitionDuration = undefined
+      clip.effects.transitionWith = undefined
+    }
+
+    clip.startTime = clampStartInLayer(resolvedGroup, clip.layer ?? 1, null, clip.startTime, clip.duration)
 
     track.clips.push(clip)
     sortTrackClips(track)
@@ -343,18 +449,41 @@ export function useEditorState() {
     if (options?.recordHistory !== false) commitHistory()
     const found = findClip(tracks.value, clipId)
     if (!found) return false
+    const nextType = (patch.type ?? found.clip.type) as EditorClipType
 
     const nextClip = {
       ...found.clip,
       ...patch,
-      effects: patch.effects ? { ...found.clip.effects, ...patch.effects } : found.clip.effects,
+      effects: patch.effects
+        ? {
+            ...found.clip.effects,
+            ...patch.effects,
+            transition: normalizeTransitionName(patch.effects.transition ?? found.clip.effects?.transition),
+          }
+        : found.clip.effects,
+      crop: patch.crop ? normalizeCrop(patch.crop) : found.clip.crop,
       position: patch.position ? { ...found.clip.position, ...patch.position } : found.clip.position,
       size: patch.size ? { ...found.clip.size, ...patch.size } : found.clip.size,
-      style: patch.style ? { ...found.clip.style, ...patch.style } : found.clip.style,
+      style: patch.style
+        ? {
+            ...found.clip.style,
+            ...patch.style,
+            ...(nextType === 'shape'
+              ? { shapeType: normalizeShapeType(patch.style.shapeType ?? found.clip.style?.shapeType ?? found.clip.label) }
+              : {}),
+          }
+        : found.clip.style,
     }
 
     nextClip.startTime = Math.max(0, nextClip.startTime)
     nextClip.duration = Math.max(MIN_DURATION, nextClip.duration)
+    const clipLayerGroup = nextClip.layerGroup ?? inferLayerGroup(nextClip.type)
+    const clipLayer = nextClip.layer ?? 1
+    nextClip.startTime = clampStartInLayer(clipLayerGroup, clipLayer, nextClip.id, nextClip.startTime, nextClip.duration)
+    if (nextClip.effects && !nextClip.effects.transition) {
+      nextClip.effects.transitionDuration = undefined
+      nextClip.effects.transitionWith = undefined
+    }
     found.track.clips.splice(found.index, 1, nextClip)
     sortTrackClips(found.track)
     return true
