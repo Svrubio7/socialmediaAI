@@ -28,6 +28,8 @@ services:
         sync: false
       - key: NUXT_PUBLIC_SUPABASE_ANON_KEY
         sync: false
+      - key: NUXT_PUBLIC_EDITOR_PARITY_FLAG
+        value: "true"
     healthCheckPath: /
 
   # Backend - FastAPI (separate container/service)

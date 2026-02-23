@@ -13,8 +13,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Request, status, Header
 from fastapi.responses import Response
+from fastapi.responses import RedirectResponse
 from fastapi.responses import StreamingResponse
-from starlette.background import BackgroundTask
 import httpx
 from pydantic import BaseModel
 from datetime import datetime
@@ -363,8 +363,10 @@ async def _stream_remote(url: str, range_header: Optional[str]) -> StreamingResp
     if range_header:
         headers["Range"] = range_header
 
-    client = httpx.AsyncClient(timeout=60.0)
-    resp = await client.get(url, headers=headers, follow_redirects=True)
+    timeout = httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=30.0)
+    client = httpx.AsyncClient(timeout=timeout)
+    request = client.build_request("GET", url, headers=headers)
+    resp = await client.send(request, stream=True, follow_redirects=True)
 
     if resp.status_code not in (200, 206):
         await resp.aclose()
@@ -372,20 +374,27 @@ async def _stream_remote(url: str, range_header: Optional[str]) -> StreamingResp
         raise HTTPException(status_code=resp.status_code, detail="Failed to fetch video stream")
 
     async def iterator():
-        async for chunk in resp.aiter_bytes():
-            yield chunk
-
-    async def close():
-        await resp.aclose()
-        await client.aclose()
+        try:
+            async for chunk in resp.aiter_raw():
+                if chunk:
+                    yield chunk
+        finally:
+            await resp.aclose()
+            await client.aclose()
 
     response = StreamingResponse(
         iterator(),
         status_code=resp.status_code,
         media_type=resp.headers.get("content-type") or "application/octet-stream",
-        background=BackgroundTask(close),
     )
-    for header in ("content-length", "content-range", "accept-ranges"):
+    for header in (
+        "content-length",
+        "content-range",
+        "accept-ranges",
+        "cache-control",
+        "etag",
+        "last-modified",
+    ):
         if header in resp.headers:
             response.headers[header] = resp.headers[header]
     return response
@@ -525,6 +534,11 @@ async def stream_video(
     url = storage.build_public_url(video.storage_path, request)
     if not url:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video file not available")
+
+    # For Supabase-backed storage, avoid proxying large media through the API process.
+    # Redirecting lets the browser stream directly from the signed URL and reduces stutter.
+    if (settings.STORAGE_BACKEND or "").lower() == "supabase" and _is_http_url(url):
+        return RedirectResponse(url=url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
     if request.method == "HEAD":
         return await _head_remote(url, range_header)

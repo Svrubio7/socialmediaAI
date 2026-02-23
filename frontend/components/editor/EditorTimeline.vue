@@ -23,6 +23,14 @@
         </button>
       </div>
       <div class="flex items-center gap-1.5 text-xs text-surface-200">
+        <button
+          type="button"
+          class="tool-btn px-2"
+          :class="snappingEnabled ? 'text-primary-200 border-primary-400/70' : ''"
+          @click="emit('toggle-snapping')"
+        >
+          Snap {{ snappingEnabled ? 'On' : 'Off' }}
+        </button>
         <button type="button" class="tool-btn" @click="changeZoom(-0.1)" aria-label="Zoom out">
           <UiIcon name="Minus" :size="14" />
         </button>
@@ -140,6 +148,9 @@
               <UiIcon name="Plus" :size="12" class="mx-auto" />
             </button>
             <span class="transition-plus-tooltip">Add transition</span>
+            <span class="absolute -bottom-4 left-1/2 -translate-x-1/2 rounded bg-black/80 px-1 text-[10px] text-surface-100">
+              {{ gapHover.gapFrames }}f
+            </span>
           </div>
         </div>
 
@@ -154,6 +165,48 @@
           />
           <div class="absolute -top-6 -left-5 rounded bg-primary-500 px-1.5 py-0.5 text-[10px] text-surface-950">
             {{ formatDuration(playhead) }}
+          </div>
+        </div>
+
+        <div
+          v-if="props.showDiagnosticsOverlay && timelineDebugPayload"
+          class="absolute right-2 top-10 z-40 w-[min(460px,95%)] rounded-lg border border-primary-500/60 bg-surface-950/95 p-2 text-[11px] leading-4 text-surface-100 shadow-lg"
+        >
+          <p class="text-primary-200 uppercase tracking-[0.16em] text-[10px]">Timeline Diagnostics</p>
+          <p>FPS {{ timelineDebugPayload.fps }} | Clips {{ timelineDebugPayload.clips.length }} | Adjacency {{ timelineDebugPayload.adjacency.length }}</p>
+          <p v-if="gapHover">Hovered boundary gap: {{ gapHover.gapFrames }}f</p>
+          <p v-if="timelineDebugPayload.drag">
+            Drag {{ timelineDebugPayload.drag.clipId }} {{ timelineDebugPayload.drag.desiredStartFrame }}f -> {{ timelineDebugPayload.drag.resolvedStartFrame }}f ({{ timelineDebugPayload.drag.reason }})
+          </p>
+          <p v-if="timelineDebugPayload.drag?.snapTargetFrame !== undefined">
+            Snap target: {{ timelineDebugPayload.drag.snapTargetFrame }}f
+          </p>
+          <div class="mt-1 max-h-28 overflow-auto rounded border border-surface-800/70 bg-surface-900/70 p-1">
+            <p
+              v-for="clip in timelineDebugPayload.clips.slice(0, 20)"
+              :key="clip.clipId"
+              class="truncate"
+            >
+              {{ clip.clipId }} [{{ clip.startFrame }},{{ clip.endFrame }}) {{ clip.startSeconds.toFixed(3) }}s-{{ clip.endSeconds.toFixed(3) }}s
+            </p>
+          </div>
+          <div class="mt-1 max-h-20 overflow-auto rounded border border-surface-800/70 bg-surface-900/70 p-1">
+            <p
+              v-for="edge in timelineDebugPayload.adjacency.slice(0, 12)"
+              :key="`${edge.fromClipId}-${edge.toClipId}`"
+              class="truncate"
+            >
+              {{ edge.fromClipId }} -> {{ edge.toClipId }} gap {{ edge.gapFrames }}f
+            </p>
+          </div>
+          <div class="mt-1 max-h-16 overflow-auto rounded border border-surface-800/70 bg-surface-900/70 p-1">
+            <p
+              v-for="transition in timelineDebugPayload.transitions.slice(0, 8)"
+              :key="`${transition.fromClipId}-${transition.toClipId}-${transition.name}`"
+              class="truncate"
+            >
+              {{ transition.name }} {{ transition.fromClipId }} -> {{ transition.toClipId }} [{{ transition.startFrame }},{{ transition.endFrame }})
+            </p>
           </div>
         </div>
       </div>
@@ -225,17 +278,36 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRefs } from 'vue'
 import type { EditorClip, EditorLayerGroup, EditorTrack } from '~/composables/useEditorState'
+import { resolveCollision, type CollisionRange } from '~/features/editor/services/collisionResolver'
+import {
+  clipRangeFrames,
+  durationFramesToSeconds,
+  durationSecondsToFrames,
+  gapOverlapFrames,
+  normalizeFps,
+  toFrame,
+  toSec,
+} from '~/features/editor/services/timelineFrameMath'
+import type { TimelineDiagnosticsPayload } from '~/features/editor/services/timelineDiagnostics'
 
 interface Props {
   tracks: EditorTrack[]
   playhead: number
   duration: number
   zoom: number
+  fps?: number
   selectedClipId?: string | null
+  snappingEnabled?: boolean
+  showDiagnosticsOverlay?: boolean
+  diagnosticsPayload?: TimelineDiagnosticsPayload | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  fps: 30,
   selectedClipId: null,
+  snappingEnabled: true,
+  showDiagnosticsOverlay: false,
+  diagnosticsPayload: null,
 })
 
 const {
@@ -260,6 +332,7 @@ const emit = defineEmits<{
   'open-panel': [tab: string]
   'apply-transition-between': [{ fromClipId: string; toClipId: string; name?: string; duration?: number }]
   'drop-media': [{ group: EditorLayerGroup; layer: number; startTime: number; media: { id: string; type: 'video' | 'image' | 'audio'; name: string; duration?: number; storagePath?: string; sourceId?: string; sourceUrl?: string; thumbnail?: string } }]
+  'toggle-snapping': []
 }>()
 
 const viewportRef = ref<HTMLDivElement | null>(null)
@@ -268,9 +341,18 @@ const temporaryClipBounds = ref<Record<string, { startTime: number; duration: nu
 const hoverLayerId = ref<string | null>(null)
 const hoverCreateGroup = ref<EditorLayerGroup | null>(null)
 const trackRowRefs = new Map<string, HTMLElement>()
-const gapHover = ref<null | { fromClipId: string; toClipId: string; left: number; top: number }>(null)
+const gapHover = ref<null | { fromClipId: string; toClipId: string; left: number; top: number; gapFrames: number }>(null)
 const plusHovering = ref(false)
 const snapPulseIds = ref(new Set<string>())
+const dragDiagnostics = ref<null | {
+  clipId: string
+  desiredStartFrame: number
+  resolvedStartFrame: number
+  layer: number
+  group: string
+  reason: string
+  snapTargetFrame?: number
+}>(null)
 const transitionMenu = ref({ open: false, x: 0, y: 0, fromClipId: '', toClipId: '' })
 const transitionMenuName = ref('Cross fade')
 const transitionMenuDuration = ref(0.6)
@@ -284,6 +366,7 @@ const contextMenu = ref<{ open: boolean; x: number; y: number; type: 'clip' | 'l
 const contextMenuRef = ref<HTMLDivElement | null>(null)
 
 const labelWidth = 80
+const resolvedFps = computed(() => normalizeFps(props.fps))
 
 const pxPerSecond = computed(() => 110 * props.zoom)
 const trackWidth = computed(() => Math.max(1000, props.duration * pxPerSecond.value + labelWidth + 40))
@@ -315,6 +398,15 @@ const timelineTicks = computed(() => {
   return ticks
 })
 
+const timelineDebugPayload = computed(() => {
+  if (!props.showDiagnosticsOverlay) return null
+  if (!props.diagnosticsPayload) return null
+  return {
+    ...props.diagnosticsPayload,
+    drag: dragDiagnostics.value ?? props.diagnosticsPayload.drag ?? null,
+  }
+})
+
 const transitionOptions = [
   'None',
   'Cross fade',
@@ -323,7 +415,6 @@ const transitionOptions = [
 
 const BOUNDARY_ACTIVATION_RADIUS_PX = 24
 const SNAP_THRESHOLD_PX = 16
-const GAP_TOLERANCE_SECONDS = 0.05
 let gapHoverHideTimer: ReturnType<typeof setTimeout> | null = null
 
 type TrimEdge = 'start' | 'end'
@@ -337,6 +428,24 @@ const trimState = ref<{
 
 function clipGeometry(clip: EditorClip) {
   return temporaryClipBounds.value[clip.id] ?? { startTime: clip.startTime, duration: clip.duration }
+}
+
+function clipRange(clip: EditorClip) {
+  const geometry = clipGeometry(clip)
+  return clipRangeFrames(geometry.startTime, geometry.duration, resolvedFps.value)
+}
+
+function laneCollisionRanges(track: EditorTrack, excludeClipId?: string): CollisionRange[] {
+  return track.clips
+    .filter((clip) => clip.id !== excludeClipId)
+    .map((clip) => {
+      const range = clipRange(clip)
+      return {
+        clipId: clip.id,
+        startFrame: range.startFrame,
+        endFrame: range.endFrame,
+      }
+    })
 }
 
 function clipStyle(clip: EditorClip) {
@@ -503,15 +612,22 @@ function triggerSnapPulse(...clipIds: string[]) {
   }, 240)
 }
 
-function setGapHoverAtBoundary(track: EditorTrack, fromClip: EditorClip, toClip: EditorClip, boundaryTime?: number) {
+function setGapHoverAtBoundary(
+  track: EditorTrack,
+  fromClip: EditorClip,
+  toClip: EditorClip,
+  boundaryTime?: number,
+  gapFramesOverride?: number
+) {
   const rowEl = trackRowRefs.get(track.id)
   const tracksTop = tracksRef.value?.offsetTop ?? 0
   const rowTop = rowEl?.offsetTop ?? 0
   const rowHeight = rowEl?.offsetHeight ?? 56
-  const fromGeometry = clipGeometry(fromClip)
-  const toGeometry = clipGeometry(toClip)
-  const fromEdge = fromGeometry.startTime + fromGeometry.duration
-  const toEdge = toGeometry.startTime
+  const fromRange = clipRange(fromClip)
+  const toRange = clipRange(toClip)
+  const fromEdge = toSec(fromRange.endFrame, resolvedFps.value)
+  const toEdge = toSec(toRange.startFrame, resolvedFps.value)
+  const gapInfo = gapOverlapFrames(fromRange, toRange, resolvedFps.value)
   const boundary = Number.isFinite(boundaryTime ?? Number.NaN)
     ? Number(boundaryTime)
     : (fromEdge + toEdge) / 2
@@ -520,6 +636,7 @@ function setGapHoverAtBoundary(track: EditorTrack, fromClip: EditorClip, toClip:
     toClipId: toClip.id,
     left: labelWidth + boundary * pxPerSecond.value,
     top: tracksTop + rowTop + rowHeight / 2,
+    gapFrames: gapFramesOverride ?? gapInfo.gapFrames,
   }
 }
 
@@ -530,26 +647,28 @@ function getAttachedBoundaries(track: EditorTrack) {
     boundarySec: number
     fromEdgeSec: number
     toEdgeSec: number
+    gapFrames: number
   }> = []
   if (track.isHeader || track.group !== 'video') return boundaries
   const sorted = track.clips
     .slice()
-    .sort((a, b) => clipGeometry(a).startTime - clipGeometry(b).startTime)
+    .sort((a, b) => clipRange(a).startFrame - clipRange(b).startFrame)
   for (let i = 0; i < sorted.length - 1; i += 1) {
     const fromClip = sorted[i]
     const toClip = sorted[i + 1]
-    const fromBounds = clipGeometry(fromClip)
-    const toBounds = clipGeometry(toClip)
-    const fromEdgeSec = fromBounds.startTime + fromBounds.duration
-    const toEdgeSec = toBounds.startTime
-    const gap = toEdgeSec - fromEdgeSec
-    if (Math.abs(gap) > GAP_TOLERANCE_SECONDS) continue
+    const fromRange = clipRange(fromClip)
+    const toRange = clipRange(toClip)
+    const gap = gapOverlapFrames(fromRange, toRange, resolvedFps.value)
+    if (!gap.isAdjacent) continue
+    const fromEdgeSec = toSec(fromRange.endFrame, resolvedFps.value)
+    const toEdgeSec = toSec(toRange.startFrame, resolvedFps.value)
     boundaries.push({
       fromClip,
       toClip,
       boundarySec: (fromEdgeSec + toEdgeSec) / 2,
       fromEdgeSec,
       toEdgeSec,
+      gapFrames: gap.gapFrames,
     })
   }
   return boundaries
@@ -563,6 +682,7 @@ function findNearestBoundary(track: EditorTrack, pointerTime: number) {
         fromClip: EditorClip
         toClip: EditorClip
         boundarySec: number
+        gapFrames: number
         distancePx: number
       }
     | null = null
@@ -582,6 +702,7 @@ function findNearestBoundary(track: EditorTrack, pointerTime: number) {
         fromClip: boundary.fromClip,
         toClip: boundary.toClip,
         boundarySec: boundary.boundarySec,
+        gapFrames: boundary.gapFrames,
         distancePx,
       }
     }
@@ -594,8 +715,9 @@ function onRulerClick(event: MouseEvent) {
   const rect = target.getBoundingClientRect()
   const scrollLeft = viewportRef.value?.scrollLeft ?? 0
   const x = event.clientX - rect.left - labelWidth + scrollLeft
-  const time = Math.max(0, Math.min(props.duration, x / pxPerSecond.value))
-  emit('update:playhead', time)
+  const raw = Math.max(0, Math.min(props.duration, x / pxPerSecond.value))
+  const frame = Math.max(0, toFrame(raw, resolvedFps.value))
+  emit('update:playhead', toSec(frame, resolvedFps.value))
 }
 
 function changeZoom(delta: number) {
@@ -645,7 +767,7 @@ function onLaneMouseMove(event: MouseEvent, track: EditorTrack) {
   const time = x / pxPerSecond.value
   const nearest = findNearestBoundary(track, time)
   if (nearest) {
-    setGapHoverAtBoundary(track, nearest.fromClip, nearest.toClip, nearest.boundarySec)
+    setGapHoverAtBoundary(track, nearest.fromClip, nearest.toClip, nearest.boundarySec, nearest.gapFrames)
     return
   }
   if (!plusHovering.value) gapHover.value = null
@@ -666,10 +788,11 @@ function onLaneDrop(event: DragEvent, track: EditorTrack) {
     const rect = lane.getBoundingClientRect()
     const scrollLeft = viewportRef.value?.scrollLeft ?? 0
     const x = event.clientX - rect.left + scrollLeft
+    const startFrame = Math.max(0, toFrame(x / pxPerSecond.value, resolvedFps.value))
     emit('drop-media', {
       group: track.group ?? 'graphics',
       layer: track.layer ?? 1,
-      startTime: Math.max(0, x / pxPerSecond.value),
+      startTime: toSec(startFrame, resolvedFps.value),
       media,
     })
   } catch {
@@ -727,6 +850,7 @@ function startClipDrag(event: PointerEvent, clipId: string) {
     duration: clip.duration,
     pointerId: event.pointerId,
   }
+  dragDiagnostics.value = null
   temporaryClipBounds.value = {}
   window.addEventListener('pointermove', onClipDragMove)
   window.addEventListener('pointerup', onClipDragEnd)
@@ -779,27 +903,66 @@ function findTrackForClip(clipId: string) {
 
 function resolveNonOverlappingStart(track: EditorTrack, clip: EditorClip, desiredStart: number) {
   const sorted = sortedTrackClips(track, clip.id)
-  const desired = Math.max(0, desiredStart)
-  const prev = sorted.filter((clip) => clip.startTime + clip.duration <= desired).pop()
-  const next = sorted.find((clip) => clip.startTime >= desired)
-  const minStart = prev ? prev.startTime + prev.duration : 0
-  const maxStart = next ? next.startTime - clip.duration : Number.POSITIVE_INFINITY
-  let start = clampValue(desired, minStart, Math.max(minStart, maxStart))
-  const snapThreshold = SNAP_THRESHOLD_PX / pxPerSecond.value
-  let snapped = false
-  if (prev && Math.abs(start - minStart) <= snapThreshold) {
-    start = minStart
-    triggerSnapPulse(clip.id, prev.id)
-    setGapHoverAtBoundary(track, prev, clip, start)
-    snapped = true
-  } else if (next && Math.abs(start - maxStart) <= snapThreshold) {
-    start = maxStart
-    triggerSnapPulse(clip.id, next.id)
-    setGapHoverAtBoundary(track, clip, next, start + clip.duration)
-    snapped = true
+    .slice()
+    .sort((left, right) => clipRange(left).startFrame - clipRange(right).startFrame)
+  const desiredStartFrame = Math.max(0, toFrame(desiredStart, resolvedFps.value))
+  const durationFrames = durationSecondsToFrames(clip.duration, resolvedFps.value)
+
+  const prev = sorted.filter((entry) => clipRange(entry).endFrame <= desiredStartFrame).pop()
+  const next = sorted.find((entry) => clipRange(entry).startFrame >= desiredStartFrame)
+
+  const resolved = resolveCollision({
+    operation: 'drag',
+    group: track.group ?? 'graphics',
+    layer: track.layer ?? 1,
+    clipId: clip.id,
+    desiredStartFrame,
+    durationFrames,
+    laneClips: laneCollisionRanges(track, clip.id),
+  })
+
+  let startFrame = resolved.startFrame
+  let snapTargetFrame: number | undefined
+
+  if (props.snappingEnabled) {
+    const snapThresholdFrames = Math.max(1, Math.round((SNAP_THRESHOLD_PX / pxPerSecond.value) * resolvedFps.value))
+    if (prev) {
+      const prevEnd = clipRange(prev).endFrame
+      if (Math.abs(startFrame - prevEnd) <= snapThresholdFrames) {
+        startFrame = prevEnd
+        snapTargetFrame = prevEnd
+        triggerSnapPulse(clip.id, prev.id)
+        setGapHoverAtBoundary(track, prev, clip, toSec(startFrame, resolvedFps.value), 0)
+      }
+    }
+    if (snapTargetFrame === undefined && next) {
+      const nextStart = clipRange(next).startFrame
+      if (Math.abs((startFrame + durationFrames) - nextStart) <= snapThresholdFrames) {
+        startFrame = nextStart - durationFrames
+        snapTargetFrame = nextStart
+        triggerSnapPulse(clip.id, next.id)
+        setGapHoverAtBoundary(track, clip, next, toSec(startFrame + durationFrames, resolvedFps.value), 0)
+      }
+    }
   }
-  if (!snapped) gapHover.value = null
-  return { start, prev, next }
+
+  if (snapTargetFrame === undefined) gapHover.value = null
+
+  dragDiagnostics.value = {
+    clipId: clip.id,
+    desiredStartFrame,
+    resolvedStartFrame: startFrame,
+    layer: track.layer ?? 1,
+    group: track.group ?? 'graphics',
+    reason: resolved.reason,
+    snapTargetFrame,
+  }
+
+  return {
+    start: toSec(startFrame, resolvedFps.value),
+    prev,
+    next,
+  }
 }
 
 function onClipDragMove(event: PointerEvent) {
@@ -848,7 +1011,7 @@ function onClipDragEnd() {
   const activeTrack = targetTrack && targetTrack.group === state.originGroup
     ? targetTrack
     : originTrack
-  let attachedBoundary: null | { track: EditorTrack; fromClip: EditorClip; toClip: EditorClip; boundarySec: number } = null
+  let attachedBoundary: null | { track: EditorTrack; fromClip: EditorClip; toClip: EditorClip; boundarySec: number; gapFrames: number } = null
   if (activeTrack && activeTrack.group === 'video') {
     const candidates = getAttachedBoundaries(activeTrack).filter((entry) =>
       entry.fromClip.id === state.clipId || entry.toClip.id === state.clipId
@@ -860,6 +1023,7 @@ function onClipDragEnd() {
         fromClip: first.fromClip,
         toClip: first.toClip,
         boundarySec: first.boundarySec,
+        gapFrames: first.gapFrames,
       }
     }
   }
@@ -881,6 +1045,7 @@ function onClipDragEnd() {
     }
   }
   clipDragState.value = null
+  dragDiagnostics.value = null
   hoverLayerId.value = null
   hoverCreateGroup.value = null
   plusHovering.value = false
@@ -890,7 +1055,8 @@ function onClipDragEnd() {
       attachedBoundary.track,
       attachedBoundary.fromClip,
       attachedBoundary.toClip,
-      attachedBoundary.boundarySec
+      attachedBoundary.boundarySec,
+      attachedBoundary.gapFrames
     )
   } else {
     gapHover.value = null
@@ -905,36 +1071,42 @@ function onTrimMove(event: PointerEvent) {
   if (!trimState.value) return
   const state = trimState.value
   const deltaSeconds = (event.clientX - state.startX) / pxPerSecond.value
-  const minDuration = 0.1
+  const deltaFrames = toFrame(deltaSeconds, resolvedFps.value)
+  const minDurationFrames = 1
   const clipEntry = findTrackForClip(state.clipId)
   if (!clipEntry) return
   const { track } = clipEntry
   const others = sortedTrackClips(track, state.clipId)
-  const originalEnd = state.originalStart + state.originalDuration
-  const prev = others.filter((clip) => clip.startTime + clip.duration <= state.originalStart + 0.0001).pop()
-  const next = others.find((clip) => clip.startTime >= originalEnd - 0.0001)
+    .slice()
+    .sort((left, right) => clipRange(left).startFrame - clipRange(right).startFrame)
+  const originalRange = clipRangeFrames(state.originalStart, state.originalDuration, resolvedFps.value)
+  const prev = others.filter((clip) => clipRange(clip).endFrame <= originalRange.startFrame).pop()
+  const next = others.find((clip) => clipRange(clip).startFrame >= originalRange.endFrame)
 
   if (state.edge === 'start') {
-    const maxStart = state.originalStart + state.originalDuration - minDuration
-    let nextStart = Math.max(0, Math.min(maxStart, state.originalStart + deltaSeconds))
+    const maxStartFrame = originalRange.endFrame - minDurationFrames
+    let nextStartFrame = Math.max(0, Math.min(maxStartFrame, originalRange.startFrame + deltaFrames))
     if (prev) {
-      const prevEnd = prev.startTime + prev.duration
-      nextStart = Math.max(nextStart, prevEnd)
+      const prevEndFrame = clipRange(prev).endFrame
+      nextStartFrame = Math.max(nextStartFrame, prevEndFrame)
     }
-    nextStart = Math.min(nextStart, originalEnd - minDuration)
-    const nextDuration = originalEnd - nextStart
-    temporaryClipBounds.value[state.clipId] = { startTime: nextStart, duration: nextDuration }
+    nextStartFrame = Math.min(nextStartFrame, originalRange.endFrame - minDurationFrames)
+    const nextDurationFrames = Math.max(minDurationFrames, originalRange.endFrame - nextStartFrame)
+    temporaryClipBounds.value[state.clipId] = {
+      startTime: toSec(nextStartFrame, resolvedFps.value),
+      duration: durationFramesToSeconds(nextDurationFrames, resolvedFps.value),
+    }
     return
   }
 
-  let nextDuration = Math.max(minDuration, state.originalDuration + deltaSeconds)
+  let nextDurationFrames = Math.max(minDurationFrames, originalRange.durationFrames + deltaFrames)
   if (next) {
-    const maxDuration = Math.max(minDuration, next.startTime - state.originalStart)
-    nextDuration = Math.min(nextDuration, maxDuration)
+    const maxDurationFrames = Math.max(minDurationFrames, clipRange(next).startFrame - originalRange.startFrame)
+    nextDurationFrames = Math.min(nextDurationFrames, maxDurationFrames)
   }
   temporaryClipBounds.value[state.clipId] = {
     startTime: state.originalStart,
-    duration: nextDuration,
+    duration: durationFramesToSeconds(nextDurationFrames, resolvedFps.value),
   }
 }
 
@@ -950,6 +1122,7 @@ function onTrimEnd() {
     })
   }
   trimState.value = null
+  dragDiagnostics.value = null
   plusHovering.value = false
   clearGapHoverHideTimer()
   gapHover.value = null
@@ -970,8 +1143,9 @@ function onPlayheadDragMove(event: PointerEvent) {
   if (!viewport) return
   const rect = viewport.getBoundingClientRect()
   const x = event.clientX - rect.left - labelWidth + viewport.scrollLeft
-  const time = Math.max(0, Math.min(props.duration, x / pxPerSecond.value))
-  emit('update:playhead', time)
+  const raw = Math.max(0, Math.min(props.duration, x / pxPerSecond.value))
+  const frame = Math.max(0, toFrame(raw, resolvedFps.value))
+  emit('update:playhead', toSec(frame, resolvedFps.value))
 }
 
 function stopPlayheadDrag() {

@@ -492,8 +492,17 @@ export const useApi = () => {
     },
     get: (id: string) => get<any>(`/projects/${id}`),
     create: (body: { name?: string; description?: string; source_video_id?: string }) => post<any>('/projects', body),
-    update: (id: string, body: { name?: string; description?: string; state?: Record<string, unknown>; source_video_id?: string }) =>
-      patch<any>(`/projects/${id}`, body),
+    update: (
+      id: string,
+      body: {
+        name?: string
+        description?: string
+        state?: Record<string, unknown>
+        source_video_id?: string
+        schema_version?: number
+        revision?: number
+      }
+    ) => patch<any>(`/projects/${id}`, body),
     delete: (id: string) => del(`/projects/${id}`),
     export: (id: string, body?: { output_title?: string; output_settings?: Record<string, unknown> }) =>
       post<any>(`/projects/${id}/export`, body).then(async (response) => {
@@ -502,6 +511,49 @@ export const useApi = () => {
         }
         return response
       }),
+    exports: {
+      create: (
+        id: string,
+        body?: {
+          output_title?: string
+          output_settings?: Record<string, unknown>
+          preset?: string
+          format?: string
+          include_audio?: boolean
+        }
+      ) => post<any>(`/projects/${id}/exports`, body),
+      get: (id: string, jobId: string) => get<any>(`/projects/${id}/exports/${jobId}`),
+      cancel: (id: string, jobId: string) => post<any>(`/projects/${id}/exports/${jobId}/cancel`),
+    },
+    assets: {
+      list: (id: string, kind?: 'video' | 'image' | 'audio') => {
+        const query = new URLSearchParams()
+        if (kind) query.set('kind', kind)
+        return get<any>(`/projects/${id}/assets?${query}`)
+      },
+      register: (
+        id: string,
+        body: {
+          kind: 'video' | 'image' | 'audio'
+          storage_path: string
+          filename?: string
+          original_filename?: string
+          metadata?: Record<string, unknown>
+          file_size?: number
+          duration?: number
+          width?: number
+          height?: number
+          fps?: number
+          codec?: string
+          bitrate?: number
+        }
+      ) => post<any>(`/projects/${id}/assets/register`, body),
+      derive: (
+        id: string,
+        assetId: string,
+        body: { operations: Array<'thumbnail' | 'proxy' | 'waveform'>; options?: Record<string, unknown> }
+      ) => post<any>(`/projects/${id}/assets/${assetId}/derive`, body),
+    },
   }
 
   // Pattern endpoints
@@ -637,6 +689,10 @@ export const useApi = () => {
       }),
   }
 
+  const editorJobs = {
+    get: (jobId: string) => get<any>(`/editor/jobs/${jobId}`),
+  }
+
   // Edit templates (content library)
   const editTemplates = {
     list: (params?: { limit?: number; offset?: number }) => {
@@ -700,6 +756,7 @@ export const useApi = () => {
     branding,
     editTemplates,
     editorOps,
+    editorJobs,
     analytics,
   }
 }

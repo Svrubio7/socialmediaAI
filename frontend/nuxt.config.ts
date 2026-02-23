@@ -38,6 +38,7 @@ export default defineNuxtConfig({
       supabaseUrl: process.env.NUXT_PUBLIC_SUPABASE_URL || '',
       supabaseKey: process.env.NUXT_PUBLIC_SUPABASE_ANON_KEY || '',
       supabaseStorageBucket: process.env.NUXT_PUBLIC_SUPABASE_STORAGE_BUCKET || 'videos',
+      editorParityFlag: process.env.NUXT_PUBLIC_EDITOR_PARITY_FLAG || 'false',
     },
   },
 

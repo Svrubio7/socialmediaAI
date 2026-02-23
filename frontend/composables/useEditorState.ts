@@ -79,12 +79,19 @@ export interface EditorTrack {
 interface EditorSnapshot {
   projectName: string
   tracks: EditorTrack[]
+  transitions?: Array<Record<string, any>>
   selectedClipId: string | null
   playheadTime: number
   timelineZoom: number
 }
 
+interface EditorHistoryCommand {
+  undo: () => void
+  redo: () => void
+}
+
 const MIN_DURATION = 0.1
+const HISTORY_LIMIT = 240
 let clipCounter = 0
 const SUPPORTED_TRANSITIONS: EditorTransitionName[] = ['Cross fade', 'Hard wipe']
 
@@ -156,11 +163,12 @@ function findClip(tracks: EditorTrack[], clipId: string) {
 export function useEditorState() {
   const projectName = ref('Untitled project')
   const tracks = ref<EditorTrack[]>(createInitialTracks())
+  const transitions = ref<Array<Record<string, any>>>([])
   const selectedClipId = ref<string | null>(null)
   const playheadTime = ref(0)
   const timelineZoom = ref(1)
-  const undoStack = ref<EditorSnapshot[]>([])
-  const redoStack = ref<EditorSnapshot[]>([])
+  const undoStack = ref<EditorHistoryCommand[]>([])
+  const redoStack = ref<EditorHistoryCommand[]>([])
 
   const clips = computed(() => tracks.value.flatMap((track) => track.clips))
 
@@ -182,24 +190,126 @@ export function useEditorState() {
     return {
       projectName: projectName.value,
       tracks: deepClone(tracks.value),
+      transitions: deepClone(transitions.value),
       selectedClipId: selectedClipId.value,
       playheadTime: playheadTime.value,
       timelineZoom: timelineZoom.value,
     }
   }
 
-  function restore(state: EditorSnapshot) {
+  function clearHistory() {
+    undoStack.value = []
+    redoStack.value = []
+  }
+
+  function pushUndoCommand(command: EditorHistoryCommand) {
+    undoStack.value.push(command)
+    if (undoStack.value.length > HISTORY_LIMIT) undoStack.value.shift()
+    redoStack.value = []
+  }
+
+  function executeCommand(command: EditorHistoryCommand) {
+    command.redo()
+    pushUndoCommand(command)
+  }
+
+  function findTrackById(trackId: string) {
+    return tracks.value.find((track) => track.id === trackId)
+  }
+
+  function replaceClipInTrack(trackId: string, clipId: string, clip: EditorClip) {
+    const track = findTrackById(trackId)
+    if (!track) return false
+    const index = track.clips.findIndex((entry) => entry.id === clipId)
+    if (index === -1) return false
+    track.clips.splice(index, 1, deepClone(clip))
+    sortTrackClips(track)
+    return true
+  }
+
+  function removeClipFromTrack(trackId: string, clipId: string) {
+    const track = findTrackById(trackId)
+    if (!track) return null
+    const index = track.clips.findIndex((entry) => entry.id === clipId)
+    if (index === -1) return null
+    const [removed] = track.clips.splice(index, 1)
+    return { track, index, clip: removed }
+  }
+
+  function upsertClipOnTrack(trackId: string, clip: EditorClip) {
+    const track = findTrackById(trackId)
+    if (!track) return false
+    const index = track.clips.findIndex((entry) => entry.id === clip.id)
+    if (index === -1) {
+      track.clips.push(deepClone(clip))
+    } else {
+      track.clips.splice(index, 1, deepClone(clip))
+    }
+    sortTrackClips(track)
+    return true
+  }
+
+  function buildUpdatedClip(current: EditorClip, patch: Partial<EditorClip>) {
+    const nextType = (patch.type ?? current.type) as EditorClipType
+    const nextClip: EditorClip = {
+      ...current,
+      ...patch,
+      effects: patch.effects
+        ? {
+            ...current.effects,
+            ...patch.effects,
+            transition: normalizeTransitionName(
+              patch.effects.transition ?? current.effects?.transition
+            ),
+          }
+        : current.effects,
+      crop: patch.crop ? normalizeCrop(patch.crop) : current.crop,
+      position: patch.position
+        ? { ...current.position, ...patch.position }
+        : current.position,
+      size: patch.size ? { ...current.size, ...patch.size } : current.size,
+      style: patch.style
+        ? {
+            ...current.style,
+            ...patch.style,
+            ...(nextType === 'shape'
+              ? {
+                  shapeType: normalizeShapeType(
+                    patch.style.shapeType ??
+                      current.style?.shapeType ??
+                      current.label
+                  ),
+                }
+              : {}),
+          }
+        : current.style,
+    }
+
+    nextClip.startTime = Math.max(0, nextClip.startTime)
+    nextClip.duration = Math.max(MIN_DURATION, nextClip.duration)
+    const clipLayerGroup = nextClip.layerGroup ?? inferLayerGroup(nextClip.type)
+    const clipLayer = nextClip.layer ?? 1
+    nextClip.startTime = clampStartInLayer(
+      clipLayerGroup,
+      clipLayer,
+      nextClip.id,
+      nextClip.startTime,
+      nextClip.duration
+    )
+    if (nextClip.effects && !nextClip.effects.transition) {
+      nextClip.effects.transitionDuration = undefined
+      nextClip.effects.transitionWith = undefined
+    }
+    return nextClip
+  }
+
+  function restoreSnapshot(state: EditorSnapshot) {
     projectName.value = state.projectName
     tracks.value = deepClone(state.tracks)
+    transitions.value = deepClone(state.transitions ?? [])
     selectedClipId.value = state.selectedClipId
     playheadTime.value = state.playheadTime
     timelineZoom.value = state.timelineZoom
-  }
-
-  function commitHistory() {
-    undoStack.value.push(snapshot())
-    if (undoStack.value.length > 80) undoStack.value.shift()
-    redoStack.value = []
   }
 
   function inferLayerGroup(type: EditorClipType): EditorLayerGroup {
@@ -275,11 +385,11 @@ export function useEditorState() {
         }
       }),
     }))
+    transitions.value = deepClone((state.transitions as Array<Record<string, any>> | undefined) ?? [])
     selectedClipId.value = state.selectedClipId ?? null
     playheadTime.value = state.playheadTime ?? 0
     timelineZoom.value = state.timelineZoom ?? 1
-    undoStack.value = []
-    redoStack.value = []
+    clearHistory()
   }
 
   function resetState() {
@@ -300,8 +410,6 @@ export function useEditorState() {
     duration: number
     aspectRatio?: string
   }) {
-    commitHistory()
-
     const videoClip: EditorClip = {
       id: nextClipId('video'),
       type: 'video',
@@ -355,15 +463,30 @@ export function useEditorState() {
       sourceId: payload.sourceId,
     }
 
-    tracks.value = createInitialTracks()
-    tracks.value.find((track) => track.type === 'video')!.clips = [videoClip]
-    tracks.value.find((track) => track.type === 'audio')!.clips = [audioClip]
-    selectedClipId.value = videoClip.id
-    playheadTime.value = 0
+    const nextTracks = createInitialTracks()
+    nextTracks.find((track) => track.type === 'video')!.clips = [videoClip]
+    nextTracks.find((track) => track.type === 'audio')!.clips = [audioClip]
+
+    const previousState = snapshot()
+    const nextState: EditorSnapshot = {
+      projectName: projectName.value,
+      tracks: nextTracks,
+      selectedClipId: videoClip.id,
+      playheadTime: 0,
+      timelineZoom: timelineZoom.value,
+    }
+
+    executeCommand({
+      undo() {
+        restoreSnapshot(previousState)
+      },
+      redo() {
+        restoreSnapshot(nextState)
+      },
+    })
   }
 
   function addClip(trackType: EditorTrackType, clipInput: Partial<EditorClip>) {
-    commitHistory()
     const track = tracks.value.find((item) => item.type === trackType)
     if (!track) return null
 
@@ -438,54 +561,42 @@ export function useEditorState() {
     }
 
     clip.startTime = clampStartInLayer(resolvedGroup, clip.layer ?? 1, null, clip.startTime, clip.duration)
+    const trackId = track.id
+    const previousSelectedClipId = selectedClipId.value
 
-    track.clips.push(clip)
-    sortTrackClips(track)
-    selectedClipId.value = clip.id
-    return clip
+    executeCommand({
+      undo() {
+        removeClipFromTrack(trackId, clip.id)
+        selectedClipId.value = previousSelectedClipId
+      },
+      redo() {
+        upsertClipOnTrack(trackId, clip)
+        selectedClipId.value = clip.id
+      },
+    })
+
+    return deepClone(clip)
   }
 
   function updateClip(clipId: string, patch: Partial<EditorClip>, options?: { recordHistory?: boolean }) {
-    if (options?.recordHistory !== false) commitHistory()
     const found = findClip(tracks.value, clipId)
     if (!found) return false
-    const nextType = (patch.type ?? found.clip.type) as EditorClipType
+    const trackId = found.track.id
+    const beforeClip = deepClone(found.clip)
+    const afterClip = buildUpdatedClip(found.clip, patch)
 
-    const nextClip = {
-      ...found.clip,
-      ...patch,
-      effects: patch.effects
-        ? {
-            ...found.clip.effects,
-            ...patch.effects,
-            transition: normalizeTransitionName(patch.effects.transition ?? found.clip.effects?.transition),
-          }
-        : found.clip.effects,
-      crop: patch.crop ? normalizeCrop(patch.crop) : found.clip.crop,
-      position: patch.position ? { ...found.clip.position, ...patch.position } : found.clip.position,
-      size: patch.size ? { ...found.clip.size, ...patch.size } : found.clip.size,
-      style: patch.style
-        ? {
-            ...found.clip.style,
-            ...patch.style,
-            ...(nextType === 'shape'
-              ? { shapeType: normalizeShapeType(patch.style.shapeType ?? found.clip.style?.shapeType ?? found.clip.label) }
-              : {}),
-          }
-        : found.clip.style,
+    if (options?.recordHistory === false) {
+      return replaceClipInTrack(trackId, clipId, afterClip)
     }
 
-    nextClip.startTime = Math.max(0, nextClip.startTime)
-    nextClip.duration = Math.max(MIN_DURATION, nextClip.duration)
-    const clipLayerGroup = nextClip.layerGroup ?? inferLayerGroup(nextClip.type)
-    const clipLayer = nextClip.layer ?? 1
-    nextClip.startTime = clampStartInLayer(clipLayerGroup, clipLayer, nextClip.id, nextClip.startTime, nextClip.duration)
-    if (nextClip.effects && !nextClip.effects.transition) {
-      nextClip.effects.transitionDuration = undefined
-      nextClip.effects.transitionWith = undefined
-    }
-    found.track.clips.splice(found.index, 1, nextClip)
-    sortTrackClips(found.track)
+    executeCommand({
+      undo() {
+        replaceClipInTrack(trackId, clipId, beforeClip)
+      },
+      redo() {
+        replaceClipInTrack(trackId, clipId, afterClip)
+      },
+    })
     return true
   }
 
@@ -498,43 +609,104 @@ export function useEditorState() {
     const found = findClip(tracks.value, selectedClipId.value)
     if (!found) return false
 
-    commitHistory()
-    found.track.clips.splice(found.index, 1)
-    selectedClipId.value = null
+    const trackId = found.track.id
+    const removedClip = deepClone(found.clip)
+    const previousSelectedClipId = selectedClipId.value
+
+    executeCommand({
+      undo() {
+        upsertClipOnTrack(trackId, removedClip)
+        selectedClipId.value = previousSelectedClipId
+      },
+      redo() {
+        removeClipFromTrack(trackId, removedClip.id)
+        selectedClipId.value = null
+      },
+    })
+
     return true
   }
 
   function removeClip(clipId: string) {
     const found = findClip(tracks.value, clipId)
     if (!found) return false
-    commitHistory()
-    found.track.clips.splice(found.index, 1)
-    if (selectedClipId.value === clipId) selectedClipId.value = null
+
+    const trackId = found.track.id
+    const removedClip = deepClone(found.clip)
+    const previousSelectedClipId = selectedClipId.value
+
+    executeCommand({
+      undo() {
+        upsertClipOnTrack(trackId, removedClip)
+        selectedClipId.value = previousSelectedClipId
+      },
+      redo() {
+        removeClipFromTrack(trackId, removedClip.id)
+        if (previousSelectedClipId === removedClip.id) {
+          selectedClipId.value = null
+        }
+      },
+    })
+
     return true
   }
 
   function removeLayerClips(group: EditorLayerGroup, layer: number) {
-    commitHistory()
-    let removed = 0
-    for (const track of tracks.value) {
-      track.clips = track.clips.filter((clip) => {
-        const clipGroup = clip.layerGroup ?? inferLayerGroup(clip.type)
-        const clipLayer = clip.layer ?? 1
-        const shouldRemove = clipGroup === group && clipLayer === layer
-        if (shouldRemove) removed += 1
-        return !shouldRemove
+    const removedByTrack = tracks.value
+      .map((track) => {
+        const removed = track.clips
+          .filter((clip) => {
+            const clipGroup = clip.layerGroup ?? inferLayerGroup(clip.type)
+            const clipLayer = clip.layer ?? 1
+            return clipGroup === group && clipLayer === layer
+          })
+          .map((clip) => deepClone(clip))
+        return {
+          trackId: track.id,
+          clips: removed,
+        }
       })
+      .filter((entry) => entry.clips.length > 0)
+
+    if (!removedByTrack.length) return 0
+
+    const removedIds = new Set(
+      removedByTrack.flatMap((entry) => entry.clips.map((clip) => clip.id))
+    )
+    const previousSelectedClipId = selectedClipId.value
+    let removed = 0
+    for (const entry of removedByTrack) {
+      removed += entry.clips.length
     }
-    if (removed && selectedClipId.value) {
-      const stillExists = tracks.value.some((track) => track.clips.some((clip) => clip.id === selectedClipId.value))
-      if (!stillExists) selectedClipId.value = null
-    }
+
+    executeCommand({
+      undo() {
+        for (const entry of removedByTrack) {
+          const track = findTrackById(entry.trackId)
+          if (!track) continue
+          for (const clip of entry.clips) {
+            const exists = track.clips.some((current) => current.id === clip.id)
+            if (!exists) track.clips.push(deepClone(clip))
+          }
+          sortTrackClips(track)
+        }
+        selectedClipId.value = previousSelectedClipId
+      },
+      redo() {
+        for (const track of tracks.value) {
+          track.clips = track.clips.filter((clip) => !removedIds.has(clip.id))
+        }
+        if (selectedClipId.value && removedIds.has(selectedClipId.value)) {
+          selectedClipId.value = null
+        }
+      },
+    })
+
     return removed
   }
 
   function duplicateSelectedClip() {
     if (!selectedClip.value) return null
-    commitHistory()
     const clip = deepClone(selectedClip.value)
     clip.id = nextClipId('dup')
     if (clip.effects) {
@@ -568,10 +740,19 @@ export function useEditorState() {
     })
     if (!track) return null
 
-    track.clips.push(clip)
-    sortTrackClips(track)
-    selectedClipId.value = clip.id
-    return clip
+    const trackId = track.id
+    const previousSelectedClipId = selectedClipId.value
+    executeCommand({
+      undo() {
+        removeClipFromTrack(trackId, clip.id)
+        selectedClipId.value = previousSelectedClipId
+      },
+      redo() {
+        upsertClipOnTrack(trackId, clip)
+        selectedClipId.value = clip.id
+      },
+    })
+    return deepClone(clip)
   }
 
   function splitSelectedClip(atTime?: number) {
@@ -586,14 +767,26 @@ export function useEditorState() {
     const found = findClip(tracks.value, clip.id)
     if (!found) return false
 
-    commitHistory()
-
     const leftDuration = splitAt - clipStart
     const rightDuration = clipEnd - splitAt
     const trimStart = clip.trimStart ?? 0
     const leftTrimEnd = trimStart + leftDuration
     const rightTrimStart = leftTrimEnd
     const rightTrimEnd = clip.trimEnd ?? (rightTrimStart + rightDuration)
+    const originalClip = deepClone(clip)
+    const leftClip: EditorClip = {
+      ...deepClone(clip),
+      duration: leftDuration,
+      trimStart,
+      trimEnd: Math.max(trimStart + MIN_DURATION, leftTrimEnd),
+      label: `${clip.label} (1)`,
+      effects: {
+        ...clip.effects,
+        transition: undefined,
+        transitionDuration: undefined,
+        transitionWith: undefined,
+      },
+    }
     const rightClip: EditorClip = {
       ...deepClone(clip),
       id: nextClipId('split'),
@@ -609,23 +802,46 @@ export function useEditorState() {
         transitionWith: undefined,
       },
     }
+    const trackId = found.track.id
+    const previousSelectedClipId = selectedClipId.value
 
-    found.track.clips.splice(found.index, 1, {
-      ...clip,
-      duration: leftDuration,
-      trimStart,
-      trimEnd: Math.max(trimStart + MIN_DURATION, leftTrimEnd),
-      label: `${clip.label} (1)`,
-      effects: {
-        ...clip.effects,
-        transition: undefined,
-        transitionDuration: undefined,
-        transitionWith: undefined,
+    executeCommand({
+      undo() {
+        const track = findTrackById(trackId)
+        if (!track) return
+        const rightIndex = track.clips.findIndex(
+          (entry) => entry.id === rightClip.id
+        )
+        if (rightIndex !== -1) track.clips.splice(rightIndex, 1)
+        const leftIndex = track.clips.findIndex(
+          (entry) => entry.id === originalClip.id
+        )
+        if (leftIndex === -1) {
+          track.clips.push(deepClone(originalClip))
+        } else {
+          track.clips.splice(leftIndex, 1, deepClone(originalClip))
+        }
+        sortTrackClips(track)
+        selectedClipId.value = previousSelectedClipId
       },
-    }, rightClip)
+      redo() {
+        const track = findTrackById(trackId)
+        if (!track) return
+        const originalIndex = track.clips.findIndex(
+          (entry) => entry.id === originalClip.id
+        )
+        if (originalIndex === -1) return
+        track.clips.splice(
+          originalIndex,
+          1,
+          deepClone(leftClip),
+          deepClone(rightClip)
+        )
+        sortTrackClips(track)
+        selectedClipId.value = rightClip.id
+      },
+    })
 
-    sortTrackClips(found.track)
-    selectedClipId.value = rightClip.id
     return true
   }
 
@@ -647,19 +863,19 @@ export function useEditorState() {
 
   function undo() {
     if (!undoStack.value.length) return false
-    const current = snapshot()
-    const prev = undoStack.value.pop()!
-    redoStack.value.push(current)
-    restore(prev)
+    const command = undoStack.value.pop()!
+    command.undo()
+    redoStack.value.push(command)
+    if (redoStack.value.length > HISTORY_LIMIT) redoStack.value.shift()
     return true
   }
 
   function redo() {
     if (!redoStack.value.length) return false
-    const current = snapshot()
-    const next = redoStack.value.pop()!
-    undoStack.value.push(current)
-    restore(next)
+    const command = redoStack.value.pop()!
+    command.redo()
+    undoStack.value.push(command)
+    if (undoStack.value.length > HISTORY_LIMIT) undoStack.value.shift()
     return true
   }
 
@@ -678,6 +894,7 @@ export function useEditorState() {
     exportState,
     loadState,
     resetState,
+    transitions,
     setSourceVideoClip,
     addClip,
     updateClip,

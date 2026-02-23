@@ -1,0 +1,71 @@
+{
+  "projectName": "Multitrack Transition",
+  "tracks": [
+    {
+      "id": "track-video",
+      "type": "video",
+      "label": "Video",
+      "clips": [
+        {
+          "id": "clip-a",
+          "type": "video",
+          "label": "Base A",
+          "startTime": 0,
+          "duration": 2.5,
+          "layer": 1,
+          "layerGroup": "video",
+          "effects": {
+            "transition": "Hard wipe",
+            "transitionDuration": 0.6,
+            "transitionWith": "clip-b"
+          }
+        },
+        {
+          "id": "clip-b",
+          "type": "video",
+          "label": "Base B",
+          "startTime": 2.5,
+          "duration": 3,
+          "layer": 1,
+          "layerGroup": "video"
+        },
+        {
+          "id": "clip-overlay",
+          "type": "video",
+          "label": "Overlay",
+          "startTime": 1,
+          "duration": 3,
+          "layer": 2,
+          "layerGroup": "video"
+        }
+      ]
+    },
+    {
+      "id": "track-graphics",
+      "type": "graphics",
+      "label": "Graphics",
+      "clips": [
+        {
+          "id": "graphic-1",
+          "type": "text",
+          "label": "Title",
+          "startTime": 2,
+          "duration": 2,
+          "layer": 1,
+          "layerGroup": "graphics",
+          "text": "Overlay title"
+        }
+      ]
+    },
+    { "id": "track-audio", "type": "audio", "label": "Audio", "clips": [] }
+  ],
+  "selectedClipId": "clip-a",
+  "playheadTime": 2.4,
+  "timelineZoom": 1,
+  "outputSettings": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "bitrate": "8M"
+  }
+}

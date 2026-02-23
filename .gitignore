@@ -89,3 +89,5 @@ nginx/ssl/
 # Database data (local Docker volumes)
 postgres_data/
 redis_data/
+
+.cursor/

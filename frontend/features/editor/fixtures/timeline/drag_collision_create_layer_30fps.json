@@ -1,0 +1,50 @@
+{
+  "projectName": "Drag Collision",
+  "tracks": [
+    {
+      "id": "track-video",
+      "type": "video",
+      "label": "Video",
+      "clips": [
+        {
+          "id": "clip-a",
+          "type": "video",
+          "label": "Clip A",
+          "startTime": 0,
+          "duration": 3,
+          "layer": 1,
+          "layerGroup": "video"
+        },
+        {
+          "id": "clip-b",
+          "type": "video",
+          "label": "Clip B",
+          "startTime": 3,
+          "duration": 3,
+          "layer": 1,
+          "layerGroup": "video"
+        },
+        {
+          "id": "clip-c",
+          "type": "video",
+          "label": "Clip C",
+          "startTime": 0,
+          "duration": 2,
+          "layer": 2,
+          "layerGroup": "video"
+        }
+      ]
+    },
+    { "id": "track-graphics", "type": "graphics", "label": "Graphics", "clips": [] },
+    { "id": "track-audio", "type": "audio", "label": "Audio", "clips": [] }
+  ],
+  "selectedClipId": "clip-c",
+  "playheadTime": 1,
+  "timelineZoom": 1,
+  "outputSettings": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "bitrate": "8M"
+  }
+}

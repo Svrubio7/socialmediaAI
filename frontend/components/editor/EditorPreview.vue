@@ -126,6 +126,40 @@
         </div>
 
         <div
+          v-if="props.showDiagnosticsOverlay && playbackDiagnostics"
+          class="absolute left-2 top-2 z-40 w-[min(460px,95%)] rounded-lg border border-primary-500/60 bg-surface-950/95 p-2 text-[11px] leading-4 text-surface-100 shadow-lg"
+        >
+          <p class="text-primary-200 uppercase tracking-[0.16em] text-[10px]">Playback Diagnostics</p>
+          <p>Frame {{ playbackDiagnostics.currentFrame }} @ {{ playbackDiagnostics.currentTime.toFixed(3) }}s</p>
+          <p>Active clips: {{ playbackDiagnostics.activeClipIds.join(', ') || 'none' }}</p>
+          <p v-if="playbackDiagnostics.activeTransition">
+            Transition {{ playbackDiagnostics.activeTransition.name }}:
+            {{ playbackDiagnostics.activeTransition.fromClipId }} -> {{ playbackDiagnostics.activeTransition.toClipId }}
+            [{{ playbackDiagnostics.activeTransition.startFrame }},{{ playbackDiagnostics.activeTransition.endFrame }})
+          </p>
+          <p v-else>Transition: none</p>
+          <p>Render order: {{ playbackDiagnostics.renderOrder.join(' > ') || 'none' }}</p>
+          <div class="mt-1 max-h-24 overflow-auto rounded border border-surface-800/70 bg-surface-900/70 p-1">
+            <p
+              v-for="sample in playbackDiagnostics.sampleWindows.slice(0, 16)"
+              :key="sample.clipId"
+              class="truncate"
+            >
+              {{ sample.clipId }} timeline {{ sample.timelineFrame }}f media {{ sample.mediaFrame }}f ({{ sample.mediaTime.toFixed(3) }}s)
+            </p>
+          </div>
+          <div class="mt-1 max-h-16 overflow-auto rounded border border-surface-800/70 bg-surface-900/70 p-1">
+            <p
+              v-for="entry in playbackElementDiagnostics"
+              :key="`el-${entry.clipId}`"
+              class="truncate"
+            >
+              el {{ entry.clipId }} paused={{ entry.paused }} ready={{ entry.readyState }} t={{ entry.currentTime.toFixed(3) }}s
+            </p>
+          </div>
+        </div>
+
+        <div
           v-if="isFullscreen"
           class="absolute inset-x-0 bottom-0 pointer-events-none transition-opacity duration-200"
           :class="showFullscreenControls ? 'opacity-100' : 'opacity-0'"
@@ -240,6 +274,16 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRefs, watch, type CSSProperties, type ComponentPublicInstance } from 'vue'
 import type { EditorClip } from '~/composables/useEditorState'
+import { buildPlaybackDiagnostics } from '~/features/editor/services/timelineDiagnostics'
+import {
+  clipRangeFrames,
+  durationFramesToSeconds,
+  durationSecondsToFrames,
+  gapOverlapFrames,
+  normalizeFps,
+  toFrame,
+  toSec,
+} from '~/features/editor/services/timelineFrameMath'
 
 interface Props {
   clips: EditorClip[]
@@ -247,8 +291,11 @@ interface Props {
   currentTime: number
   duration: number
   playing: boolean
+  fps?: number
   volume?: number
   showControls?: boolean
+  showDiagnosticsOverlay?: boolean
+  diagnosticsLogToConsole?: boolean
   fallbackUrl?: string
   fallbackPoster?: string
   cropMode?: boolean
@@ -256,8 +303,11 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   selectedClipId: null,
+  fps: 30,
   volume: 1,
   showControls: true,
+  showDiagnosticsOverlay: false,
+  diagnosticsLogToConsole: false,
   fallbackUrl: '',
   fallbackPoster: '',
   cropMode: false,
@@ -266,10 +316,11 @@ const props = withDefaults(defineProps<Props>(), {
 const {
   clips,
   selectedClipId,
-  currentTime,
+  currentTime: externalCurrentTime,
   duration,
   playing,
 } = toRefs(props)
+const currentTime = ref(Number.isFinite(Number(externalCurrentTime.value)) ? Number(externalCurrentTime.value) : 0)
 
 const emit = defineEmits<{
   'update:currentTime': [value: number]
@@ -296,11 +347,16 @@ const isFullscreen = ref(false)
 const showFullscreenControls = ref(false)
 let fullscreenHideTimer: ReturnType<typeof setTimeout> | null = null
 const volumeValue = computed(() => props.volume ?? 1)
+const resolvedFps = computed(() => normalizeFps(props.fps))
 const fallbackPoster = computed(() => props.fallbackPoster || '')
 const MAX_PREVIEW_RECOVERY_ATTEMPTS = 2
 const DEFAULT_STAGE_RATIO = 16 / 9
 const TIMELINE_WRITE_THRESHOLD = 0.01
 const PLAYING_DRIFT_SEEK_THRESHOLD = 0.35
+const CLOCK_VIDEO_SEEK_THRESHOLD = 1.5
+const ACTIVE_VIDEO_SYNC_INTERVAL_MS = 80
+const TIMELINE_EMIT_INTERVAL_MS = 80
+const EXTERNAL_TIMELINE_REANCHOR_THRESHOLD = 0.2
 const frameSize = ref({ width: 0, height: 0 })
 let frameResizeObserver: ResizeObserver | null = null
 let windowResizeCleanup: (() => void) | null = null
@@ -354,7 +410,6 @@ const visualClips = computed(() =>
 
 const videoClips = computed(() => visualClips.value.filter((clip) => clip.type === 'video'))
 
-const ATTACH_THRESHOLD_SECONDS = 0.05
 const ALLOWED_TRANSITIONS = new Set([
   'Cross fade',
   'Hard wipe',
@@ -376,12 +431,19 @@ interface TransitionPair {
 }
 
 function isClipActive(clip: EditorClip, time: number) {
-  return time >= clip.startTime && time <= clip.startTime + clip.duration
+  const frame = toFrame(time, resolvedFps.value)
+  const range = clipRangeFrames(clip.startTime, clip.duration, resolvedFps.value)
+  return frame >= range.startFrame && frame < range.endFrame
 }
 
 function resolveTransitionWindow(clip: EditorClip, next: EditorClip, requestedDuration: number) {
-  const desired = Math.min(Math.max(0, requestedDuration), clip.duration, next.duration, 2)
-  if (desired <= 0.01) return null
+  const clipFrames = clipRangeFrames(clip.startTime, clip.duration, resolvedFps.value).durationFrames
+  const nextFrames = clipRangeFrames(next.startTime, next.duration, resolvedFps.value).durationFrames
+  const requestedFrames = durationSecondsToFrames(requestedDuration, resolvedFps.value)
+  const maxFrames = Math.min(clipFrames, nextFrames, durationSecondsToFrames(2, resolvedFps.value))
+  const desiredFrames = Math.max(1, Math.min(requestedFrames, maxFrames))
+  const desired = durationFramesToSeconds(desiredFrames, resolvedFps.value)
+  if (desired <= 0.0001) return null
 
   const cutTime = next.startTime
   const outSpeed = Math.max(0.01, clip.effects?.speed ?? 1)
@@ -453,8 +515,10 @@ const transitionPairs = computed<TransitionPair[]>(() => {
       if (!name || duration <= 0) continue
       if (!ALLOWED_TRANSITIONS.has(name)) continue
       if (clip.effects?.transitionWith !== next.id) continue
-      const gap = next.startTime - (clip.startTime + clip.duration)
-      if (Math.abs(gap) > ATTACH_THRESHOLD_SECONDS) continue
+      const fromRange = clipRangeFrames(clip.startTime, clip.duration, resolvedFps.value)
+      const toRange = clipRangeFrames(next.startTime, next.duration, resolvedFps.value)
+      const adjacency = gapOverlapFrames(fromRange, toRange, resolvedFps.value)
+      if (!adjacency.isAdjacent) continue
       const window = resolveTransitionWindow(clip, next, duration)
       if (!window) continue
       pairs.push({
@@ -490,7 +554,7 @@ const transitionInMap = computed(() => {
 const activeTransition = computed<TransitionPair | null>(() => {
   if (!transitionPairs.value.length) return null
   const now = currentTime.value
-  const matches = transitionPairs.value.filter((pair) => now >= pair.t0 && now <= pair.t1)
+  const matches = transitionPairs.value.filter((pair) => now >= pair.t0 && now < pair.t1)
   if (!matches.length) return null
   const sorted = matches.slice().sort((a, b) => clipZIndex(a.toClip) - clipZIndex(b.toClip))
   return sorted[sorted.length - 1] ?? null
@@ -713,8 +777,8 @@ function getClipMediaTime(clip: EditorClip, timelineTime: number) {
 function getClipMediaTimeWithTransitionHandles(clip: EditorClip, timelineTime: number) {
   const transitionOut = transitionOutMap.value.get(clip.id)
   const transitionIn = transitionInMap.value.get(clip.id)
-  const outActive = transitionOut && timelineTime >= transitionOut.t0 && timelineTime <= transitionOut.t1 ? transitionOut : null
-  const inActive = transitionIn && timelineTime >= transitionIn.t0 && timelineTime <= transitionIn.t1 ? transitionIn : null
+  const outActive = transitionOut && timelineTime >= transitionOut.t0 && timelineTime < transitionOut.t1 ? transitionOut : null
+  const inActive = transitionIn && timelineTime >= transitionIn.t0 && timelineTime < transitionIn.t1 ? transitionIn : null
 
   if (!outActive && !inActive) return getClipMediaTime(clip, timelineTime)
 
@@ -745,7 +809,7 @@ function mapMediaTimeToTimeline(clip: EditorClip, mediaTime: number) {
   const { trimStart } = getTrimRange(clip)
   const speed = Math.max(0.01, clip.effects?.speed ?? 1)
   const timelineTime = clip.startTime + ((mediaTime - trimStart) / speed)
-  return Math.min(Math.max(0, timelineTime), clip.startTime + clip.duration)
+  return clampValue(timelineTime, 0, duration.value)
 }
 
 const activeVideoMap = computed(() => {
@@ -756,18 +820,78 @@ const activeVideoMap = computed(() => {
 
 const activeVideoIds = computed(() => activeVideoClips.value.map((clip) => clip.id).join('|'))
 
+const playbackDiagnostics = computed(() => {
+  if (!props.showDiagnosticsOverlay) return null
+  const samples = renderClips.value.map((clip) => {
+    const mediaTime = clip.type === 'video'
+      ? getClipMediaTimeWithTransitionHandles(clip, currentTime.value)
+      : currentTime.value
+    return {
+      clipId: clip.id,
+      mediaTime,
+    }
+  })
+  return buildPlaybackDiagnostics({
+    fps: resolvedFps.value,
+    currentTime: currentTime.value,
+    activeClips: activeVideoClips.value,
+    renderClips: renderClips.value,
+    activeTransition: activeTransition.value
+      ? {
+          fromId: activeTransition.value.fromId,
+          toId: activeTransition.value.toId,
+          name: activeTransition.value.name,
+          t0: activeTransition.value.t0,
+          t1: activeTransition.value.t1,
+          mode: activeTransition.value.mode,
+        }
+      : null,
+    sampleWindows: samples,
+  })
+})
+
+const playbackElementDiagnostics = computed(() =>
+  activeVideoClips.value.map((clip) => {
+    const video = videoRefs.value.get(clip.id) ?? null
+    return {
+      clipId: clip.id,
+      paused: video?.paused ?? true,
+      readyState: video?.readyState ?? 0,
+      currentTime: Number.isFinite(Number(video?.currentTime)) ? Number(video?.currentTime ?? 0) : 0,
+    }
+  })
+)
+
+watch(
+  () => playbackDiagnostics.value?.currentFrame,
+  () => {
+    if (!props.diagnosticsLogToConsole) return
+    if (!playbackDiagnostics.value) return
+    // eslint-disable-next-line no-console
+    console.debug('[preview-diag]', playbackDiagnostics.value)
+  }
+)
+
 function getVideoElement(clipId: string) {
   return videoRefs.value.get(clipId) ?? null
 }
 
-function syncVideoElement(clip: EditorClip, force = false) {
+function syncVideoElement(clip: EditorClip, force = false, timelineTime = currentTime.value) {
   const video = getVideoElement(clip.id)
   if (!video) return
-  const targetTime = getClipMediaTimeWithTransitionHandles(clip, currentTime.value)
+  const targetTime = getClipMediaTimeWithTransitionHandles(clip, timelineTime)
   const drift = Number.isFinite(targetTime) ? Math.abs(video.currentTime - targetTime) : 0
   const isClockClip = Boolean(playing.value && clockVideoClip.value?.id === clip.id)
-  const seekThreshold = force ? 0.01 : (isClockClip ? PLAYING_DRIFT_SEEK_THRESHOLD : 0.05)
-  const shouldSeek = force || !playing.value || drift > PLAYING_DRIFT_SEEK_THRESHOLD
+  const isPlayingClip = Boolean(playing.value && playbackVideoClipIds.value.includes(clip.id))
+  const isPausedPlaybackClip = Boolean(isPlayingClip && video.paused)
+  const pausedSeekThreshold = Math.max(1 / resolvedFps.value, 0.01)
+  const playingSeekThreshold = isClockClip ? CLOCK_VIDEO_SEEK_THRESHOLD : PLAYING_DRIFT_SEEK_THRESHOLD
+  const seekThreshold = force
+    ? 0.01
+    : (isPausedPlaybackClip
+      ? pausedSeekThreshold
+      : (isClockClip ? CLOCK_VIDEO_SEEK_THRESHOLD : 0.05))
+  const shouldSeek = force || !playing.value || isPausedPlaybackClip || drift > playingSeekThreshold
   if (Number.isFinite(targetTime) && shouldSeek && drift > seekThreshold) {
     try {
       video.currentTime = targetTime
@@ -781,8 +905,9 @@ function syncVideoElement(clip: EditorClip, force = false) {
   const baseVolume = volumeValue.value
   const clipVolume = clip.effects?.volume ?? 1
   const nextVolume = isAudibleClip ? Math.max(0, Math.min(1, baseVolume * clipVolume)) : 0
-  video.volume = nextVolume
-  video.muted = nextVolume <= 0
+  if (Math.abs(video.volume - nextVolume) > 0.001) video.volume = nextVolume
+  const shouldMute = nextVolume <= 0
+  if (video.muted !== shouldMute) video.muted = shouldMute
 }
 
 async function syncActiveVideoPlayback() {
@@ -817,72 +942,149 @@ async function syncActiveVideoPlayback() {
   if (playbackFailed) emit('update:playing', false)
 }
 
-function syncActiveVideoTimes(force = false) {
-  activeVideoClips.value.forEach((clip) => syncVideoElement(clip, force))
+function syncActiveVideoTimes(force = false, timelineTime = currentTime.value) {
+  activeVideoClips.value.forEach((clip) => syncVideoElement(clip, force, timelineTime))
 }
 
-type PlaybackClockMode = 'idle' | 'video-clock' | 'gap-clock'
 let playbackClockFrame: number | null = null
-let lastGapTime = 0
+let playbackAnchorWallTime = 0
+let playbackAnchorTimelineTime = 0
+let lastPlaybackHealthCheck = 0
+let playbackHealthPending = false
+let lastActiveVideoSyncAt = 0
+let lastTimelineEmitAt = 0
+
+function commitCurrentTime(nextTime: number, options?: { force?: boolean; now?: number }) {
+  const maxTime = Math.max(0, Number.isFinite(duration.value) ? duration.value : 0)
+  const clampedTime = clampValue(nextTime, 0, maxTime)
+  currentTime.value = clampedTime
+  const now = Number.isFinite(Number(options?.now)) ? Number(options?.now) : performance.now()
+  const shouldEmit =
+    Boolean(options?.force) ||
+    !lastTimelineEmitAt ||
+    (now - lastTimelineEmitAt) >= TIMELINE_EMIT_INTERVAL_MS
+  if (!shouldEmit) return clampedTime
+  if (Boolean(options?.force) || Math.abs(clampedTime - externalCurrentTime.value) > TIMELINE_WRITE_THRESHOLD) {
+    emit('update:currentTime', clampedTime)
+  }
+  lastTimelineEmitAt = now
+  return clampedTime
+}
 
 function stopPlaybackClock() {
   if (playbackClockFrame) {
     cancelAnimationFrame(playbackClockFrame)
     playbackClockFrame = null
   }
-  lastGapTime = 0
+  playbackAnchorWallTime = 0
+  playbackAnchorTimelineTime = 0
+  lastPlaybackHealthCheck = 0
+  playbackHealthPending = false
+  lastActiveVideoSyncAt = 0
+  lastTimelineEmitAt = 0
 }
 
-function resolvePlaybackClockMode(): PlaybackClockMode {
-  if (!playing.value) return 'idle'
-  if (clockVideoClip.value) return 'video-clock'
-  return 'gap-clock'
+function primePlaybackClock(now?: number) {
+  const reference = Number.isFinite(Number(now)) ? Number(now) : performance.now()
+  playbackAnchorWallTime = reference
+  playbackAnchorTimelineTime = currentTime.value
 }
 
 function finishPlaybackAtTimelineEnd() {
-  emit('update:currentTime', duration.value)
+  commitCurrentTime(duration.value, { force: true })
   emit('update:playing', false)
   stopPlaybackClock()
 }
 
+async function runPlaybackHealthCheck(now: number) {
+  if (!playing.value) return
+  if (playbackHealthPending) return
+  if (now - lastPlaybackHealthCheck < 220) return
+  lastPlaybackHealthCheck = now
+  playbackHealthPending = true
+  let playbackFailed = false
+
+  try {
+    const playbackSet = new Set(playbackVideoClipIds.value)
+    for (const clipId of playbackSet) {
+      const clip = activeVideoMap.value.get(clipId)
+      const video = getVideoElement(clipId)
+      if (!clip || !video) continue
+
+      // Keep minor drift bounded while timeline runs on wall-clock.
+      syncVideoElement(clip)
+
+      if (!video.paused) continue
+      try {
+        await video.play()
+      } catch {
+        if (!video.muted) {
+          video.muted = true
+          try {
+            await video.play()
+          } catch {
+            playbackFailed = true
+          }
+        } else {
+          playbackFailed = true
+        }
+      }
+    }
+  } finally {
+    playbackHealthPending = false
+  }
+
+  if (playbackFailed) emit('update:playing', false)
+}
+
+function resolveClockDrivenTimelineTime() {
+  if (!playing.value) return null
+  const clockClip = clockVideoClip.value
+  if (!clockClip) return null
+  const video = getVideoElement(clockClip.id)
+  if (!video || video.paused) return null
+  const mediaTime = Number(video.currentTime)
+  if (!Number.isFinite(mediaTime)) return null
+  return mapMediaTimeToTimeline(clockClip, mediaTime)
+}
+
 function runPlaybackClock(now: number) {
-  const mode = resolvePlaybackClockMode()
-  if (mode === 'idle') {
+  if (!playing.value) {
     stopPlaybackClock()
     return
   }
 
-  if (mode === 'video-clock') {
-    lastGapTime = 0
-    const clockClip = clockVideoClip.value
-    const video = clockClip ? getVideoElement(clockClip.id) : null
-    if (clockClip && video && Number.isFinite(video.currentTime)) {
-      const nextTime = clampValue(
-        mapMediaTimeToTimeline(clockClip, Number(video.currentTime)),
-        0,
-        duration.value
-      )
-      if (nextTime >= duration.value - 0.001) {
-        finishPlaybackAtTimelineEnd()
-        return
-      }
-      if (Math.abs(nextTime - currentTime.value) > TIMELINE_WRITE_THRESHOLD) {
-        emit('update:currentTime', nextTime)
-      }
-    }
-  } else {
-    if (!lastGapTime) lastGapTime = now
-    const delta = Math.max(0, (now - lastGapTime) / 1000)
-    lastGapTime = now
-    const next = clampValue(currentTime.value + delta, 0, duration.value)
-    if (next >= duration.value - 0.001) {
-      finishPlaybackAtTimelineEnd()
-      return
-    }
-    if (Math.abs(next - currentTime.value) > TIMELINE_WRITE_THRESHOLD) {
-      emit('update:currentTime', next)
-    }
+  if (!playbackAnchorWallTime) {
+    primePlaybackClock(now)
   }
+
+  const clockDrivenTime = resolveClockDrivenTimelineTime()
+  let nextTime = 0
+  if (clockDrivenTime !== null) {
+    nextTime = clockDrivenTime
+  } else {
+    const elapsed = Math.max(0, (now - playbackAnchorWallTime) / 1000)
+    const rawNextTime = playbackAnchorTimelineTime + elapsed
+    const durationFrame = Math.max(0, toFrame(duration.value, resolvedFps.value))
+    const nextFrame = Math.min(durationFrame, Math.max(0, toFrame(rawNextTime, resolvedFps.value)))
+    nextTime = clampValue(toSec(nextFrame, resolvedFps.value), 0, duration.value)
+  }
+
+  if (nextTime >= duration.value - 0.001) {
+    finishPlaybackAtTimelineEnd()
+    return
+  }
+  commitCurrentTime(nextTime, { now })
+  const shouldSyncThisFrame =
+    Boolean(activeTransition.value) ||
+    !lastActiveVideoSyncAt ||
+    (now - lastActiveVideoSyncAt) >= ACTIVE_VIDEO_SYNC_INTERVAL_MS
+  if (shouldSyncThisFrame) {
+    syncActiveVideoTimes(false, nextTime)
+    lastActiveVideoSyncAt = now
+  }
+
+  void runPlaybackHealthCheck(now)
 
   playbackClockFrame = requestAnimationFrame(runPlaybackClock)
 }
@@ -893,6 +1095,7 @@ function ensurePlaybackClock() {
     return
   }
   if (playbackClockFrame) return
+  if (!playbackAnchorWallTime) primePlaybackClock()
   playbackClockFrame = requestAnimationFrame(runPlaybackClock)
 }
 
@@ -906,11 +1109,40 @@ watch(
   { immediate: true }
 )
 
-watch(currentTime, () => {
-  if (!playing.value) syncActiveVideoTimes()
+watch(externalCurrentTime, (nextExternalTime) => {
+  const next = clampValue(
+    Number.isFinite(Number(nextExternalTime)) ? Number(nextExternalTime) : 0,
+    0,
+    Math.max(0, duration.value || 0)
+  )
+  if (!playing.value) {
+    currentTime.value = next
+    syncActiveVideoTimes()
+    return
+  }
+  if (!playbackAnchorWallTime) {
+    currentTime.value = next
+    return
+  }
+  const expected = playbackAnchorTimelineTime + ((performance.now() - playbackAnchorWallTime) / 1000)
+  // Re-anchor only on meaningful external seeks (scrub/jump), not on throttled playhead echoes.
+  if (
+    Math.abs(next - currentTime.value) > EXTERNAL_TIMELINE_REANCHOR_THRESHOLD ||
+    Math.abs(next - expected) > EXTERNAL_TIMELINE_REANCHOR_THRESHOLD
+  ) {
+    currentTime.value = next
+    primePlaybackClock()
+    syncActiveVideoTimes(true)
+    void syncActiveVideoPlayback()
+  }
 })
 
 watch(playing, () => {
+  if (playing.value) {
+    primePlaybackClock()
+  } else {
+    commitCurrentTime(currentTime.value, { force: true })
+  }
   syncActiveVideoTimes(true)
   void syncActiveVideoPlayback()
   ensurePlaybackClock()
@@ -997,7 +1229,7 @@ function transitionProgress(pair?: TransitionPair | null) {
   if (!pair || pair.duration <= 0) return null
   const length = pair.t1 - pair.t0
   if (length <= 0.0001) return null
-  if (currentTime.value < pair.t0 || currentTime.value > pair.t1) return null
+  if (currentTime.value < pair.t0 || currentTime.value >= pair.t1) return null
   const u = clampValue((currentTime.value - pair.t0) / length, 0, 1)
   return easeInOut(u)
 }
@@ -1241,15 +1473,15 @@ function togglePlay() {
 
 function seekBy(seconds: number) {
   const nextTime = Math.min(Math.max(0, currentTime.value + seconds), duration.value || 0)
-  emit('update:currentTime', nextTime)
+  commitCurrentTime(nextTime, { force: true })
 }
 
 function seekToStart() {
-  emit('update:currentTime', 0)
+  commitCurrentTime(0, { force: true })
 }
 
 function seekToEnd() {
-  emit('update:currentTime', duration.value || 0)
+  commitCurrentTime(duration.value || 0, { force: true })
 }
 
 async function toggleFullscreen() {

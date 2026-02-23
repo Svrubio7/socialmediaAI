@@ -71,7 +71,10 @@
             :duration="timelineDuration"
             :playing="isPlaying"
             :volume="previewVolume"
+            :fps="timelineFps"
             :show-controls="false"
+            :show-diagnostics-overlay="diagnosticsEnabled && editorDiagnostics.showPlaybackOverlay"
+            :diagnostics-log-to-console="editorDiagnostics.logToConsole"
             :fallback-url="previewUrl"
             :fallback-poster="previewPoster"
             :crop-mode="cropMode"
@@ -139,13 +142,18 @@
             :playhead="playheadTime"
             :duration="timelineDuration"
             :zoom="timelineZoom"
+            :fps="timelineFps"
             :selected-clip-id="selectedClipId"
+            :snapping-enabled="timelineUiStore.snappingEnabled"
+            :show-diagnostics-overlay="diagnosticsEnabled && editorDiagnostics.showTimelineOverlay"
+            :diagnostics-payload="timelineDiagnosticsPayload"
             @update:playhead="setPlayhead"
             @update:zoom="setTimelineZoom"
             @select-clip="selectClip"
             @split="splitSelectedClipAtPlayhead"
             @delete="removeSelectedClipAction"
             @duplicate="duplicateSelectedClipAction"
+            @toggle-snapping="toggleSnapping"
             @trim-clip="handleTimelineTrim"
             @move-clip="handleTimelineMove"
             @add-layer="handleAddLayer"
@@ -191,6 +199,53 @@
     />
 
     <UiToast />
+
+    <div
+      v-if="diagnosticsEnabled"
+      class="fixed bottom-3 right-3 z-[80] w-[min(92vw,420px)] rounded-lg border border-primary-500/60 bg-surface-950/95 p-3 text-xs text-surface-100 shadow-xl"
+    >
+      <p class="text-[11px] uppercase tracking-[0.16em] text-primary-200 mb-2">Parity Diagnostics</p>
+      <div class="grid grid-cols-2 gap-2">
+        <label class="inline-flex items-center gap-2">
+          <input
+            :checked="editorDiagnostics.showTimelineOverlay"
+            type="checkbox"
+            class="accent-primary-500"
+            @change="editorDiagnostics.setOverlayVisibility({ timeline: eventChecked($event) })"
+          >
+          Timeline overlay
+        </label>
+        <label class="inline-flex items-center gap-2">
+          <input
+            :checked="editorDiagnostics.showPlaybackOverlay"
+            type="checkbox"
+            class="accent-primary-500"
+            @change="editorDiagnostics.setOverlayVisibility({ playback: eventChecked($event) })"
+          >
+          Playback overlay
+        </label>
+        <label class="inline-flex items-center gap-2">
+          <input
+            :checked="editorDiagnostics.logToConsole"
+            type="checkbox"
+            class="accent-primary-500"
+            @change="editorDiagnostics.setLogToConsole(eventChecked($event))"
+          >
+          Console traces
+        </label>
+      </div>
+      <div class="mt-2 flex flex-wrap items-center gap-2">
+        <button type="button" class="editor-btn text-[11px] px-2 h-7" @click="copyCurrentTimelineAsFixture">
+          Copy fixture JSON
+        </button>
+      </div>
+      <p class="mt-2 text-[11px] text-surface-300">
+        FPS {{ timelineFps }} · Fixture {{ editorDiagnostics.activeFixtureId || 'none' }}
+      </p>
+      <p v-if="availableFixtureIds.length" class="mt-1 text-[11px] text-surface-400">
+        Available fixtures: {{ availableFixtureIds.join(', ') }}
+      </p>
+    </div>
   </div>
 </template>
 
@@ -198,6 +253,35 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { EditorClip, EditorLayerGroup, EditorTrack, EditorTransitionName } from '~/composables/useEditorState'
 import { useEditorState } from '~/composables/useEditorState'
+import {
+  createEditorActionDispatcher,
+} from '~/features/editor/services/editorActions'
+import {
+  resolveCollision,
+  type CollisionLane,
+  type CollisionRange,
+} from '~/features/editor/services/collisionResolver'
+import {
+  CURRENT_PROJECT_SCHEMA_VERSION,
+  buildPersistedProjectState,
+  extractLegacyEditorState,
+  ensureProjectStateV2,
+} from '~/features/editor/services/projectState'
+import {
+  clipRangeFrames,
+  durationFramesToSeconds,
+  durationSecondsToFrames,
+  gapOverlapFrames,
+  normalizeFps,
+  toFrame,
+  toSec,
+} from '~/features/editor/services/timelineFrameMath'
+import { buildTimelineDiagnostics } from '~/features/editor/services/timelineDiagnostics'
+import type { EditorActionId } from '~/features/editor/stores/editorKeybindings'
+import { useEditorDiagnosticsStore } from '~/features/editor/stores/editorDiagnostics'
+import { useEditorKeybindingsStore } from '~/features/editor/stores/editorKeybindings'
+import { useEditorRuntimeStore } from '~/features/editor/stores/editorRuntime'
+import { useEditorTimelineUiStore } from '~/features/editor/stores/editorTimelineUi'
 
 definePageMeta({
   layout: false,
@@ -221,10 +305,33 @@ interface EditorOpResponse {
   output_video_id?: string
 }
 
+interface ExportJobResponse {
+  job_id: string
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'canceled'
+  progress?: number
+  result?: {
+    output_url?: string
+    output_path?: string
+    output_video_id?: string
+  }
+  error_message?: string
+}
+
 interface VideoMediaUrlItem {
   id: string
   video_url?: string
   thumbnail_url?: string
+}
+
+const TIMELINE_FIXTURE_IMPORTS: Record<string, () => Promise<any>> = {
+  adjacent_transition_crossfade_30fps: () => import('~/features/editor/fixtures/timeline/adjacent_transition_crossfade_30fps.json'),
+  one_frame_gap_transition_attempt_30fps: () => import('~/features/editor/fixtures/timeline/one_frame_gap_transition_attempt_30fps.json'),
+  five_frame_overlap_same_layer_30fps: () => import('~/features/editor/fixtures/timeline/five_frame_overlap_same_layer_30fps.json'),
+  short_clip_transition_clamp_30fps: () => import('~/features/editor/fixtures/timeline/short_clip_transition_clamp_30fps.json'),
+  trim_with_transition_30fps: () => import('~/features/editor/fixtures/timeline/trim_with_transition_30fps.json'),
+  drag_collision_create_layer_30fps: () => import('~/features/editor/fixtures/timeline/drag_collision_create_layer_30fps.json'),
+  multitrack_transition_context_30fps: () => import('~/features/editor/fixtures/timeline/multitrack_transition_context_30fps.json'),
+  long_scrub_no_drift_10min_30fps: () => import('~/features/editor/fixtures/timeline/long_scrub_no_drift_10min_30fps.json'),
 }
 
 const route = useRoute()
@@ -232,6 +339,11 @@ const localePath = useLocalePath()
 const api = useApi()
 const toast = useToast()
 const auth = useAuthStore()
+const editorDiagnostics = useEditorDiagnosticsStore()
+const editorRuntime = useEditorRuntimeStore()
+const keybindingsStore = useEditorKeybindingsStore()
+const timelineUiStore = useEditorTimelineUiStore()
+const actionDispatcher = createEditorActionDispatcher()
 
 const {
   projectName,
@@ -292,6 +404,9 @@ const outputSettings = ref({
   fps: 30,
   bitrate: '8M',
 })
+const projectSchemaVersion = ref(CURRENT_PROJECT_SCHEMA_VERSION)
+const projectRevision = ref(0)
+const loadedFixtureId = ref<string | null>(null)
 
 const SUPPORTED_TRANSITIONS: EditorTransitionName[] = ['Cross fade', 'Hard wipe']
 
@@ -305,13 +420,23 @@ let persistTimer: ReturnType<typeof setTimeout> | null = null
 let resizeCleanup: (() => void) | null = null
 let windowResizeCleanup: (() => void) | null = null
 let mediaUrlRefreshTimer: ReturnType<typeof setTimeout> | null = null
+let keydownCleanup: (() => void) | null = null
 
 const MEDIA_URL_REFRESH_BUFFER_SECONDS = 90
+const MEDIA_URL_RETRY_MS = 15_000
 const runtimeConfig = useRuntimeConfig()
+const editorParityFlagEnabled = computed(() => String(runtimeConfig.public.editorParityFlag || '').toLowerCase() === 'true')
+const timelineFps = computed(() => normalizeFps(outputSettings.value.fps))
+const timelineDiagnosticsPayload = computed(() =>
+  buildTimelineDiagnostics(layerTracks.value, timelineFps.value)
+)
+const diagnosticsEnabled = computed(() => editorDiagnostics.enabled)
+const availableFixtureIds = Object.keys(TIMELINE_FIXTURE_IMPORTS)
 const apiBaseUrl = computed(() => {
   const raw = (runtimeConfig.public.apiUrl || '').trim()
   return raw ? raw.replace(/\/$/, '') : ''
 })
+let exportPollingCancelled = false
 
 const accountInitial = computed(() => {
   const name = auth.user?.name?.trim()
@@ -388,25 +513,119 @@ watch(
   }
 )
 
+watch(
+  () => [route.query.diag, route.query.diagLog, route.query.fixture],
+  async () => {
+    bootstrapDiagnosticsFromRoute()
+    await loadTimelineFixtureIfRequested()
+  }
+)
+
 watch(selectedClip, (clip) => {
   if (!clip || clip.type !== 'video') {
     cropMode.value = false
   }
 })
 
+function logDiagnostics(event: string, payload: Record<string, unknown>) {
+  if (!editorDiagnostics.logToConsole) return
+  // eslint-disable-next-line no-console
+  console.debug(`[editor-diag] ${event}`, payload)
+}
+
+function bootstrapDiagnosticsFromRoute() {
+  editorDiagnostics.bootstrapFromQuery(route.query as Record<string, unknown>)
+  if (editorParityFlagEnabled.value && !editorDiagnostics.enabled) {
+    editorDiagnostics.setEnabled(true)
+  }
+}
+
+async function loadTimelineFixtureIfRequested() {
+  const fixtureId = String(route.query.fixture ?? '').trim()
+  if (!fixtureId) {
+    loadedFixtureId.value = null
+    editorDiagnostics.setFixture(null)
+    return
+  }
+  const importer = TIMELINE_FIXTURE_IMPORTS[fixtureId]
+  if (!importer) {
+    toast.info(`Unknown fixture '${fixtureId}'`)
+    return
+  }
+  if (loadedFixtureId.value === fixtureId) return
+
+  const fixtureModule = await importer()
+  const fixtureRaw = fixtureModule.default ?? fixtureModule
+  const normalized = ensureProjectStateV2(fixtureRaw, projectName.value || 'Fixture')
+  const legacyState = extractLegacyEditorState(normalized, normalized.projectName || projectName.value)
+  loadState(legacyState)
+  if (legacyState.outputSettings) {
+    outputSettings.value = {
+      ...outputSettings.value,
+      ...legacyState.outputSettings,
+    }
+  }
+  pruneTransitionsForAll()
+  editorDiagnostics.setFixture(fixtureId)
+  editorDiagnostics.setEnabled(true)
+  loadedFixtureId.value = fixtureId
+  syncPreviewFallbackMedia()
+  logDiagnostics('fixture_loaded', {
+    fixtureId,
+    clipCount: clips.value.length,
+  })
+}
+
+async function copyCurrentTimelineAsFixture() {
+  try {
+    const legacyState = sanitizeProjectStateForPersist(exportState())
+    const fixture = {
+      ...legacyState,
+      outputSettings: { ...outputSettings.value },
+    }
+    await navigator.clipboard.writeText(JSON.stringify(fixture, null, 2))
+    toast.success('Fixture JSON copied to clipboard')
+  } catch {
+    toast.error('Could not copy fixture JSON')
+  }
+}
+
 async function persistProjectState() {
   try {
     if (!projectId.value) return
-    const state = sanitizeProjectStateForPersist({
-      ...exportState(),
-      outputSettings: outputSettings.value,
-    })
-    await api.projects.update(projectId.value, {
+    const legacyState = sanitizeProjectStateForPersist(exportState())
+    const state = buildPersistedProjectState(legacyState, projectName.value, outputSettings.value)
+    const response = await api.projects.update(projectId.value, {
       name: projectName.value,
       state,
+      schema_version: projectSchemaVersion.value,
+      revision: projectRevision.value,
     })
+    const nextSchemaVersion = Number(response?.schema_version)
+    const nextRevision = Number(response?.revision)
+    if (Number.isFinite(nextSchemaVersion) && nextSchemaVersion > 0) {
+      projectSchemaVersion.value = nextSchemaVersion
+    }
+    if (Number.isFinite(nextRevision) && nextRevision >= 0) {
+      projectRevision.value = nextRevision
+    }
+    editorRuntime.setProjectMeta({
+      projectId: projectId.value,
+      projectName: projectName.value,
+      schemaVersion: projectSchemaVersion.value,
+      revision: projectRevision.value,
+    })
+    editorRuntime.setSaveState('saved')
     saveState.value = 'saved'
-  } catch {
+  } catch (error: any) {
+    const detailCode = error?.data?.detail?.code
+    const statusCode = Number(error?.statusCode ?? error?.status ?? 0)
+    if (statusCode === 409 && detailCode === 'revision_conflict') {
+      toast.info('Project updated elsewhere. Reloading latest version.')
+      await loadWorkspace()
+      return
+    }
+    editorRuntime.setSaveState('error')
     saveState.value = 'error'
   }
 }
@@ -420,6 +639,7 @@ function schedulePersist() {
 
 function markLocalSaving() {
   saveState.value = 'saving'
+  editorRuntime.setSaveState('saving')
   schedulePersist()
 }
 
@@ -440,8 +660,116 @@ function handleRedo() {
   }
 }
 
+function normalizeKeyCombo(event: KeyboardEvent) {
+  const key = event.key.toLowerCase()
+  if (key === 'control' || key === 'meta' || key === 'shift' || key === 'alt') {
+    return null
+  }
+
+  const parts: string[] = []
+  if (event.ctrlKey) parts.push('ctrl')
+  if (event.metaKey) parts.push('meta')
+  if (event.shiftKey) parts.push('shift')
+  if (event.altKey) parts.push('alt')
+
+  if (event.code === 'Space' || key === ' ') {
+    parts.push('space')
+    return parts.join('+')
+  }
+
+  parts.push(key)
+  return parts.join('+')
+}
+
+function shouldIgnoreKeyboardEvent(event: KeyboardEvent) {
+  const target = event.target as HTMLElement | null
+  if (!target) return false
+  const tag = target.tagName
+  return (
+    target.isContentEditable ||
+    tag === 'INPUT' ||
+    tag === 'TEXTAREA' ||
+    tag === 'SELECT'
+  )
+}
+
+function copySelectedClipAction() {
+  if (!selectedClipId.value) return
+  timelineUiStore.setClipboardClipIds([selectedClipId.value])
+}
+
+function pasteCopiedClipAction() {
+  const sourceId = timelineUiStore.clipboardClipIds[0]
+  if (!sourceId) return
+  const sourceExists = tracks.value.some((track) =>
+    track.clips.some((clip) => clip.id === sourceId)
+  )
+  if (!sourceExists) {
+    timelineUiStore.clearClipboard()
+    return
+  }
+  selectClip(sourceId)
+  const duplicated = duplicateSelectedClip()
+  if (duplicated) markLocalSaving()
+}
+
+function toggleSnapping() {
+  timelineUiStore.toggleSnapping()
+}
+
+function toggleBookmark() {
+  toast.info('Bookmarks will be available when scenes are enabled')
+}
+
+function registerEditorActionHandlers() {
+  const handlers: Record<EditorActionId, () => void> = {
+    'toggle-play': togglePlay,
+    'seek-forward': () => seekBy(5),
+    'seek-backward': () => seekBy(-5),
+    split: splitSelectedClipAtPlayhead,
+    'delete-selected': removeSelectedClipAction,
+    'copy-selected': copySelectedClipAction,
+    'paste-copied': pasteCopiedClipAction,
+    'duplicate-selected': duplicateSelectedClipAction,
+    'toggle-snapping': toggleSnapping,
+    'toggle-bookmark': toggleBookmark,
+    undo: handleUndo,
+    redo: handleRedo,
+  }
+
+  for (const [action, handler] of Object.entries(handlers) as Array<
+    [EditorActionId, () => void]
+  >) {
+    actionDispatcher.register(action, handler)
+  }
+}
+
+function handleEditorKeydown(event: KeyboardEvent) {
+  if (!keybindingsStore.enabled) return
+  if (shouldIgnoreKeyboardEvent(event)) return
+
+  const combo = normalizeKeyCombo(event)
+  if (!combo) return
+
+  const keymap = keybindingsStore.keybindings as Record<
+    string,
+    EditorActionId | undefined
+  >
+  const action = keymap[combo]
+  if (!action) return
+
+  event.preventDefault()
+  event.stopPropagation()
+  actionDispatcher.dispatch(action)
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
+}
+
+function eventChecked(event: Event) {
+  const target = event.target as HTMLInputElement | null
+  return Boolean(target?.checked)
 }
 
 function normalizeTransitionName(value?: string): EditorTransitionName | undefined {
@@ -483,6 +811,11 @@ function isProtectedMediaPath(url: string) {
   return url.includes('/videos/') && (url.includes('/stream') || url.includes('/thumbnail'))
 }
 
+function isBackendVideoStreamUrl(url?: string) {
+  if (!url) return false
+  return url.includes('/videos/') && url.includes('/stream')
+}
+
 function stripTransientMediaToken(url?: string) {
   if (!url || !isProtectedMediaPath(url)) return url
   try {
@@ -502,6 +835,9 @@ function stripTransientMediaToken(url?: string) {
 function sanitizeProjectStateForPersist(state: any) {
   return {
     ...state,
+    transitions: Array.isArray(state?.transitions)
+      ? state.transitions.map((transition: any) => ({ ...transition }))
+      : [],
     tracks: (state?.tracks ?? []).map((track: any) => ({
       ...track,
       clips: (track?.clips ?? []).map((clip: any) => {
@@ -556,8 +892,19 @@ function scheduleMediaUrlRefresh(expiresIn?: number) {
   if (typeof expiresIn !== 'number' || !Number.isFinite(expiresIn) || expiresIn <= 0) return
   const refreshInMs = Math.max(30_000, (expiresIn - MEDIA_URL_REFRESH_BUFFER_SECONDS) * 1000)
   mediaUrlRefreshTimer = setTimeout(() => {
-    void refreshProjectVideoSources()
+    void refreshProjectVideoSources().finally(() => {
+      applyVideoClipFallbacks()
+    })
   }, refreshInMs)
+}
+
+function scheduleMediaUrlRetry() {
+  clearMediaUrlRefreshTimer()
+  mediaUrlRefreshTimer = setTimeout(() => {
+    void refreshProjectVideoSources().finally(() => {
+      applyVideoClipFallbacks()
+    })
+  }, MEDIA_URL_RETRY_MS)
 }
 
 function collectTimelineVideoIds() {
@@ -628,28 +975,44 @@ function syncTimelineHeight() {
 
 async function loadWorkspace() {
   try {
+    bootstrapDiagnosticsFromRoute()
     saveState.value = 'saving'
+    editorRuntime.setSaveState('saving')
     cropMode.value = false
     const project = await api.projects.get(projectId.value)
-    if (project?.state && project.state.tracks) {
-      loadState(project.state)
+    const resolvedProjectName = project?.name || 'Untitled project'
+    const normalizedState = ensureProjectStateV2(project?.state, resolvedProjectName)
+    const legacyState = extractLegacyEditorState(normalizedState, resolvedProjectName)
+    if (legacyState?.tracks) {
+      loadState(legacyState)
     } else {
       resetState()
     }
-    setProjectName(project?.name || 'Untitled project')
+    setProjectName(resolvedProjectName)
     extraLayers.value = { video: [], graphics: [], audio: [] }
-    if (project?.state?.outputSettings) {
-      outputSettings.value = { ...outputSettings.value, ...project.state.outputSettings }
+    if (legacyState?.outputSettings) {
+      outputSettings.value = { ...outputSettings.value, ...legacyState.outputSettings }
     }
+    projectSchemaVersion.value = Number(project?.schema_version || CURRENT_PROJECT_SCHEMA_VERSION)
+    projectRevision.value = Number(project?.revision || 0)
+    editorRuntime.setProjectMeta({
+      projectId: projectId.value,
+      projectName: resolvedProjectName,
+      schemaVersion: projectSchemaVersion.value,
+      revision: projectRevision.value,
+    })
     await loadMediaLibrary()
     hydrateProjectMedia()
     await refreshProjectVideoSources()
     applyVideoClipFallbacks()
     await refreshPersistedStreamTokens()
+    await loadTimelineFixtureIfRequested()
     pruneTransitionsForAll()
     saveState.value = 'saved'
+    editorRuntime.setSaveState('saved')
   } catch (error: any) {
     saveState.value = 'error'
+    editorRuntime.setSaveState('error')
     toast.error(error?.data?.detail ?? 'Could not load editor workspace')
   }
 }
@@ -718,7 +1081,7 @@ async function loadMediaLibrary() {
         thumbnail: entry.thumbnail_url || undefined,
         duration: Number(entry.duration) || undefined,
         sourceId: String(entry.id),
-        sourceUrl: entry.video_url,
+        sourceUrl: isBackendVideoStreamUrl(entry.video_url) ? undefined : entry.video_url,
       })
     }
   } catch {
@@ -758,7 +1121,15 @@ function hydrateProjectMedia() {
     const match = library.get(clip.sourceId)
     if (!match) continue
     const patch: Partial<EditorClip> = {}
-    if (!clip.sourceUrl && match.sourceUrl) patch.sourceUrl = match.sourceUrl
+    if (
+      match.sourceUrl &&
+      (
+        !clip.sourceUrl ||
+        (isBackendVideoStreamUrl(clip.sourceUrl) && !isBackendVideoStreamUrl(match.sourceUrl))
+      )
+    ) {
+      patch.sourceUrl = match.sourceUrl
+    }
     if (!clip.posterUrl && match.thumbnail) patch.posterUrl = match.thumbnail
     if (Object.keys(patch).length) {
       updateClip(clip.id, patch, { recordHistory: false })
@@ -815,6 +1186,7 @@ async function refreshProjectVideoSources() {
     scheduleMediaUrlRefresh(response?.expires_in ?? undefined)
   } catch {
     // Keep existing URLs; editor remains usable with prior resolved links.
+    scheduleMediaUrlRetry()
   }
 
   syncPreviewFallbackMedia()
@@ -938,13 +1310,25 @@ function handleAddTransition(transitionName: string) {
     return
   }
   const base = normalizedTransition === 'Cross fade' ? 0.6 : 0.4
+  const fromRange = clipRangeFrames(selectedClip.value.startTime, selectedClip.value.duration, timelineFps.value)
+  const toRange = clipRangeFrames(nextClip.startTime, nextClip.duration, timelineFps.value)
+  const requestedFrames = durationSecondsToFrames(base, timelineFps.value)
+  const maxDurationFrames = Math.min(fromRange.durationFrames, toRange.durationFrames)
+  const durationFrames = Math.max(1, Math.min(requestedFrames, maxDurationFrames))
+  const durationSeconds = durationFramesToSeconds(durationFrames, timelineFps.value)
   updateClip(selectedClip.value.id, {
     effects: {
       ...selectedClip.value.effects,
       transition: normalizedTransition,
-      transitionDuration: base,
+      transitionDuration: durationSeconds,
       transitionWith: nextClip.id,
     },
+  })
+  logDiagnostics('transition_applied', {
+    fromClipId: selectedClip.value.id,
+    toClipId: nextClip.id,
+    transition: normalizedTransition,
+    durationFrames,
   })
   markLocalSaving()
   toast.success(`${normalizedTransition} applied between clips`)
@@ -956,8 +1340,16 @@ async function handleAddMedia(
 ) {
   const group = placement?.group ?? (item.type === 'audio' ? 'audio' : item.type === 'video' ? 'video' : 'graphics')
   const layer = placement?.layer ?? resolveLayerForGroup(group)
-  const requestedStart = placement?.startTime ?? (item.type === 'video' ? duration.value : playheadTime.value)
+  const requestedStartRaw = placement?.startTime ?? (item.type === 'video' ? duration.value : playheadTime.value)
+  const requestedStart = toSec(toFrame(requestedStartRaw, timelineFps.value), timelineFps.value)
   const layerValue = layer ?? 1
+  logDiagnostics('add_media', {
+    mediaId: item.id,
+    mediaType: item.type,
+    group,
+    layer: layerValue,
+    requestedStartFrame: toFrame(requestedStart, timelineFps.value),
+  })
   if (item.type === 'video') {
     const startTime = clampStartInLayer('video', layerValue, '__new__', requestedStart, item.duration ?? 4)
     const clip = addClip('video', {
@@ -968,15 +1360,15 @@ async function handleAddMedia(
       layer: layerValue,
       layerGroup: 'video',
       sourceId: item.sourceId,
-      sourceUrl: item.sourceUrl,
+      sourceUrl: isBackendVideoStreamUrl(item.sourceUrl) ? undefined : item.sourceUrl,
       posterUrl: item.thumbnail,
       position: { x: 0, y: 0 },
       size: { width: 100, height: 100 },
       crop: { x: 0, y: 0, width: 1, height: 1 },
       effects: { speed: 1, fadeIn: 0, fadeOut: 0, filter: 'None' },
     })
-    if (clip && !previewUrl.value && item.sourceUrl) {
-      previewUrl.value = item.sourceUrl
+    if (clip && !previewUrl.value && clip.sourceUrl) {
+      previewUrl.value = clip.sourceUrl
       previewPoster.value = item.thumbnail ?? ''
     }
     void refreshProjectVideoSources()
@@ -1027,6 +1419,12 @@ function handleDropMediaOnTimeline(payload: {
   media: MediaLibraryItem
 }) {
   const media = mediaItems.value.find((item) => item.id === payload.media.id) ?? payload.media
+  logDiagnostics('drop_media', {
+    mediaId: media.id,
+    group: payload.group,
+    layer: payload.layer,
+    startFrame: toFrame(payload.startTime, timelineFps.value),
+  })
   void handleAddMedia(media, {
     group: payload.group,
     layer: payload.layer,
@@ -1093,6 +1491,10 @@ function splitSelectedClipAtPlayhead() {
     toast.info('Move playhead inside a clip to split it')
     return
   }
+  logDiagnostics('split', {
+    playheadFrame: toFrame(playheadTime.value, timelineFps.value),
+    selectedClipId: selectedClipId.value,
+  })
   markLocalSaving()
 }
 
@@ -1105,15 +1507,17 @@ function duplicateSelectedClipAction() {
 }
 
 function removeSelectedClipAction() {
+  const removedClipId = selectedClipId.value
   if (!removeSelectedClip()) {
     toast.info('Select a clip to delete')
     return
   }
+  logDiagnostics('remove_clip', {
+    clipId: removedClipId,
+  })
   pruneTransitionsForAll()
   markLocalSaving()
 }
-
-const ATTACH_THRESHOLD_SECONDS = 0.05
 
 function resolveClipGroup(clip: EditorClip) {
   return clip.layerGroup ?? (clip.type === 'audio' ? 'audio' : clip.type === 'video' ? 'video' : 'graphics')
@@ -1132,15 +1536,70 @@ function getLayerClips(group: EditorLayerGroup, layer: number, excludeId?: strin
     .sort((a, b) => a.startTime - b.startTime)
 }
 
+function getLayerClipRanges(group: EditorLayerGroup, layer: number, excludeId?: string): CollisionRange[] {
+  return getLayerClips(group, layer, excludeId).map((clip) => {
+    const range = clipRangeFrames(clip.startTime, clip.duration, timelineFps.value)
+    return {
+      clipId: clip.id,
+      startFrame: range.startFrame,
+      endFrame: range.endFrame,
+    }
+  })
+}
+
+function getAlternativeLanes(group: EditorLayerGroup, baseLayer: number, excludeLayer?: number): CollisionLane[] {
+  const layers = new Set<number>()
+  for (const clip of tracks.value.flatMap((track) => track.clips)) {
+    const clipGroup = resolveClipGroup(clip)
+    if (clipGroup !== group) continue
+    layers.add(clip.layer ?? 1)
+  }
+  layers.add(baseLayer)
+  const sorted = Array.from(layers.values()).sort((left, right) => left - right)
+  return sorted
+    .filter((layer) => layer !== excludeLayer)
+    .map((layer) => ({
+      group,
+      layer,
+      clips: getLayerClipRanges(group, layer),
+    }))
+}
+
+function overlapsLaneAtFrame(startFrame: number, durationFrames: number, ranges: CollisionRange[]) {
+  const endFrame = startFrame + durationFrames
+  return ranges.some((range) => startFrame < range.endFrame && endFrame > range.startFrame)
+}
+
+function findLayerForExactPlacement(group: EditorLayerGroup, preferredLayer: number, startFrame: number, durationFrames: number, clipId: string) {
+  const lanes = getAlternativeLanes(group, preferredLayer)
+    .sort((left, right) => {
+      const leftDelta = Math.abs(left.layer - preferredLayer)
+      const rightDelta = Math.abs(right.layer - preferredLayer)
+      if (leftDelta !== rightDelta) return leftDelta - rightDelta
+      return left.layer - right.layer
+    })
+  for (const lane of lanes) {
+    const ranges = getLayerClipRanges(group, lane.layer, clipId)
+    if (!overlapsLaneAtFrame(startFrame, durationFrames, ranges)) {
+      return lane.layer
+    }
+  }
+  return null
+}
+
 function clampStartInLayer(group: EditorLayerGroup, layer: number, clipId: string, startTime: number, durationValue: number) {
-  const peers = getLayerClips(group, layer, clipId)
-  const desired = Math.max(0, startTime)
-  const prev = peers.filter((clip) => clip.startTime + clip.duration <= desired).pop()
-  const next = peers.find((clip) => clip.startTime >= desired)
-  const minStart = prev ? prev.startTime + prev.duration : 0
-  const maxStart = next ? next.startTime - durationValue : Number.POSITIVE_INFINITY
-  if (maxStart < minStart) return minStart
-  return Math.min(Math.max(desired, minStart), maxStart)
+  const desiredStartFrame = toFrame(startTime, timelineFps.value)
+  const durationFrames = durationSecondsToFrames(durationValue, timelineFps.value)
+  const result = resolveCollision({
+    operation: 'drag',
+    group,
+    layer,
+    clipId,
+    desiredStartFrame,
+    durationFrames,
+    laneClips: getLayerClipRanges(group, layer, clipId),
+  })
+  return toSec(result.startFrame, timelineFps.value)
 }
 
 function getLayerNeighbors(group: EditorLayerGroup, layer: number, clipId: string) {
@@ -1156,11 +1615,15 @@ function findAdjacentNextClip(clip: EditorClip) {
   const group = resolveClipGroup(clip)
   if (group !== 'video') return null
   const layer = clip.layer ?? 1
-  const peers = getLayerClips(group, layer, clip.id)
-  const next = peers.find((entry) => entry.startTime >= clip.startTime + clip.duration - 0.0001)
+  const peers = getLayerClips(group, layer)
+  const index = peers.findIndex((entry) => entry.id === clip.id)
+  if (index < 0 || index >= peers.length - 1) return null
+  const next = peers[index + 1]
   if (!next) return null
-  const gap = next.startTime - (clip.startTime + clip.duration)
-  if (Math.abs(gap) > ATTACH_THRESHOLD_SECONDS) return null
+  const fromRange = clipRangeFrames(clip.startTime, clip.duration, timelineFps.value)
+  const toRange = clipRangeFrames(next.startTime, next.duration, timelineFps.value)
+  const gap = gapOverlapFrames(fromRange, toRange, timelineFps.value)
+  if (!gap.isAdjacent) return null
   return next
 }
 
@@ -1176,8 +1639,9 @@ function isAttachedAdjacentPair(fromClip: EditorClip, toClip: EditorClip) {
   if (fromIndex < 0 || fromIndex >= layerClips.length - 1) return false
   const next = layerClips[fromIndex + 1]
   if (!next || next.id !== toClip.id) return false
-  const gap = next.startTime - (fromClip.startTime + fromClip.duration)
-  return Math.abs(gap) <= ATTACH_THRESHOLD_SECONDS
+  const fromRange = clipRangeFrames(fromClip.startTime, fromClip.duration, timelineFps.value)
+  const toRange = clipRangeFrames(next.startTime, next.duration, timelineFps.value)
+  return gapOverlapFrames(fromRange, toRange, timelineFps.value).isAdjacent
 }
 
 function clearClipTransition(clip: EditorClip) {
@@ -1205,9 +1669,39 @@ function pruneTransitionsForLayer(group: EditorLayerGroup, layer: number) {
       if (transitionWith || transitionName) clearClipTransition(clip)
       continue
     }
-    const gap = next ? next.startTime - (clip.startTime + clip.duration) : Number.POSITIVE_INFINITY
-    const attached = next && next.id === transitionWith && Math.abs(gap) <= ATTACH_THRESHOLD_SECONDS
-    if (!attached) clearClipTransition(clip)
+    const fromRange = clipRangeFrames(clip.startTime, clip.duration, timelineFps.value)
+    const toRange = next
+      ? clipRangeFrames(next.startTime, next.duration, timelineFps.value)
+      : null
+    const attached = Boolean(
+      next &&
+      toRange &&
+      next.id === transitionWith &&
+      gapOverlapFrames(fromRange, toRange, timelineFps.value).isAdjacent
+    )
+    if (!attached) {
+      clearClipTransition(clip)
+      continue
+    }
+
+    if (!next || !toRange) continue
+    const maxDurationFrames = Math.min(fromRange.durationFrames, toRange.durationFrames)
+    const currentDurationFrames = durationSecondsToFrames(durationValue, timelineFps.value)
+    if (currentDurationFrames > maxDurationFrames) {
+      updateClip(clip.id, {
+        effects: {
+          ...clip.effects,
+          transitionDuration: durationFramesToSeconds(maxDurationFrames, timelineFps.value),
+          transitionWith: next.id,
+          transition: transitionName,
+        },
+      }, { recordHistory: false })
+      logDiagnostics('transition_clamped', {
+        clipId: clip.id,
+        transitionWith: next.id,
+        maxDurationFrames,
+      })
+    }
   }
 }
 
@@ -1232,26 +1726,33 @@ function handleTimelineTrim(payload: { clipId: string; startTime: number; durati
   const group = resolveClipGroup(clip)
   const layer = clip.layer ?? 1
   const neighbors = getLayerNeighbors(group, layer, clip.id)
-  let nextStart = payload.startTime
-  let nextDuration = Math.max(0.1, payload.duration)
-  const originalEnd = clip.startTime + clip.duration
-  const isStartTrim = Math.abs(payload.startTime - clip.startTime) > 0.0001
+  const clipRange = clipRangeFrames(clip.startTime, clip.duration, timelineFps.value)
+  const payloadStartFrame = toFrame(payload.startTime, timelineFps.value)
+  const payloadDurationFrames = durationSecondsToFrames(payload.duration, timelineFps.value)
+  const isStartTrim = payloadStartFrame !== clipRange.startFrame
+
+  let nextStartFrame = clipRange.startFrame
+  let nextDurationFrames = clipRange.durationFrames
 
   if (isStartTrim) {
-    if (neighbors.prev) {
-      const prevEnd = neighbors.prev.startTime + neighbors.prev.duration
-      nextStart = Math.max(nextStart, prevEnd)
-    }
-    nextStart = Math.min(nextStart, originalEnd - 0.1)
-    nextDuration = Math.max(0.1, originalEnd - nextStart)
-  } else if (neighbors.next) {
-    const maxDuration = Math.max(0.1, neighbors.next.startTime - clip.startTime)
-    nextDuration = Math.min(nextDuration, maxDuration)
+    const prevEndFrame = neighbors.prev
+      ? clipRangeFrames(neighbors.prev.startTime, neighbors.prev.duration, timelineFps.value).endFrame
+      : 0
+    const maxStartFrame = clipRange.endFrame - 1
+    nextStartFrame = Math.min(Math.max(payloadStartFrame, prevEndFrame), maxStartFrame)
+    nextDurationFrames = Math.max(1, clipRange.endFrame - nextStartFrame)
+  } else {
+    const maxDurationFrames = neighbors.next
+      ? Math.max(1, clipRangeFrames(neighbors.next.startTime, neighbors.next.duration, timelineFps.value).startFrame - clipRange.startFrame)
+      : Number.POSITIVE_INFINITY
+    nextDurationFrames = Math.min(Math.max(1, payloadDurationFrames), maxDurationFrames)
   }
 
+  const nextStart = toSec(nextStartFrame, timelineFps.value)
+  const nextDuration = durationFramesToSeconds(nextDurationFrames, timelineFps.value)
   const previousTrimStart = clip.trimStart ?? 0
-  const startDelta = nextStart - clip.startTime
-  const nextTrimStart = isStartTrim ? Math.max(0, previousTrimStart + startDelta) : previousTrimStart
+  const startDeltaSeconds = toSec(nextStartFrame - clipRange.startFrame, timelineFps.value)
+  const nextTrimStart = isStartTrim ? Math.max(0, previousTrimStart + startDeltaSeconds) : previousTrimStart
   const nextTrimEnd = nextTrimStart + nextDuration
 
   updateClip(payload.clipId, {
@@ -1259,6 +1760,13 @@ function handleTimelineTrim(payload: { clipId: string; startTime: number; durati
     duration: nextDuration,
     trimStart: nextTrimStart,
     trimEnd: nextTrimEnd,
+  })
+  logDiagnostics('trim', {
+    clipId: payload.clipId,
+    startFrame: nextStartFrame,
+    durationFrames: nextDurationFrames,
+    group,
+    layer,
   })
   pruneTransitionsForLayer(group, layer)
   markLocalSaving()
@@ -1270,18 +1778,49 @@ function handleTimelineMove(payload: { clipId: string; startTime: number; layer?
   const previousGroup = resolveClipGroup(clip)
   const previousLayer = clip.layer ?? 1
   const group = payload.group ?? previousGroup
-  let nextLayer = payload.layer ?? previousLayer
+  let targetLayer = payload.layer ?? previousLayer
+  const desiredStartFrame = Math.max(0, toFrame(payload.startTime, timelineFps.value))
+  const durationFrames = durationSecondsToFrames(clip.duration, timelineFps.value)
+
   if (payload.createLayer && payload.group) {
-    nextLayer = addLayer(payload.group)
+    targetLayer = addLayer(payload.group)
+  } else if (group === previousGroup) {
+    const exactLayer = findLayerForExactPlacement(group, targetLayer, desiredStartFrame, durationFrames, clip.id)
+    if (exactLayer !== null) {
+      targetLayer = exactLayer
+    } else {
+      const createdLayer = addLayer(group)
+      targetLayer = createdLayer
+    }
   }
-  const nextStart = clampStartInLayer(group, nextLayer ?? 1, clip.id, payload.startTime, clip.duration)
+
+  const moveResult = resolveCollision({
+    operation: 'drag',
+    group,
+    layer: targetLayer,
+    clipId: clip.id,
+    desiredStartFrame,
+    durationFrames,
+    laneClips: getLayerClipRanges(group, targetLayer, clip.id),
+  })
+  const nextStart = toSec(moveResult.startFrame, timelineFps.value)
   updateClip(payload.clipId, {
     startTime: nextStart,
-    layer: nextLayer ?? clip.layer,
+    layer: targetLayer ?? clip.layer,
     layerGroup: group,
   })
-  pruneTransitionsForLayer(group, nextLayer ?? 1)
-  if (previousGroup !== group || previousLayer !== nextLayer) {
+  logDiagnostics('move', {
+    clipId: payload.clipId,
+    desiredStartFrame,
+    resolvedStartFrame: moveResult.startFrame,
+    previousGroup,
+    previousLayer,
+    group,
+    layer: targetLayer,
+    reason: moveResult.reason,
+  })
+  pruneTransitionsForLayer(group, targetLayer ?? 1)
+  if (previousGroup !== group || previousLayer !== targetLayer) {
     pruneTransitionsForLayer(previousGroup, previousLayer)
   }
   markLocalSaving()
@@ -1327,18 +1866,32 @@ function applyTransitionBetweenClips(payload: { fromClipId: string; toClipId: st
   const toClip = tracks.value.flatMap((track) => track.clips).find((entry) => entry.id === payload.toClipId)
   if (!fromClip) return
   const transitionName = normalizeTransitionName(payload.name)
-  const durationValue = Math.max(0, Number(payload.duration) || 0)
-  if (!transitionName || durationValue <= 0) {
+  const requestedDurationFrames = durationSecondsToFrames(Number(payload.duration) || 0, timelineFps.value)
+  if (!transitionName || requestedDurationFrames <= 0) {
     clearClipTransition(fromClip)
+    logDiagnostics('transition_cleared', {
+      fromClipId: fromClip.id,
+      reason: 'none_or_zero_duration',
+    })
     markLocalSaving()
     return
   }
   if (!toClip || !isAttachedAdjacentPair(fromClip, toClip)) {
     clearClipTransition(fromClip)
     toast.info('Transitions only apply to attached adjacent clips on the same video layer')
+    logDiagnostics('transition_cleared', {
+      fromClipId: fromClip.id,
+      toClipId: toClip?.id,
+      reason: 'not_adjacent',
+    })
     markLocalSaving()
     return
   }
+  const fromRange = clipRangeFrames(fromClip.startTime, fromClip.duration, timelineFps.value)
+  const toRange = clipRangeFrames(toClip.startTime, toClip.duration, timelineFps.value)
+  const maxDurationFrames = Math.min(fromRange.durationFrames, toRange.durationFrames)
+  const durationFrames = Math.max(1, Math.min(requestedDurationFrames, maxDurationFrames))
+  const durationValue = durationFramesToSeconds(durationFrames, timelineFps.value)
   updateClip(fromClip.id, {
     effects: {
       ...fromClip.effects,
@@ -1346,6 +1899,13 @@ function applyTransitionBetweenClips(payload: { fromClipId: string; toClipId: st
       transitionDuration: durationValue,
       transitionWith: toClip.id,
     },
+  })
+  logDiagnostics('transition_applied', {
+    fromClipId: fromClip.id,
+    toClipId: toClip.id,
+    transition: transitionName,
+    durationFrames,
+    durationSeconds: durationValue,
   })
   markLocalSaving()
 }
@@ -1598,6 +2158,30 @@ async function exportVideo() {
   saveState.value = 'saving'
 
   try {
+    if (editorParityFlagEnabled.value) {
+      const response = await api.projects.exports.create(projectId.value, {
+        output_title: `${projectName.value} - export`,
+        output_settings: {
+          width: outputSettings.value.width,
+          height: outputSettings.value.height,
+          fps: outputSettings.value.fps,
+          bitrate: outputSettings.value.bitrate,
+        },
+        format: 'mp4',
+        include_audio: true,
+      }) as ExportJobResponse
+      toast.info('Export queued. Rendering in background.')
+      const job = await pollExportJob(response.job_id)
+      const outputUrl = job.result?.output_url
+      if (outputUrl) {
+        window.open(outputUrl, '_blank', 'noopener')
+      }
+      await loadMediaLibrary()
+      saveState.value = 'saved'
+      toast.success('Export completed')
+      return
+    }
+
     const response = await api.projects.export(projectId.value, {
       output_title: `${projectName.value} - export`,
       output_settings: {
@@ -1618,6 +2202,29 @@ async function exportVideo() {
   } finally {
     operationRunning.value = false
   }
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function pollExportJob(jobId: string): Promise<ExportJobResponse> {
+  const maxPolls = 600
+  for (let attempt = 0; attempt < maxPolls; attempt += 1) {
+    if (exportPollingCancelled) {
+      throw new Error('Export polling canceled')
+    }
+    const job = await api.projects.exports.get(projectId.value, jobId) as ExportJobResponse
+    if (job.status === 'completed') return job
+    if (job.status === 'failed') {
+      throw new Error(job.error_message || 'Export failed')
+    }
+    if (job.status === 'canceled') {
+      throw new Error('Export canceled')
+    }
+    await wait(1500)
+  }
+  throw new Error('Export is taking longer than expected. Check back in a few minutes.')
 }
 
 function inferAspectRatio(width?: number, height?: number) {
@@ -1646,6 +2253,11 @@ function inferAspectRatio(width?: number, height?: number) {
 }
 
 onMounted(async () => {
+  keybindingsStore.hydrate()
+  registerEditorActionHandlers()
+  const onKeydown = (event: KeyboardEvent) => handleEditorKeydown(event)
+  window.addEventListener('keydown', onKeydown)
+  keydownCleanup = () => window.removeEventListener('keydown', onKeydown)
   await auth.initialize()
   await loadWorkspace()
   syncTimelineHeight()
@@ -1655,7 +2267,9 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  exportPollingCancelled = true
   if (resizeCleanup) resizeCleanup()
+  if (keydownCleanup) keydownCleanup()
   if (windowResizeCleanup) windowResizeCleanup()
   if (persistTimer) clearTimeout(persistTimer)
   clearMediaUrlRefreshTimer()

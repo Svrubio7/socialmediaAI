@@ -191,6 +191,7 @@ class TimelineRenderer:
         self.storage = storage
         self.temp_root = Path(temp_root or tempfile.gettempdir()).resolve()
         self.temp_root.mkdir(parents=True, exist_ok=True)
+        self.last_debug_trace: Dict[str, Any] = {}
 
     def _run(self, cmd: List[str]) -> None:
         try:
@@ -873,6 +874,20 @@ class TimelineRenderer:
         video_clips = [c for c in clips if c.get("type") == "video" and c.get("sourceId")]
         graphics_clips = [c for c in clips if c.get("type") in {"image", "text", "shape"}]
         audio_clips = [c for c in clips if c.get("type") == "audio" and c.get("sourceId")]
+        debug_enabled = str(os.getenv("EDITOR_PARITY_DEBUG", "")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        debug_trace: Dict[str, Any] = {
+            "enabled": debug_enabled,
+            "output_settings": dict(output_settings or {}),
+            "normalized_clips": [],
+            "transition_decisions": [],
+            "overlap_to_overlay": [],
+            "merge_sequence": [],
+        }
 
         if not video_clips and not graphics_clips and not audio_clips:
             raise RuntimeError("Project has no clips to export")
@@ -890,9 +905,27 @@ class TimelineRenderer:
                 return "video"
             return "graphics"
 
+        def _clip_snapshot(clip: Dict[str, Any]) -> Dict[str, Any]:
+            start = _as_float(clip.get("startTime"), 0.0)
+            duration = max(0.0, _as_float(clip.get("duration"), 0.0))
+            end = start + duration
+            return {
+                "id": str(clip.get("id") or ""),
+                "type": str(clip.get("type") or ""),
+                "group": _clip_group(clip),
+                "layer": _clip_layer(clip),
+                "start": start,
+                "duration": duration,
+                "end": end,
+                "effects": dict(clip.get("effects") or {}),
+            }
+
         base_layer = min((_clip_layer(c) for c in video_clips), default=1)
         base_video_clips = [c for c in video_clips if _clip_layer(c) == base_layer]
         overlay_video_clips = [c for c in video_clips if _clip_layer(c) != base_layer]
+        if debug_enabled:
+            debug_trace["normalized_clips"] = [_clip_snapshot(clip) for clip in clips]
+            debug_trace["base_layer"] = base_layer
 
         width = _as_int(output_settings.get("width"), 0)
         height = _as_int(output_settings.get("height"), 0)
@@ -949,7 +982,20 @@ class TimelineRenderer:
             prev_start, prev_clip = clip_entries[idx]
             next_start, next_clip = clip_entries[idx + 1]
             prev_end = prev_start + max(0.0, _as_float(prev_clip.get("duration"), 0.0))
-            if abs(next_start - prev_end) > 0.05:
+            gap = next_start - prev_end
+            gap_frames = int(round(gap * float(settings.get("fps") or 30)))
+            decision: Dict[str, Any] = {
+                "index": idx,
+                "from_clip_id": str(prev_clip.get("id") or ""),
+                "to_clip_id": str(next_clip.get("id") or ""),
+                "gap_seconds": gap,
+                "gap_frames": gap_frames,
+            }
+            if gap_frames != 0:
+                decision["accepted"] = False
+                decision["reason"] = "gap_not_adjacent_frames"
+                if debug_enabled:
+                    debug_trace["transition_decisions"].append(decision)
                 continue
             prev_effects = prev_clip.get("effects") or {}
             transition_with = str(prev_effects.get("transitionWith") or "").strip()
@@ -960,6 +1006,12 @@ class TimelineRenderer:
             trans_name = _normalize_transition(raw_transition)
             duration = _as_float(prev_effects.get("transitionDuration"), 0.0)
             if not trans_name or duration <= 0:
+                decision["accepted"] = False
+                decision["reason"] = "missing_or_invalid_transition"
+                decision["normalized_transition"] = trans_name
+                decision["duration"] = duration
+                if debug_enabled:
+                    debug_trace["transition_decisions"].append(decision)
                 continue
             max_dur = min(
                 max(0.2, _as_float(prev_clip.get("duration"), 0.0)),
@@ -967,6 +1019,13 @@ class TimelineRenderer:
             )
             duration = min(duration, max_dur)
             transitions[idx] = (trans_name, duration)
+            decision["accepted"] = True
+            decision["reason"] = "ok"
+            decision["normalized_transition"] = trans_name
+            decision["duration"] = duration
+            decision["max_duration"] = max_dur
+            if debug_enabled:
+                debug_trace["transition_decisions"].append(decision)
 
         entries: List[Dict[str, Any]] = []
         overlap_clips: List[Dict[str, Any]] = []
@@ -978,6 +1037,15 @@ class TimelineRenderer:
             for idx, (start, clip) in enumerate(clip_entries):
                 if start < cursor - 0.01:
                     overlap_clips.append(clip)
+                    if debug_enabled:
+                        debug_trace["overlap_to_overlay"].append(
+                            {
+                                "clip_id": str(clip.get("id") or ""),
+                                "start": start,
+                                "cursor": cursor,
+                                "reason": "start_before_cursor",
+                            }
+                        )
                     continue
 
                 if start > cursor + 0.01:
@@ -985,6 +1053,15 @@ class TimelineRenderer:
                     gap_dur = start - cursor
                     self._render_blank_segment(gap_dur, settings, str(gap_path))
                     entries.append({"path": str(gap_path), "duration": gap_dur, "clip": None})
+                    if debug_enabled:
+                        debug_trace["merge_sequence"].append(
+                            {
+                                "kind": "gap",
+                                "duration": gap_dur,
+                                "start": cursor,
+                                "end": start,
+                            }
+                        )
                     cursor = start
 
                 clip_id = str(clip.get("sourceId"))
@@ -1007,6 +1084,15 @@ class TimelineRenderer:
                     fade_out_override=fade_out_override,
                 )
                 entries.append({"path": str(seg_path), "duration": out_dur, "clip": clip, "transition": transitions.get(idx)})
+                if debug_enabled:
+                    debug_trace["merge_sequence"].append(
+                        {
+                            "kind": "clip",
+                            "clip_id": str(clip.get("id") or ""),
+                            "duration": out_dur,
+                            "transition_out": transitions.get(idx),
+                        }
+                    )
                 cursor += out_dur
 
             if timeline_end > cursor + 0.01:
@@ -1014,6 +1100,15 @@ class TimelineRenderer:
                 gap_dur = timeline_end - cursor
                 self._render_blank_segment(gap_dur, settings, str(gap_path))
                 entries.append({"path": str(gap_path), "duration": gap_dur, "clip": None})
+                if debug_enabled:
+                    debug_trace["merge_sequence"].append(
+                        {
+                            "kind": "gap_tail",
+                            "duration": gap_dur,
+                            "start": cursor,
+                            "end": timeline_end,
+                        }
+                    )
 
         # Merge entries, applying transitions between adjacent clips when present.
         base_path = entries[0]["path"]
@@ -1026,6 +1121,17 @@ class TimelineRenderer:
             out_path = str(temp_dir / f"base_merge_{idx}.mp4")
             if transition:
                 trans_name, trans_dur = transition
+                if debug_enabled:
+                    debug_trace["merge_sequence"].append(
+                        {
+                            "kind": "transition_merge",
+                            "index": idx,
+                            "transition": trans_name,
+                            "duration": trans_dur,
+                            "first_duration": base_duration,
+                            "second_duration": next_duration,
+                        }
+                    )
                 base_duration = self._merge_with_transition(
                     base_path,
                     base_duration,
@@ -1039,6 +1145,15 @@ class TimelineRenderer:
                 )
                 base_path = out_path
             else:
+                if debug_enabled:
+                    debug_trace["merge_sequence"].append(
+                        {
+                            "kind": "concat",
+                            "index": idx,
+                            "first_duration": base_duration,
+                            "second_duration": next_duration,
+                        }
+                    )
                 self._concat_segments([base_path, next_path], out_path)
                 base_duration += next_duration
                 base_path = out_path
@@ -1263,3 +1378,13 @@ class TimelineRenderer:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         if os.path.abspath(current_path) != os.path.abspath(output_path):
             shutil.copy2(current_path, output_path)
+
+        if debug_enabled:
+            debug_trace["final_output_path"] = output_path
+            debug_trace["final_timeline_duration"] = base_duration
+            debug_trace["overlay_count"] = len(overlay_sorted)
+            debug_trace["audio_overlay_count"] = len(audio_sorted)
+            self.last_debug_trace = debug_trace
+            trace_path = f"{output_path}.parity.trace.json"
+            with open(trace_path, "w", encoding="utf-8") as trace_file:
+                json.dump(debug_trace, trace_file, indent=2)

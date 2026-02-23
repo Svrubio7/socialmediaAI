@@ -4,7 +4,10 @@ Video endpoint tests.
 
 from uuid import uuid4
 
+from fastapi.responses import Response, StreamingResponse
+
 from app.core.config import settings
+from app.api.v1.endpoints import videos as videos_endpoint
 from app.models.user import User
 from app.models.video import Video, VideoStatus
 
@@ -81,6 +84,153 @@ def test_stream_thumbnail_requires_auth_when_not_debug(client):
         settings.DEBUG = previous_debug
 
     assert response.status_code == 401
+
+
+def test_stream_video_requires_auth_when_not_debug(client):
+    """Video stream proxy should enforce auth in non-debug mode."""
+    previous_debug = settings.DEBUG
+    settings.DEBUG = False
+    try:
+        response = client.get(f"/api/v1/videos/{uuid4()}/stream")
+    finally:
+        settings.DEBUG = previous_debug
+
+    assert response.status_code == 401
+
+
+def test_stream_video_get_forwards_range_header(client, auth_headers, test_user, db, monkeypatch):
+    """GET /videos/{id}/stream should forward range headers to remote stream fetch."""
+    video = Video(
+        id=uuid4(),
+        user_id=test_user.id,
+        filename="demo.mp4",
+        original_filename="demo.mp4",
+        storage_path=f"videos/{test_user.supabase_user_id}/demo.mp4",
+        status=VideoStatus.UPLOADED,
+    )
+    db.add(video)
+    db.commit()
+
+    calls = {}
+
+    def fake_build_public_url(storage_path, _request):
+        calls["storage_path"] = storage_path
+        return "https://cdn.example.com/demo.mp4"
+
+    async def fake_stream_remote(url, range_header):
+        calls["url"] = url
+        calls["range"] = range_header
+
+        async def iterator():
+            yield b"ok"
+
+        return StreamingResponse(iterator(), status_code=206, media_type="video/mp4")
+
+    monkeypatch.setattr(videos_endpoint.storage, "build_public_url", fake_build_public_url)
+    monkeypatch.setattr(videos_endpoint, "_stream_remote", fake_stream_remote)
+
+    previous_storage_backend = settings.STORAGE_BACKEND
+    settings.STORAGE_BACKEND = "local"
+    try:
+        response = client.get(
+            f"/api/v1/videos/{video.id}/stream",
+            headers={**auth_headers, "Range": "bytes=0-255"},
+        )
+    finally:
+        settings.STORAGE_BACKEND = previous_storage_backend
+
+    assert response.status_code == 206
+    assert calls["storage_path"] == video.storage_path
+    assert calls["url"] == "https://cdn.example.com/demo.mp4"
+    assert calls["range"] == "bytes=0-255"
+
+
+def test_stream_video_head_forwards_range_header(client, auth_headers, test_user, db, monkeypatch):
+    """HEAD /videos/{id}/stream should forward range headers to remote head fetch."""
+    video = Video(
+        id=uuid4(),
+        user_id=test_user.id,
+        filename="demo.mp4",
+        original_filename="demo.mp4",
+        storage_path=f"videos/{test_user.supabase_user_id}/demo.mp4",
+        status=VideoStatus.UPLOADED,
+    )
+    db.add(video)
+    db.commit()
+
+    calls = {}
+
+    def fake_build_public_url(storage_path, _request):
+        calls["storage_path"] = storage_path
+        return "https://cdn.example.com/demo.mp4"
+
+    async def fake_head_remote(url, range_header):
+        calls["url"] = url
+        calls["range"] = range_header
+        return Response(
+            status_code=206,
+            headers={
+                "accept-ranges": "bytes",
+                "content-range": "bytes 0-255/1000",
+            },
+        )
+
+    monkeypatch.setattr(videos_endpoint.storage, "build_public_url", fake_build_public_url)
+    monkeypatch.setattr(videos_endpoint, "_head_remote", fake_head_remote)
+
+    previous_storage_backend = settings.STORAGE_BACKEND
+    settings.STORAGE_BACKEND = "local"
+    try:
+        response = client.head(
+            f"/api/v1/videos/{video.id}/stream",
+            headers={**auth_headers, "Range": "bytes=0-255"},
+        )
+    finally:
+        settings.STORAGE_BACKEND = previous_storage_backend
+
+    assert response.status_code == 206
+    assert response.headers.get("accept-ranges") == "bytes"
+    assert calls["storage_path"] == video.storage_path
+    assert calls["url"] == "https://cdn.example.com/demo.mp4"
+    assert calls["range"] == "bytes=0-255"
+
+
+def test_stream_video_supabase_redirects_to_signed_url(client, auth_headers, test_user, db, monkeypatch):
+    """Supabase-backed stream should redirect to signed URL instead of proxy-streaming."""
+    video = Video(
+        id=uuid4(),
+        user_id=test_user.id,
+        filename="demo.mp4",
+        original_filename="demo.mp4",
+        storage_path=f"videos/{test_user.supabase_user_id}/demo.mp4",
+        status=VideoStatus.UPLOADED,
+    )
+    db.add(video)
+    db.commit()
+
+    def fake_build_public_url(storage_path, _request):
+        assert storage_path == video.storage_path
+        return "https://cdn.example.com/direct.mp4"
+
+    async def fail_stream_remote(_url, _range_header):
+        raise AssertionError("_stream_remote should not be called for Supabase redirects")
+
+    monkeypatch.setattr(videos_endpoint.storage, "build_public_url", fake_build_public_url)
+    monkeypatch.setattr(videos_endpoint, "_stream_remote", fail_stream_remote)
+
+    previous_storage_backend = settings.STORAGE_BACKEND
+    settings.STORAGE_BACKEND = "supabase"
+    try:
+        response = client.get(
+            f"/api/v1/videos/{video.id}/stream",
+            headers=auth_headers,
+            follow_redirects=False,
+        )
+    finally:
+        settings.STORAGE_BACKEND = previous_storage_backend
+
+    assert response.status_code == 307
+    assert response.headers.get("location") == "https://cdn.example.com/direct.mp4"
 
 
 def test_media_urls_returns_owned_items_and_deduplicates(client, auth_headers, test_user, db):

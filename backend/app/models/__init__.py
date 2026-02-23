@@ -14,6 +14,7 @@ from app.models.post import Post
 from app.models.analytics import Analytics
 from app.models.user_asset import UserAsset
 from app.models.edit_template import EditTemplate
+from app.models.editor_job import EditorJob, EditorJobType, EditorJobStatus
 
 __all__ = [
     "Base",
@@ -30,4 +31,7 @@ __all__ = [
     "Analytics",
     "UserAsset",
     "EditTemplate",
+    "EditorJob",
+    "EditorJobType",
+    "EditorJobStatus",
 ]

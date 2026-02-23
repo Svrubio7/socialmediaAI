@@ -1,0 +1,32 @@
+{
+  "projectName": "Long Scrub Drift",
+  "tracks": [
+    {
+      "id": "track-video",
+      "type": "video",
+      "label": "Video",
+      "clips": [
+        {
+          "id": "clip-long",
+          "type": "video",
+          "label": "Long Clip",
+          "startTime": 0,
+          "duration": 600,
+          "layer": 1,
+          "layerGroup": "video"
+        }
+      ]
+    },
+    { "id": "track-graphics", "type": "graphics", "label": "Graphics", "clips": [] },
+    { "id": "track-audio", "type": "audio", "label": "Audio", "clips": [] }
+  ],
+  "selectedClipId": "clip-long",
+  "playheadTime": 0,
+  "timelineZoom": 0.4,
+  "outputSettings": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "bitrate": "8M"
+  }
+}
