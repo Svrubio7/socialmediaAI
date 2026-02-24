@@ -1,0 +1,92 @@
+{
+  "version": 6,
+  "metadata": {
+    "id": "__PROJECT_ID__",
+    "name": "reload_exact_persistence_30fps",
+    "duration": 24,
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z"
+  },
+  "scenes": [
+    {
+      "id": "scene_main",
+      "name": "Main scene",
+      "isMain": true,
+      "tracks": [
+        {
+          "id": "video_track_1",
+          "type": "video",
+          "elements": [
+            {
+              "id": "clip_1",
+              "type": "video",
+              "startFrame": 0,
+              "endFrame": 300,
+              "sourceId": "video_1"
+            },
+            {
+              "id": "clip_2",
+              "type": "video",
+              "startFrame": 300,
+              "endFrame": 600,
+              "sourceId": "video_2"
+            }
+          ],
+          "transitions": [
+            {
+              "id": "transition_1",
+              "type": "crossfade",
+              "leftElementId": "clip_1",
+              "rightElementId": "clip_2",
+              "startFrame": 300,
+              "durationFrames": 12
+            }
+          ]
+        },
+        {
+          "id": "audio_track_1",
+          "type": "audio",
+          "elements": [
+            {
+              "id": "audio_bed",
+              "type": "audio",
+              "startFrame": 0,
+              "endFrame": 720,
+              "sourceId": "audio_1",
+              "gainDb": -2
+            }
+          ]
+        }
+      ],
+      "bookmarks": [
+        {
+          "id": "marker_1",
+          "time": 3.5,
+          "label": "Hook point"
+        }
+      ],
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "currentSceneId": "scene_main",
+  "settings": {
+    "fps": 30,
+    "canvasSize": {
+      "width": 1080,
+      "height": 1920
+    },
+    "background": {
+      "type": "color",
+      "color": "#000000"
+    }
+  },
+  "timelineViewState": {
+    "zoomLevel": 1.1,
+    "scrollLeft": 180,
+    "playheadTime": 4
+  },
+  "verification": {
+    "fixture_id": "reload_exact_persistence_30fps"
+  }
+}

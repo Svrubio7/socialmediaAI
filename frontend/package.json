@@ -14,7 +14,10 @@
     "typecheck": "nuxt typecheck",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:editor-integration:playwright": "playwright test --config playwright.integration.config.ts --grep @editor-integration",
+    "test:editor-integration": "npm run verify:editor",
+    "verify:editor": "powershell -ExecutionPolicy Bypass -File ../verify-editor.ps1"
   },
   "dependencies": {
     "@nuxtjs/i18n": "^10.2.1",

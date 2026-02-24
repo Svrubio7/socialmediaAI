@@ -170,6 +170,7 @@ definePageMeta({
 const api = useApi()
 const toast = useToast()
 const localePath = useLocalePath()
+const editorRouting = useEditorRouting()
 const showUpload = ref(false)
 const uploadProgress = ref(0)
 const uploadingFileName = ref('')
@@ -187,6 +188,9 @@ const showProjectNameModal = ref(false)
 const newProjectName = ref('')
 const checkingProject = ref(false)
 const creatingProject = ref(false)
+const preferredEditorEngine = computed<'legacy' | 'opencut'>(() =>
+  editorRouting.isForkEnabledForUser.value ? 'opencut' : 'legacy'
+)
 let mediaUrlRefreshTimer: ReturnType<typeof setTimeout> | null = null
 const MEDIA_URL_REFRESH_BUFFER_SECONDS = 90
 
@@ -433,11 +437,37 @@ async function createProjectFromVideo() {
   }
   creatingProject.value = true
   try {
-    const project = await api.projects.create({ name, source_video_id: String(video.id) })
-    const state = buildProjectState(video, project?.name || name)
-    await api.projects.update(project.id, { state })
+    const project = await api.projects.create({
+      name,
+      source_video_id: String(video.id),
+      editor_engine: preferredEditorEngine.value,
+    })
+    if (preferredEditorEngine.value === 'legacy') {
+      const state = buildProjectState(video, project?.name || name)
+      await api.projects.update(project.id, { state, editor_engine: preferredEditorEngine.value })
+    } else if (video.storage_path) {
+      await api.projects.assets.register(project.id, {
+        kind: 'video',
+        storage_path: String(video.storage_path),
+        filename: String(video.filename || video.original_filename || `${video.id}.mp4`),
+        original_filename: String(video.original_filename || video.filename || `${video.id}.mp4`),
+        file_size: typeof video.file_size === 'number' ? video.file_size : undefined,
+        duration: typeof video.duration === 'number' ? video.duration : undefined,
+        width: typeof video.width === 'number' ? video.width : undefined,
+        height: typeof video.height === 'number' ? video.height : undefined,
+        metadata: {
+          project_id: project.id,
+          source_video_id: String(video.id),
+          opencut_media_id: `video_${video.id}`,
+        },
+      })
+    }
     resetProjectFlow()
-    await navigateTo(localePath(`/editor/${project.id}`))
+    await navigateTo(
+      localePath(
+        editorRouting.projectPathForEngine(project.id, preferredEditorEngine.value)
+      )
+    )
   } catch (e: any) {
     toast.error(e?.data?.detail ?? e?.message ?? 'Could not open editor')
   } finally {
@@ -448,8 +478,9 @@ async function createProjectFromVideo() {
 async function openExistingProject() {
   if (!existingProject.value?.id) return
   const projectId = existingProject.value.id
+  const projectEngine = existingProject.value.editor_engine as string | undefined
   resetProjectFlow()
-  await navigateTo(localePath(`/editor/${projectId}`))
+  await navigateTo(localePath(editorRouting.projectPathForEngine(projectId, projectEngine)))
 }
 
 function startNewProjectFromWarning() {
@@ -464,10 +495,17 @@ const editVideo = async (video: any) => {
   pendingVideo.value = video
   checkingProject.value = true
   try {
-    const res = await api.projects.list({ limit: 1, sourceVideoId: String(video.id) })
+    const res = await api.projects.list({
+      limit: 1,
+      sourceVideoId: String(video.id),
+      editorEngine: preferredEditorEngine.value,
+    })
     let project = res?.items?.[0]
     if (!project) {
-      const fallback = await api.projects.list({ limit: 50 })
+      const fallback = await api.projects.list({
+        limit: 50,
+        editorEngine: preferredEditorEngine.value,
+      })
       const targetName = (video.original_filename || video.filename || '').trim().toLowerCase()
       if (targetName) {
         project = (fallback?.items ?? []).find((item: any) =>

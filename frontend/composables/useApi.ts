@@ -9,6 +9,8 @@ interface ApiOptions {
   timeoutMs?: number
 }
 
+export type EditorEngine = 'legacy' | 'opencut'
+
 interface VideoMediaUrlItem {
   id: string
   video_url?: string
@@ -25,6 +27,7 @@ const API_LONG_REQUEST_TIMEOUT_MS = 60000
 const TOKEN_TIMEOUT_MS = 4000
 const ACCESS_TOKEN_CACHE_MS = 10000
 const VIDEO_MEDIA_URL_BATCH_SIZE = 200
+const RETRYABLE_STATUS_CODES = [408, 425, 429, 500, 502, 503, 504]
 
 const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> =>
   new Promise<T>((resolve, reject) => {
@@ -70,6 +73,8 @@ const generateId = () => {
   }
   return `vid_${Date.now()}_${Math.random().toString(16).slice(2)}`
 }
+
+const createRequestId = () => `req_${Date.now()}_${Math.random().toString(16).slice(2)}`
 
 const extensionFromType = (mime: string) => {
   const map: Record<string, string> = {
@@ -317,7 +322,11 @@ export const useApi = () => {
       method,
       body: body ?? undefined,
       timeout: timeoutMs,
+      credentials: 'include',
+      retry: 1,
+      retryStatusCodes: RETRYABLE_STATUS_CODES,
       headers: {
+        'X-Request-ID': createRequestId(),
         ...(shouldSetJsonContentType ? { 'Content-Type': 'application/json' } : {}),
         ...authHeaders,
         ...headers,
@@ -483,15 +492,16 @@ export const useApi = () => {
 
   // Editor projects
   const projects = {
-    list: (params?: { page?: number; limit?: number; sourceVideoId?: string }) => {
+    list: (params?: { page?: number; limit?: number; sourceVideoId?: string; editorEngine?: EditorEngine }) => {
       const query = new URLSearchParams()
       if (params?.page) query.set('page', params.page.toString())
       if (params?.limit) query.set('limit', params.limit.toString())
       if (params?.sourceVideoId) query.set('source_video_id', params.sourceVideoId)
+      if (params?.editorEngine) query.set('editor_engine', params.editorEngine)
       return get<any>(`/projects?${query}`)
     },
     get: (id: string) => get<any>(`/projects/${id}`),
-    create: (body: { name?: string; description?: string; source_video_id?: string }) => post<any>('/projects', body),
+    create: (body: { name?: string; description?: string; source_video_id?: string; editor_engine?: EditorEngine }) => post<any>('/projects', body),
     update: (
       id: string,
       body: {
@@ -501,6 +511,7 @@ export const useApi = () => {
         source_video_id?: string
         schema_version?: number
         revision?: number
+        editor_engine?: EditorEngine
       }
     ) => patch<any>(`/projects/${id}`, body),
     delete: (id: string) => del(`/projects/${id}`),
@@ -526,9 +537,10 @@ export const useApi = () => {
       cancel: (id: string, jobId: string) => post<any>(`/projects/${id}/exports/${jobId}/cancel`),
     },
     assets: {
-      list: (id: string, kind?: 'video' | 'image' | 'audio') => {
+      list: (id: string, kind?: 'video' | 'image' | 'audio', options?: { projectOnly?: boolean }) => {
         const query = new URLSearchParams()
         if (kind) query.set('kind', kind)
+        if (options?.projectOnly) query.set('project_only', 'true')
         return get<any>(`/projects/${id}/assets?${query}`)
       },
       register: (

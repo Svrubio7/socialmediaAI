@@ -1,0 +1,10 @@
+{
+  "name": "socialmediaai-monorepo",
+  "private": true,
+  "scripts": {
+    "dev:app": "docker compose up --build",
+    "verify:app": "node ./scripts/verify-app.mjs",
+    "dev:editor": "npm run dev:app",
+    "verify:editor": "npm run verify:app"
+  }
+}

@@ -6,8 +6,10 @@ import hashlib
 import json
 import logging
 import os
+import re
 from datetime import datetime
 from pathlib import Path
+from time import perf_counter
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
@@ -15,12 +17,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.deps import get_db, get_current_user
+from app.core.rate_limit import signed_upload_rate_limiter
 from app.models.editor_job import EditorJob, EditorJobStatus, EditorJobType
 from app.models.project import EditorProject
 from app.models.user import User
 from app.models.video import Video, VideoStatus
 from app.models.user_asset import UserAsset
+from app.services.metrics_lite import observe_duration
 from app.services.storage_service import get_storage_service
 from app.services.video_editor import VideoEditorService
 
@@ -28,7 +33,12 @@ router = APIRouter()
 storage = get_storage_service()
 logger = logging.getLogger(__name__)
 
+LEGACY_EDITOR_ENGINE = "legacy"
+OPENCUT_EDITOR_ENGINE = "opencut"
+SUPPORTED_EDITOR_ENGINES = {LEGACY_EDITOR_ENGINE, OPENCUT_EDITOR_ENGINE}
+
 CURRENT_PROJECT_SCHEMA_VERSION = 2
+CURRENT_OPENCUT_SCHEMA_VERSION = 6
 
 
 class ProjectListItem(BaseModel):
@@ -36,6 +46,7 @@ class ProjectListItem(BaseModel):
     name: str
     description: Optional[str] = None
     source_video_id: Optional[str] = None
+    editor_engine: str = LEGACY_EDITOR_ENGINE
     schema_version: int = CURRENT_PROJECT_SCHEMA_VERSION
     revision: int = 0
     last_opened_at: Optional[datetime] = None
@@ -61,6 +72,7 @@ class ProjectCreateRequest(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     source_video_id: Optional[str] = None
+    editor_engine: Optional[str] = None
 
 
 class ProjectUpdateRequest(BaseModel):
@@ -70,6 +82,7 @@ class ProjectUpdateRequest(BaseModel):
     source_video_id: Optional[str] = None
     schema_version: Optional[int] = None
     revision: Optional[int] = None
+    editor_engine: Optional[str] = None
 
 
 class ProjectExportRequest(BaseModel):
@@ -137,6 +150,23 @@ class ProjectAssetRegisterRequest(BaseModel):
     bitrate: Optional[int] = None
 
 
+class ProjectAssetSignedUploadRequest(BaseModel):
+    kind: str
+    filename: str
+    content_type: Optional[str] = None
+    asset_id: Optional[str] = None
+    upsert: bool = False
+
+
+class ProjectAssetSignedUploadResponse(BaseModel):
+    bucket: str
+    storage_path: str
+    signed_url: str
+    token: Optional[str] = None
+    content_type: str
+    expires_in: int
+
+
 class ProjectAssetDeriveRequest(BaseModel):
     operations: List[str] = Field(default_factory=list)
     options: Dict[str, Any] = Field(default_factory=dict)
@@ -156,6 +186,34 @@ def _parse_uuid(raw_id: str, detail: str) -> UUID:
         ) from exc
 
 
+def _normalize_editor_engine(
+    raw_value: Optional[str], *, default: str, enforce_enabled: bool = True
+) -> str:
+    value = (raw_value or "").strip().lower() or default
+    if value not in SUPPORTED_EDITOR_ENGINES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Unsupported editor_engine '{raw_value}'",
+        )
+    if (
+        enforce_enabled
+        and value == OPENCUT_EDITOR_ENGINE
+        and not settings.EDITOR_OPENCUT_ENABLED
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="OpenCut editor engine is currently disabled",
+        )
+    return value
+
+
+def _default_editor_engine() -> str:
+    configured = (settings.EDITOR_ENGINE_DEFAULT or LEGACY_EDITOR_ENGINE).strip()
+    return _normalize_editor_engine(
+        configured, default=LEGACY_EDITOR_ENGINE, enforce_enabled=False
+    )
+
+
 def _state_hash(state: Dict[str, Any]) -> str:
     try:
         payload = json.dumps(state or {}, sort_keys=True, separators=(",", ":"))
@@ -164,7 +222,7 @@ def _state_hash(state: Dict[str, Any]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _default_project_state(project_name: str) -> Dict[str, Any]:
+def _default_legacy_project_state(project_name: str) -> Dict[str, Any]:
     return {
         "version": CURRENT_PROJECT_SCHEMA_VERSION,
         "metadata": {"name": project_name},
@@ -200,11 +258,80 @@ def _default_project_state(project_name: str) -> Dict[str, Any]:
     }
 
 
-def _normalize_project_state(
+def _default_opencut_project_state(project_name: str, project_id: str) -> Dict[str, Any]:
+    now_iso = datetime.utcnow().isoformat() + "Z"
+    scene_id = "scene_main"
+    return {
+        "metadata": {
+            "id": project_id,
+            "name": project_name,
+            "duration": 0,
+            "createdAt": now_iso,
+            "updatedAt": now_iso,
+        },
+        "scenes": [
+            {
+                "id": scene_id,
+                "name": "Main scene",
+                "isMain": True,
+                "tracks": [],
+                "bookmarks": [],
+                "createdAt": now_iso,
+                "updatedAt": now_iso,
+            }
+        ],
+        "currentSceneId": scene_id,
+        "settings": {
+            "fps": 30,
+            "canvasSize": {"width": 1080, "height": 1920},
+            "originalCanvasSize": None,
+            "background": {"type": "color", "color": "#000000"},
+        },
+        "timelineViewState": {"zoomLevel": 1.0, "scrollLeft": 0, "playheadTime": 0},
+        "version": CURRENT_OPENCUT_SCHEMA_VERSION,
+    }
+
+
+def _normalize_opencut_project_state(
+    raw_state: Optional[Dict[str, Any]], project_name: str, project_id: str
+) -> Dict[str, Any]:
+    if not isinstance(raw_state, dict):
+        return _default_opencut_project_state(project_name, project_id)
+
+    state = dict(raw_state)
+    metadata = state.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {}
+    metadata = {
+        **metadata,
+        "id": str(metadata.get("id") or project_id),
+        "name": str(metadata.get("name") or project_name),
+    }
+    if "duration" not in metadata:
+        metadata["duration"] = 0
+    if "createdAt" not in metadata:
+        metadata["createdAt"] = datetime.utcnow().isoformat() + "Z"
+    metadata["updatedAt"] = metadata.get("updatedAt") or datetime.utcnow().isoformat() + "Z"
+    state["metadata"] = metadata
+
+    version_value = state.get("version")
+    try:
+        state["version"] = int(version_value) if version_value is not None else CURRENT_OPENCUT_SCHEMA_VERSION
+    except (TypeError, ValueError):
+        state["version"] = CURRENT_OPENCUT_SCHEMA_VERSION
+
+    scenes = state.get("scenes")
+    if not isinstance(scenes, list):
+        state["scenes"] = []
+
+    return state
+
+
+def _normalize_legacy_project_state(
     raw_state: Optional[Dict[str, Any]], project_name: str
 ) -> Dict[str, Any]:
     if not isinstance(raw_state, dict):
-        return _default_project_state(project_name)
+        return _default_legacy_project_state(project_name)
 
     state = dict(raw_state)
     scenes_raw = state.get("scenes")
@@ -337,6 +464,17 @@ def _normalize_project_state(
     return normalized
 
 
+def _normalize_project_state(
+    raw_state: Optional[Dict[str, Any]],
+    project_name: str,
+    editor_engine: str,
+    project_id: str,
+) -> Dict[str, Any]:
+    if editor_engine == OPENCUT_EDITOR_ENGINE:
+        return _normalize_opencut_project_state(raw_state, project_name, project_id)
+    return _normalize_legacy_project_state(raw_state, project_name)
+
+
 def _project_or_404(project_id: str, db: Session, current_user: User) -> EditorProject:
     resolved_id = _parse_uuid(project_id, "Invalid project id")
     project = (
@@ -355,7 +493,15 @@ def _project_or_404(project_id: str, db: Session, current_user: User) -> EditorP
 
 
 def _build_project_response(project: EditorProject) -> ProjectResponse:
-    normalized_state = _normalize_project_state(project.state or {}, project.name)
+    editor_engine = _normalize_editor_engine(
+        project.editor_engine, default=LEGACY_EDITOR_ENGINE, enforce_enabled=False
+    )
+    normalized_state = _normalize_project_state(
+        project.state or {},
+        project.name,
+        editor_engine,
+        str(project.id),
+    )
     return ProjectResponse(
         id=str(project.id),
         name=project.name,
@@ -364,7 +510,15 @@ def _build_project_response(project: EditorProject) -> ProjectResponse:
         source_video_id=(
             str(project.source_video_id) if project.source_video_id else None
         ),
-        schema_version=int(project.schema_version or CURRENT_PROJECT_SCHEMA_VERSION),
+        editor_engine=editor_engine,
+        schema_version=int(
+            project.schema_version
+            or (
+                CURRENT_OPENCUT_SCHEMA_VERSION
+                if editor_engine == OPENCUT_EDITOR_ENGINE
+                else CURRENT_PROJECT_SCHEMA_VERSION
+            )
+        ),
         revision=int(project.revision or 0),
         last_opened_at=project.last_opened_at,
         created_at=project.created_at,
@@ -424,6 +578,7 @@ def _validate_user_storage_path(
         f"videos/{user_id}/",
         f"thumbnails/{user_id}/",
         f"editor/outputs/{user_id}/",
+        f"editor/assets/{user_id}/",
     ]
     if not any(rel.startswith(prefix) for prefix in allowed):
         raise HTTPException(
@@ -431,6 +586,24 @@ def _validate_user_storage_path(
             detail="Storage path is not under the current user's namespace",
         )
     return rel
+
+
+def _sanitize_asset_filename(value: str) -> str:
+    filename = Path((value or "").strip()).name
+    if not filename:
+        filename = "asset.bin"
+    filename = re.sub(r"[^A-Za-z0-9._-]", "_", filename)
+    return filename[:180] or "asset.bin"
+
+
+def _sanitize_asset_id(value: Optional[str]) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return uuid4().hex
+    sanitized = re.sub(r"[^A-Za-z0-9_-]", "", raw)
+    if not sanitized:
+        return uuid4().hex
+    return sanitized[:80]
 
 
 def _extract_video_clip_ids(state: Dict[str, Any]) -> List[str]:
@@ -487,6 +660,7 @@ async def list_projects(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     source_video_id: Optional[str] = Query(None),
+    editor_engine: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -494,6 +668,11 @@ async def list_projects(
     if source_video_id:
         resolved_id = _parse_uuid(source_video_id, "Invalid source video id")
         query = query.filter(EditorProject.source_video_id == resolved_id)
+    if editor_engine is not None:
+        normalized_engine = _normalize_editor_engine(
+            editor_engine, default=LEGACY_EDITOR_ENGINE, enforce_enabled=False
+        )
+        query = query.filter(EditorProject.editor_engine == normalized_engine)
     total = query.count()
     items = (
         query.order_by(EditorProject.updated_at.desc())
@@ -510,8 +689,18 @@ async def list_projects(
                 source_video_id=(
                     str(project.source_video_id) if project.source_video_id else None
                 ),
+                editor_engine=_normalize_editor_engine(
+                    project.editor_engine,
+                    default=LEGACY_EDITOR_ENGINE,
+                    enforce_enabled=False,
+                ),
                 schema_version=int(
-                    project.schema_version or CURRENT_PROJECT_SCHEMA_VERSION
+                    project.schema_version
+                    or (
+                        CURRENT_OPENCUT_SCHEMA_VERSION
+                        if project.editor_engine == OPENCUT_EDITOR_ENGINE
+                        else CURRENT_PROJECT_SCHEMA_VERSION
+                    )
                 ),
                 revision=int(project.revision or 0),
                 last_opened_at=project.last_opened_at,
@@ -542,14 +731,27 @@ async def create_project(
     source_video_id = _resolve_source_video_id(
         payload.source_video_id, db, current_user
     )
-    initial_state = _default_project_state(name)
+    editor_engine = _normalize_editor_engine(
+        payload.editor_engine, default=_default_editor_engine()
+    )
+    project_id = uuid4()
+    initial_state = (
+        _default_opencut_project_state(name, str(project_id))
+        if editor_engine == OPENCUT_EDITOR_ENGINE
+        else _default_legacy_project_state(name)
+    )
     project = EditorProject(
-        id=uuid4(),
+        id=project_id,
         user_id=current_user.id,
         name=name,
         description=(payload.description or "").strip() or None,
         state=initial_state,
-        schema_version=CURRENT_PROJECT_SCHEMA_VERSION,
+        editor_engine=editor_engine,
+        schema_version=(
+            CURRENT_OPENCUT_SCHEMA_VERSION
+            if editor_engine == OPENCUT_EDITOR_ENGINE
+            else CURRENT_PROJECT_SCHEMA_VERSION
+        ),
         revision=0,
         source_video_id=source_video_id,
     )
@@ -565,13 +767,19 @@ async def get_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    started_at = perf_counter()
     project = _project_or_404(project_id, db, current_user)
 
     project.last_opened_at = datetime.utcnow()
     db.commit()
     db.refresh(project)
-
-    return _build_project_response(project)
+    response = _build_project_response(project)
+    observe_duration(
+        "project_load_duration_ms",
+        (perf_counter() - started_at) * 1000,
+        metadata={"source": "backend", "project_id": str(project.id)},
+    )
+    return response
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
@@ -583,9 +791,22 @@ async def update_project(
 ):
     project = _project_or_404(project_id, db, current_user)
     current_revision = int(project.revision or 0)
+    current_engine = _normalize_editor_engine(
+        project.editor_engine, default=LEGACY_EDITOR_ENGINE, enforce_enabled=False
+    )
+    target_engine = current_engine
+    if payload.editor_engine is not None:
+        target_engine = _normalize_editor_engine(
+            payload.editor_engine, default=current_engine
+        )
 
     if payload.revision is not None and int(payload.revision) != current_revision:
-        server_state = _normalize_project_state(project.state or {}, project.name)
+        server_state = _normalize_project_state(
+            project.state or {},
+            project.name,
+            current_engine,
+            str(project.id),
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={
@@ -595,6 +816,7 @@ async def update_project(
                 "server_schema_version": int(
                     project.schema_version or CURRENT_PROJECT_SCHEMA_VERSION
                 ),
+                "server_editor_engine": current_engine,
                 "server_state_hash": _state_hash(server_state),
             },
         )
@@ -611,14 +833,41 @@ async def update_project(
         if normalized_description != project.description:
             project.description = normalized_description
             dirty = True
+    if target_engine != current_engine:
+        project.editor_engine = target_engine
+        project.state = _normalize_project_state(
+            project.state or {},
+            project.name,
+            target_engine,
+            str(project.id),
+        )
+        if payload.schema_version is None and payload.state is None:
+            project.schema_version = (
+                CURRENT_OPENCUT_SCHEMA_VERSION
+                if target_engine == OPENCUT_EDITOR_ENGINE
+                else CURRENT_PROJECT_SCHEMA_VERSION
+            )
+        dirty = True
     if payload.state is not None:
-        normalized_state = _normalize_project_state(payload.state, project.name)
+        normalized_state = _normalize_project_state(
+            payload.state,
+            project.name,
+            target_engine,
+            str(project.id),
+        )
         requested_schema = int(
             payload.schema_version
             or normalized_state.get("version")
-            or CURRENT_PROJECT_SCHEMA_VERSION
+            or (
+                CURRENT_OPENCUT_SCHEMA_VERSION
+                if target_engine == OPENCUT_EDITOR_ENGINE
+                else CURRENT_PROJECT_SCHEMA_VERSION
+            )
         )
-        if requested_schema > CURRENT_PROJECT_SCHEMA_VERSION:
+        if (
+            target_engine == LEGACY_EDITOR_ENGINE
+            and requested_schema > CURRENT_PROJECT_SCHEMA_VERSION
+        ):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={
@@ -634,7 +883,10 @@ async def update_project(
         dirty = True
     elif payload.schema_version is not None:
         requested_schema = int(payload.schema_version)
-        if requested_schema > CURRENT_PROJECT_SCHEMA_VERSION:
+        if (
+            target_engine == LEGACY_EDITOR_ENGINE
+            and requested_schema > CURRENT_PROJECT_SCHEMA_VERSION
+        ):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={
@@ -646,7 +898,12 @@ async def update_project(
                 },
             )
         if requested_schema != int(
-            project.schema_version or CURRENT_PROJECT_SCHEMA_VERSION
+            project.schema_version
+            or (
+                CURRENT_OPENCUT_SCHEMA_VERSION
+                if target_engine == OPENCUT_EDITOR_ENGINE
+                else CURRENT_PROJECT_SCHEMA_VERSION
+            )
         ):
             project.schema_version = requested_schema
             dirty = True
@@ -688,9 +945,11 @@ async def list_project_assets(
     project_id: str,
     request: Request,
     kind: Optional[str] = Query(None),
+    project_only: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    started_at = perf_counter()
     _project_or_404(project_id, db, current_user)
 
     if kind is not None:
@@ -710,6 +969,9 @@ async def list_project_assets(
             .all()
         )
         for video in videos:
+            metadata = dict(video.video_metadata or {})
+            if project_only and str(metadata.get("project_id") or "") != project_id:
+                continue
             items.append(
                 _build_asset_response(
                     kind="video",
@@ -721,7 +983,7 @@ async def list_project_assets(
                     width=video.width,
                     height=video.height,
                     file_size=video.file_size,
-                    metadata=dict(video.video_metadata or {}),
+                    metadata=metadata,
                     created_at=video.created_at,
                     updated_at=video.updated_at,
                 )
@@ -738,6 +1000,9 @@ async def list_project_assets(
             normalized_kind = "audio" if asset.type == "audio" else "image"
             if kind is not None and normalized_kind != kind:
                 continue
+            metadata = dict(asset.asset_metadata or {})
+            if project_only and str(metadata.get("project_id") or "") != project_id:
+                continue
             items.append(
                 _build_asset_response(
                     kind=normalized_kind,
@@ -745,7 +1010,7 @@ async def list_project_assets(
                     filename=asset.filename,
                     storage_path=asset.storage_path,
                     request=request,
-                    metadata=dict(asset.asset_metadata or {}),
+                    metadata=metadata,
                     created_at=asset.created_at,
                     updated_at=asset.updated_at,
                 )
@@ -755,7 +1020,113 @@ async def list_project_assets(
         key=lambda item: item.updated_at or item.created_at or datetime.min,
         reverse=True,
     )
+    observe_duration(
+        "asset_list_fetch_duration_ms",
+        (perf_counter() - started_at) * 1000,
+        metadata={"source": "backend", "project_id": project_id, "count": len(items)},
+    )
     return ProjectAssetListResponse(items=items, total=len(items))
+
+
+@router.post(
+    "/{project_id}/assets/signed-upload-url",
+    response_model=ProjectAssetSignedUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_project_asset_signed_upload_url(
+    project_id: str,
+    payload: ProjectAssetSignedUploadRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    started_at = perf_counter()
+    project = _project_or_404(project_id, db, current_user)
+    kind = (payload.kind or "").strip().lower()
+    if kind not in {"video", "image", "audio"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid asset kind"
+        )
+
+    if (settings.STORAGE_BACKEND or "").lower() != "supabase":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Signed upload URL issuance requires STORAGE_BACKEND=supabase",
+        )
+
+    user_scope = str(current_user.supabase_user_id or current_user.id)
+    decision = signed_upload_rate_limiter.check(
+        key=f"signed_upload:{current_user.id}",
+        limit=int(settings.EDITOR_SIGNED_UPLOAD_RATE_LIMIT or 30),
+        window_seconds=int(settings.EDITOR_SIGNED_UPLOAD_RATE_WINDOW_SEC or 60),
+    )
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many signed upload URL requests",
+            headers={"Retry-After": str(decision.retry_after_seconds)},
+        )
+
+    asset_id = _sanitize_asset_id(payload.asset_id)
+    filename = _sanitize_asset_filename(payload.filename)
+    storage_path = _validate_user_storage_path(
+        path=f"editor/assets/{user_scope}/{project.id}/{asset_id}/{filename}",
+        user_id=user_scope,
+        prefixes=[f"editor/assets/{user_scope}/{project.id}/"],
+    )
+
+    try:
+        signed = storage.create_signed_upload_url(
+            storage_path,
+            content_type=payload.content_type,
+            upsert=bool(payload.upsert),
+        )
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        logger.exception(
+            "Failed creating signed upload URL for project %s: %s",
+            project.id,
+            exc,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Failed to create signed upload URL",
+        ) from exc
+
+    signed_url = str(signed.get("signed_url") or "")
+    if not signed_url:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Signed upload URL response was empty",
+        )
+
+    observe_duration(
+        "signed_url_generation_duration_ms",
+        (perf_counter() - started_at) * 1000,
+        metadata={"source": "backend", "project_id": str(project.id)},
+    )
+
+    return ProjectAssetSignedUploadResponse(
+        bucket=str(signed.get("bucket") or settings.SUPABASE_STORAGE_BUCKET),
+        storage_path=storage_path,
+        signed_url=signed_url,
+        token=(
+            str(signed.get("token"))
+            if signed.get("token") is not None
+            else None
+        ),
+        content_type=str(
+            signed.get("content_type")
+            or payload.content_type
+            or "application/octet-stream"
+        ),
+        expires_in=int(
+            signed.get("expires_in") or settings.SUPABASE_STORAGE_SIGNED_URL_TTL or 3600
+        ),
+    )
 
 
 @router.post(
@@ -779,13 +1150,16 @@ async def register_project_asset(
 
     user_id = str(current_user.supabase_user_id or current_user.id)
     metadata = dict(payload.metadata or {})
+    metadata.setdefault("project_id", project_id)
     filename = (
         payload.filename or payload.original_filename or Path(payload.storage_path).name
     )
 
     if kind == "video":
         storage_path = _validate_user_storage_path(
-            payload.storage_path, user_id, [f"videos/{user_id}/"]
+            payload.storage_path,
+            user_id,
+            [f"videos/{user_id}/", f"editor/assets/{user_id}/"],
         )
         video = Video(
             id=uuid4(),
@@ -827,6 +1201,7 @@ async def register_project_asset(
         f"videos/{user_id}/",
         f"thumbnails/{user_id}/",
         f"editor/outputs/{user_id}/",
+        f"editor/assets/{user_id}/",
     ]
     storage_path = _validate_user_storage_path(
         payload.storage_path, user_id, allowed_prefixes
@@ -916,6 +1291,14 @@ async def create_project_export_job(
     current_user: User = Depends(get_current_user),
 ):
     project = _project_or_404(project_id, db, current_user)
+    if project.editor_engine == OPENCUT_EDITOR_ENGINE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Server-side export is not available for OpenCut projects yet. "
+                "Use client export in the OpenCut editor."
+            ),
+        )
     job = EditorJob(
         id=uuid4(),
         project_id=project.id,
@@ -1024,7 +1407,21 @@ async def export_project(
     current_user: User = Depends(get_current_user),
 ):
     project = _project_or_404(project_id, db, current_user)
-    project_state = _normalize_project_state(project.state or {}, project.name)
+    if project.editor_engine == OPENCUT_EDITOR_ENGINE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Server-side export is not available for OpenCut projects yet. "
+                "Use client export in the OpenCut editor."
+            ),
+        )
+
+    project_state = _normalize_project_state(
+        project.state or {},
+        project.name,
+        LEGACY_EDITOR_ENGINE,
+        str(project.id),
+    )
 
     clip_ids = _extract_video_clip_ids(project_state)
     # Video clips are required for a full timeline, but we allow graphics/audio-only exports

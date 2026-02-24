@@ -326,3 +326,24 @@ def test_media_urls_rejects_invalid_id(client, auth_headers):
 
     assert response.status_code == 400
     assert "Invalid video id" in response.json()["detail"]
+
+
+def test_register_video_accepts_editor_output_namespace(client, auth_headers, test_user):
+    """Register endpoint should accept editor/outputs namespace for OpenCut exports."""
+    previous_storage_backend = settings.STORAGE_BACKEND
+    settings.STORAGE_BACKEND = "supabase"
+    try:
+        response = client.post(
+            "/api/v1/videos/register",
+            headers=auth_headers,
+            json={
+                "storage_path": f"editor/outputs/{test_user.supabase_user_id}/projects/project-a/export.mp4",
+                "filename": "export.mp4",
+            },
+        )
+    finally:
+        settings.STORAGE_BACKEND = previous_storage_backend
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["filename"] == "export.mp4"

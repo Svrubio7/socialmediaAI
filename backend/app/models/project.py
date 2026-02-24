@@ -32,6 +32,7 @@ class EditorProject(Base, TimestampMixin):
     name = Column(String(255), nullable=False)
     description = Column(String(500), nullable=True)
     state = Column(JSONB, nullable=False, default=dict)
+    editor_engine = Column(String(32), nullable=False, default="legacy", index=True)
     schema_version = Column(SmallInteger, nullable=False, default=2)
     revision = Column(BigInteger, nullable=False, default=0)
     last_opened_at = Column(DateTime, nullable=True)

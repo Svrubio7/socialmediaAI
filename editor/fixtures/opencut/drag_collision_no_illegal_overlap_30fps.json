@@ -1,0 +1,75 @@
+{
+  "version": 6,
+  "metadata": {
+    "id": "__PROJECT_ID__",
+    "name": "drag_collision_no_illegal_overlap_30fps",
+    "duration": 20,
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z"
+  },
+  "scenes": [
+    {
+      "id": "scene_main",
+      "name": "Main scene",
+      "isMain": true,
+      "tracks": [
+        {
+          "id": "video_track_1",
+          "type": "video",
+          "elements": [
+            {
+              "id": "clip_anchor",
+              "type": "video",
+              "startFrame": 0,
+              "endFrame": 180,
+              "sourceId": "video_anchor"
+            },
+            {
+              "id": "clip_move_target",
+              "type": "video",
+              "startFrame": 180,
+              "endFrame": 360,
+              "sourceId": "video_target"
+            }
+          ]
+        },
+        {
+          "id": "video_track_2",
+          "type": "video",
+          "elements": [
+            {
+              "id": "clip_candidate",
+              "type": "video",
+              "startFrame": 60,
+              "endFrame": 240,
+              "sourceId": "video_candidate"
+            }
+          ]
+        }
+      ],
+      "bookmarks": [],
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "currentSceneId": "scene_main",
+  "settings": {
+    "fps": 30,
+    "canvasSize": {
+      "width": 1080,
+      "height": 1920
+    },
+    "background": {
+      "type": "color",
+      "color": "#000000"
+    }
+  },
+  "timelineViewState": {
+    "zoomLevel": 1.25,
+    "scrollLeft": 240,
+    "playheadTime": 6
+  },
+  "verification": {
+    "fixture_id": "drag_collision_no_illegal_overlap_30fps"
+  }
+}

@@ -134,7 +134,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 definePageMeta({
   layout: 'app-sidebar',
   middleware: 'auth',
@@ -144,6 +144,7 @@ const route = useRoute()
 const localePath = useLocalePath()
 const api = useApi()
 const toast = useToast()
+const editorRouting = useEditorRouting()
 
 const loading = ref(true)
 const error = ref('')
@@ -157,6 +158,9 @@ const showProjectNameModal = ref(false)
 const newProjectName = ref('')
 const checkingProject = ref(false)
 const creatingProject = ref(false)
+const preferredEditorEngine = computed<'legacy' | 'opencut'>(() =>
+  editorRouting.isForkEnabledForUser.value ? 'opencut' : 'legacy'
+)
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', {
@@ -303,11 +307,37 @@ async function createProjectFromVideo() {
   }
   creatingProject.value = true
   try {
-    const project = await api.projects.create({ name, source_video_id: String(videoEntry.id) })
-    const state = buildProjectState(videoEntry, project?.name || name)
-    await api.projects.update(project.id, { state })
+    const project = await api.projects.create({
+      name,
+      source_video_id: String(videoEntry.id),
+      editor_engine: preferredEditorEngine.value,
+    })
+    if (preferredEditorEngine.value === 'legacy') {
+      const state = buildProjectState(videoEntry, project?.name || name)
+      await api.projects.update(project.id, { state, editor_engine: preferredEditorEngine.value })
+    } else if (videoEntry.storage_path) {
+      await api.projects.assets.register(project.id, {
+        kind: 'video',
+        storage_path: String(videoEntry.storage_path),
+        filename: String(videoEntry.filename || videoEntry.original_filename || `${videoEntry.id}.mp4`),
+        original_filename: String(videoEntry.original_filename || videoEntry.filename || `${videoEntry.id}.mp4`),
+        file_size: typeof videoEntry.file_size === 'number' ? videoEntry.file_size : undefined,
+        duration: typeof videoEntry.duration === 'number' ? videoEntry.duration : undefined,
+        width: typeof videoEntry.width === 'number' ? videoEntry.width : undefined,
+        height: typeof videoEntry.height === 'number' ? videoEntry.height : undefined,
+        metadata: {
+          project_id: project.id,
+          source_video_id: String(videoEntry.id),
+          opencut_media_id: `video_${videoEntry.id}`,
+        },
+      })
+    }
     resetProjectFlow()
-    await navigateTo(localePath(`/editor/${project.id}`))
+    await navigateTo(
+      localePath(
+        editorRouting.projectPathForEngine(project.id, preferredEditorEngine.value)
+      )
+    )
   } catch (e: any) {
     toast.error(e?.data?.detail ?? e?.message ?? 'Could not open editor')
   } finally {
@@ -318,8 +348,9 @@ async function createProjectFromVideo() {
 async function openExistingProject() {
   if (!existingProject.value?.id) return
   const projectId = existingProject.value.id
+  const projectEngine = existingProject.value.editor_engine as string | undefined
   resetProjectFlow()
-  await navigateTo(localePath(`/editor/${projectId}`))
+  await navigateTo(localePath(editorRouting.projectPathForEngine(projectId, projectEngine)))
 }
 
 function startNewProjectFromWarning() {
@@ -361,10 +392,17 @@ async function editVideo() {
   pendingVideo.value = video.value
   checkingProject.value = true
   try {
-    const res = await api.projects.list({ limit: 1, sourceVideoId: String(video.value.id) })
+    const res = await api.projects.list({
+      limit: 1,
+      sourceVideoId: String(video.value.id),
+      editorEngine: preferredEditorEngine.value,
+    })
     let project = res?.items?.[0]
     if (!project) {
-      const fallback = await api.projects.list({ limit: 50 })
+      const fallback = await api.projects.list({
+        limit: 50,
+        editorEngine: preferredEditorEngine.value,
+      })
       const targetName = (video.value.original_filename || video.value.filename || '').trim().toLowerCase()
       if (targetName) {
         project = (fallback?.items ?? []).find((item: any) =>

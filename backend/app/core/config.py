@@ -35,6 +35,7 @@ class Settings(BaseSettings):
 
     # CORS: comma-separated env (e.g. CORS_ORIGINS=https://app.example.com,...) or default list
     CORS_ORIGINS: str = DEFAULT_CORS_ORIGINS
+    CORS_ORIGIN_REGEX: str = r"^https://.*\.vercel\.app$"
 
     @property
     def cors_origins_list(self) -> List[str]:
@@ -63,6 +64,13 @@ class Settings(BaseSettings):
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
     SUPABASE_JWT_SECRET: str = ""
+
+    # Editor integration
+    EDITOR_ENGINE_DEFAULT: str = "legacy"
+    EDITOR_OPENCUT_ENABLED: bool = True
+    EDITOR_API_DIAGNOSTICS: bool = False
+    EDITOR_SIGNED_UPLOAD_RATE_LIMIT: int = 30
+    EDITOR_SIGNED_UPLOAD_RATE_WINDOW_SEC: int = 60
 
     # AI APIs
     GEMINI_API_KEY: str = ""

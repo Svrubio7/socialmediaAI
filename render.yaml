@@ -1,134 +1,50 @@
-# Render Blueprint Configuration
-# https://render.com/docs/blueprint-spec
-#
-# Production. Set in Render Dashboard:
-#   DATABASE_URL (Supabase Postgres connection string)
-#   NUXT_PUBLIC_API_URL (frontend → backend URL + /api/v1)
-#   REDIS_URL (from Render Redis; auto-set by Blueprint)
-#   SUPABASE_URL, SUPABASE_KEY, SUPABASE_JWT_SECRET
-#   GEMINI_API_KEY, OPENAI_API_KEY, ENCRYPTION_KEY, SECRET_KEY, OAuth credentials
-# No Render database; Supabase only.
-
 services:
-  # Frontend - Nuxt.js (separate container/service)
   - type: web
-    name: social-media-ai-frontend
-    env: node
+    name: social-media-ai-app
+    env: docker
     region: oregon
     plan: starter
-    buildCommand: cd frontend && npm install && npm run build
-    startCommand: cd frontend && node .output/server/index.mjs
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
     envVars:
-      - key: NODE_ENV
-        value: production
-      # Set to your backend URL + /api/v1 (e.g. https://social-media-ai-backend.onrender.com/api/v1)
+      - key: APP_PORT
+        value: "3000"
       - key: NUXT_PUBLIC_API_URL
-        sync: false
-      - key: NUXT_PUBLIC_SUPABASE_URL
-        sync: false
-      - key: NUXT_PUBLIC_SUPABASE_ANON_KEY
-        sync: false
-      - key: NUXT_PUBLIC_EDITOR_PARITY_FLAG
-        value: "true"
-    healthCheckPath: /
-
-  # Backend - FastAPI (separate container/service)
-  - type: web
-    name: social-media-ai-backend
-    env: python
-    region: oregon
-    plan: starter
-    buildCommand: cd backend && pip install -r requirements.txt
-    releaseCommand: cd backend && alembic upgrade head
-    startCommand: cd backend && gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:$PORT
-    envVars:
-      # Supabase Postgres connection string (Project Settings → Database)
+        value: /api/v1
+      - key: NEXT_PUBLIC_FASTAPI_URL
+        value: /api/v1
+      - key: NEXT_PUBLIC_EDITOR_BASE_PATH
+        value: /editor
+      - key: NEXT_PUBLIC_EDITOR_RETURN_TO
+        value: /editor
       - key: DATABASE_URL
         sync: false
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: social-media-ai-redis
-          property: connectionString
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
         sync: false
       - key: SUPABASE_JWT_SECRET
         sync: false
+      - key: NUXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NUXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: NUXT_PUBLIC_SUPABASE_STORAGE_BUCKET
+        value: videos
+      - key: STORAGE_BACKEND
+        value: supabase
+      - key: SUPABASE_STORAGE_BUCKET
+        value: videos
+      - key: SUPABASE_STORAGE_PRIVATE
+        value: "true"
       - key: GEMINI_API_KEY
         sync: false
       - key: OPENAI_API_KEY
-        sync: false
-      - key: ENCRYPTION_KEY
         sync: false
       - key: SECRET_KEY
         sync: false
-      - key: INSTAGRAM_CLIENT_ID
-        sync: false
-      - key: INSTAGRAM_CLIENT_SECRET
-        sync: false
-      - key: TIKTOK_CLIENT_KEY
-        sync: false
-      - key: TIKTOK_CLIENT_SECRET
-        sync: false
-      - key: YOUTUBE_CLIENT_ID
-        sync: false
-      - key: YOUTUBE_CLIENT_SECRET
-        sync: false
-      - key: FACEBOOK_APP_ID
-        sync: false
-      - key: FACEBOOK_APP_SECRET
-        sync: false
-    healthCheckPath: /health
-
-  # Celery Worker - Video Processing
-  - type: worker
-    name: social-media-ai-worker
-    env: python
-    region: oregon
-    plan: starter
-    buildCommand: cd backend && pip install -r requirements.txt
-    startCommand: cd backend && celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
-    envVars:
-      - key: DATABASE_URL
-        sync: false
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: social-media-ai-redis
-          property: connectionString
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_KEY
-        sync: false
-      - key: GEMINI_API_KEY
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
       - key: ENCRYPTION_KEY
         sync: false
-
-  # Celery Beat - Scheduled Tasks
-  - type: worker
-    name: social-media-ai-beat
-    env: python
-    region: oregon
-    plan: starter
-    buildCommand: cd backend && pip install -r requirements.txt
-    startCommand: cd backend && celery -A app.workers.celery_app beat --loglevel=info
-    envVars:
-      - key: DATABASE_URL
-        sync: false
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: social-media-ai-redis
-          property: connectionString
-
-  # Redis - Celery broker and cache
-  - type: redis
-    name: social-media-ai-redis
-    region: oregon
-    plan: starter
-    maxmemoryPolicy: allkeys-lru
+      - key: CORS_ORIGINS
+        value: "*"

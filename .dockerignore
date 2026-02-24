@@ -36,6 +36,15 @@ Thumbs.db
 temp/
 uploads/
 
+# Dependency/build artifacts
+node_modules/
+**/node_modules/
+**/.next/
+**/.nuxt/
+**/dist/
+**/.turbo/
+**/coverage/
+
 # nginx SSL certificates (sensitive)
 nginx/ssl/
 

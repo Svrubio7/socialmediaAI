@@ -407,7 +407,12 @@ def _absolute_video_path(video: Video) -> str:
 
 def _validate_user_storage_path(path: str, user_id: str, prefixes: Optional[List[str]] = None) -> str:
     rel = path.replace("\\", "/").lstrip("/")
-    allowed = prefixes or [f"videos/{user_id}/", f"thumbnails/{user_id}/", f"editor/outputs/{user_id}/"]
+    allowed = prefixes or [
+        f"videos/{user_id}/",
+        f"thumbnails/{user_id}/",
+        f"editor/outputs/{user_id}/",
+        f"editor/assets/{user_id}/",
+    ]
     if not any(rel.startswith(prefix) for prefix in allowed):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -685,10 +690,18 @@ async def register_video(
     Register a video that was uploaded directly to storage (Supabase).
     """
     user_id = str(current_user.supabase_user_id or current_user.id)
-    storage_path = _validate_user_storage_path(payload.storage_path, user_id, [f"videos/{user_id}/"])
+    storage_path = _validate_user_storage_path(
+        payload.storage_path,
+        user_id,
+        [f"videos/{user_id}/", f"editor/outputs/{user_id}/", f"editor/assets/{user_id}/"],
+    )
     thumb_path = None
     if payload.thumbnail_storage_path:
-        thumb_path = _validate_user_storage_path(payload.thumbnail_storage_path, user_id, [f"thumbnails/{user_id}/", f"videos/{user_id}/"])
+        thumb_path = _validate_user_storage_path(
+            payload.thumbnail_storage_path,
+            user_id,
+            [f"thumbnails/{user_id}/", f"videos/{user_id}/", f"editor/assets/{user_id}/"],
+        )
 
     # Optional existence check to avoid broken records
     exists = _storage_exists_soft(storage_path)

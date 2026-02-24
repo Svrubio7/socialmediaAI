@@ -13,6 +13,7 @@ def _create_project(client, auth_headers, name: str = "Test Project"):
 
 def test_create_project_includes_schema_and_revision(client, auth_headers):
     payload = _create_project(client, auth_headers)
+    assert payload["editor_engine"] == "legacy"
     assert payload["schema_version"] == 2
     assert payload["revision"] == 0
     assert payload["state"]["version"] == 2

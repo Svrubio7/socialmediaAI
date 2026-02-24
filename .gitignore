@@ -59,11 +59,13 @@ htmlcov/
 .nox/
 .pytest_cache/
 .mypy_cache/
+frontend/test-results/
 
 # Build outputs
 .output/
 .nuxt/
 dist/
+*.tsbuildinfo
 
 # Cursor
 #.cursor/

@@ -1,5 +1,12 @@
 // @ts-nocheck
 // https://nuxt.com/docs/api/configuration/nuxt-config
+const supabaseUrl =
+  process.env.NUXT_PUBLIC_SUPABASE_URL || 'https://example.supabase.co'
+const supabaseKey =
+  process.env.NUXT_PUBLIC_SUPABASE_KEY ||
+  process.env.NUXT_PUBLIC_SUPABASE_ANON_KEY ||
+  'sb_publishable_placeholder'
+
 export default defineNuxtConfig({
   devtools: { enabled: process.env.NUXT_DEVTOOLS === 'true' },
   experimental: {
@@ -34,17 +41,20 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      apiUrl: process.env.NUXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1',
-      supabaseUrl: process.env.NUXT_PUBLIC_SUPABASE_URL || '',
-      supabaseKey: process.env.NUXT_PUBLIC_SUPABASE_ANON_KEY || '',
+      apiUrl: process.env.NUXT_PUBLIC_API_URL || '/api/v1',
+      supabaseUrl,
+      supabaseKey,
       supabaseStorageBucket: process.env.NUXT_PUBLIC_SUPABASE_STORAGE_BUCKET || 'videos',
       editorParityFlag: process.env.NUXT_PUBLIC_EDITOR_PARITY_FLAG || 'false',
+      editorForkEnabled: process.env.NUXT_PUBLIC_EDITOR_FORK_ENABLED || 'false',
+      editorForkRolloutPercent: process.env.NUXT_PUBLIC_EDITOR_FORK_ROLLOUT_PERCENT || '0',
+      editorForkAllowlist: process.env.NUXT_PUBLIC_EDITOR_FORK_ALLOWLIST || '',
     },
   },
 
   supabase: {
-    url: process.env.NUXT_PUBLIC_SUPABASE_URL,
-    key: process.env.NUXT_PUBLIC_SUPABASE_ANON_KEY,
+    url: supabaseUrl,
+    key: supabaseKey,
     redirectOptions: {
       login: '/auth/login',
       callback: '/auth/callback',

@@ -17,6 +17,7 @@ from uuid import uuid4
 
 from fastapi import Request
 from supabase import create_client
+from storage3.types import CreateSignedUploadUrlOptions
 
 from app.core.config import settings
 
@@ -107,6 +108,16 @@ class LocalStorageService:
             else:
                 base = "http://localhost:8000"
         return f"{base}/storage/{rel}"
+
+    def create_signed_upload_url(
+        self,
+        storage_path: str,
+        *,
+        content_type: Optional[str] = None,
+        upsert: bool = False,
+    ) -> dict:
+        _ = storage_path, content_type, upsert
+        raise RuntimeError("Signed upload URLs require STORAGE_BACKEND=supabase")
 
 
 class SupabaseStorageService:
@@ -260,6 +271,39 @@ class SupabaseStorageService:
             return res
         logger.warning("Public URL response missing url for %s", rel)
         return None
+
+    def create_signed_upload_url(
+        self,
+        storage_path: str,
+        *,
+        content_type: Optional[str] = None,
+        upsert: bool = False,
+    ) -> dict:
+        rel = self._normalize_relative(storage_path)
+        options = CreateSignedUploadUrlOptions(upsert="true") if upsert else None
+        response = self._bucket_client().create_signed_upload_url(rel, options=options)
+
+        signed_url = None
+        token = None
+        if isinstance(response, dict):
+            signed_url = (
+                response.get("signed_url")
+                or response.get("signedUrl")
+                or response.get("signedURL")
+            )
+            token = response.get("token")
+
+        if not signed_url:
+            raise RuntimeError("Supabase signed upload URL response missing URL")
+
+        return {
+            "bucket": self.bucket,
+            "storage_path": rel,
+            "signed_url": signed_url,
+            "token": token,
+            "content_type": content_type or "application/octet-stream",
+            "expires_in": self.signed_ttl,
+        }
 
 
 def get_storage_service():

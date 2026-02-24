@@ -12,6 +12,7 @@ from app.api.v1.endpoints import (
     edit_templates,
     editor_jobs,
     editor_ops,
+    metrics_lite,
     oauth,
     patterns,
     posts,
@@ -38,3 +39,4 @@ api_router.include_router(edit_templates.router, prefix="/edit-templates", tags=
 api_router.include_router(editor_ops.router, prefix="/editor", tags=["Editor ops"])
 api_router.include_router(editor_jobs.router, prefix="/editor", tags=["Editor jobs"])
 api_router.include_router(projects.router, prefix="/projects", tags=["Projects"])
+api_router.include_router(metrics_lite.router, tags=["Metrics"])

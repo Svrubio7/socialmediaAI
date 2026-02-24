@@ -1,0 +1,79 @@
+{
+  "version": 6,
+  "metadata": {
+    "id": "__PROJECT_ID__",
+    "name": "split_transition_integrity_30fps",
+    "duration": 18,
+    "createdAt": "2026-01-01T00:00:00Z",
+    "updatedAt": "2026-01-01T00:00:00Z"
+  },
+  "scenes": [
+    {
+      "id": "scene_main",
+      "name": "Main scene",
+      "isMain": true,
+      "tracks": [
+        {
+          "id": "video_track_1",
+          "type": "video",
+          "elements": [
+            {
+              "id": "clip_pre_split",
+              "type": "video",
+              "startFrame": 0,
+              "endFrame": 240,
+              "sourceId": "video_source_primary"
+            },
+            {
+              "id": "clip_post_split",
+              "type": "video",
+              "startFrame": 240,
+              "endFrame": 540,
+              "sourceId": "video_source_primary"
+            },
+            {
+              "id": "clip_next",
+              "type": "video",
+              "startFrame": 540,
+              "endFrame": 780,
+              "sourceId": "video_next"
+            }
+          ],
+          "transitions": [
+            {
+              "id": "transition_after_split",
+              "type": "crossfade",
+              "leftElementId": "clip_post_split",
+              "rightElementId": "clip_next",
+              "startFrame": 540,
+              "durationFrames": 18
+            }
+          ]
+        }
+      ],
+      "bookmarks": [],
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "currentSceneId": "scene_main",
+  "settings": {
+    "fps": 30,
+    "canvasSize": {
+      "width": 1080,
+      "height": 1920
+    },
+    "background": {
+      "type": "color",
+      "color": "#000000"
+    }
+  },
+  "timelineViewState": {
+    "zoomLevel": 1.35,
+    "scrollLeft": 420,
+    "playheadTime": 9
+  },
+  "verification": {
+    "fixture_id": "split_transition_integrity_30fps"
+  }
+}
