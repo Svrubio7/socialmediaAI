@@ -134,7 +134,7 @@
 
 <script setup lang="ts">
 useSeoMeta({
-  title: 'Pricing - ElevoAI',
-  description: 'Simple, transparent pricing for ElevoAI. Choose the plan that\'s right for your business.',
+  title: 'Pricing - Elevo',
+  description: 'Simple, transparent pricing for Elevo. Choose the plan that\'s right for your business.',
 })
 </script>

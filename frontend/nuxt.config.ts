@@ -66,14 +66,14 @@ export default defineNuxtConfig({
     pageTransition: { name: 'page', mode: 'out-in' },
     layoutTransition: { name: 'layout', mode: 'out-in' },
     head: {
-      title: 'ElevoAI',
+      title: 'Elevo',
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-        { name: 'description', content: 'ElevoAI - Elevate your business social media with AI-powered video analysis, strategy generation, and multi-platform publishing' },
+        { name: 'description', content: 'Elevo - Elevate your business social media with AI-powered video analysis, strategy generation, and multi-platform publishing' },
       ],
       link: [
-        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+        { rel: 'icon', type: 'image/png', href: '/elevo_just_logo.png' },
         // Preconnect to Google Fonts for faster loading
         { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
         { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
@@ -124,7 +124,7 @@ export default defineNuxtConfig({
         {
           children: `
             try {
-              var t = localStorage.getItem('elevoai-theme');
+              var t = localStorage.getItem('elevo-theme') || localStorage.getItem('elevoai-theme');
               if (t === 'light') document.documentElement.classList.remove('dark');
               else document.documentElement.classList.add('dark');
             } catch (e) {}

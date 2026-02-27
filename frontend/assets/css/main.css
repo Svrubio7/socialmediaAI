@@ -6,16 +6,16 @@
   :root {
     --grid-size: 64px;
     --grid-line: rgba(0, 0, 0, 0.045);
-    --app-bg: #f6f4f0;
-    --cream-ui: #bfb5a6;
-    --cream-border: #b1a695;
+    --app-bg: #ffffff;
+    --cream-ui: #fff0d9;
+    --cream-border: #e7d8bd;
   }
 
   .dark {
-    --grid-line: rgba(105, 117, 101, 0.115);
-    --app-bg: #070807;
-    --cream-ui: #bfb5a6;
-    --cream-border: #b1a695;
+    --grid-line: rgba(124, 251, 253, 0.09);
+    --app-bg: #0a0a09;
+    --cream-ui: #141412;
+    --cream-border: #2a2a28;
   }
 
   html {
@@ -120,18 +120,18 @@
            hover:-translate-y-0.5 hover:shadow-glow-sm
            active:translate-y-0 active:shadow-none
            focus-visible:ring-primary-500;
-    background-color: #697565;
-    color: #f5f5f5;
-    border: 1px solid #556152;
+    background-color: #e1f690;
+    color: #0a0a09;
+    border: 1px solid #c8db84;
   }
 
   .btn-secondary {
     @apply btn
            active:translate-y-0
            focus-visible:ring-surface-500;
-    background-color: #697565;
-    color: #f5f5f5;
-    border: 1px solid #556152;
+    background-color: #fff0d9;
+    color: #0a0a09;
+    border: 1px solid #e5d5bc;
   }
 
   .btn-accent {
@@ -139,9 +139,9 @@
            hover:-translate-y-0.5 hover:shadow-glow-accent
            active:translate-y-0 active:shadow-none
            focus-visible:ring-accent-300;
-    background-color: #697565;
-    color: #f5f5f5;
-    border: 1px solid #556152;
+    background-color: #7cfbfd;
+    color: #0a0a09;
+    border: 1px solid #59e3e5;
   }
 
   .btn-ghost {
@@ -164,44 +164,52 @@
            focus-visible:ring-primary-500;
   }
 
-  .btn-primary:hover,
-  .btn-secondary:hover,
+  .btn-primary:hover {
+    background-color: #d4ee7d;
+    border-color: #b8d06f;
+  }
+
+  .btn-secondary:hover {
+    background-color: #ffe8c4;
+    border-color: #d8c6a8;
+  }
+
   .btn-accent:hover {
-    background-color: #7d9a7d;
-    border-color: #697565;
+    background-color: #95fdff;
+    border-color: #6cecf0;
   }
 
   .cream-btn {
-    background-color: #697565;
-    color: #f5f5f5;
-    border: 1px solid #556152;
+    background-color: #fff0d9;
+    color: #0a0a09;
+    border: 1px solid #e5d5bc;
   }
 
   .cream-btn:hover {
-    background-color: #7d9a7d;
-    border-color: #697565;
+    background-color: #ffe8c4;
+    border-color: #d8c6a8;
   }
 
   .dark .editor-header button {
-    background-color: #697565;
-    color: #f5f5f5;
-    border-color: #556152;
+    background-color: #fff0d9;
+    color: #0a0a09;
+    border-color: #e5d5bc;
   }
 
   .dark .editor-header button:hover {
-    background-color: #7d9a7d;
-    border-color: #697565;
+    background-color: #ffe8c4;
+    border-color: #d8c6a8;
   }
 
   .dark .btn {
-    background-color: #697565;
-    color: #f5f5f5;
-    border-color: #556152;
+    background-color: #fff0d9;
+    color: #0a0a09;
+    border-color: #e5d5bc;
   }
 
   .dark .btn:hover {
-    background-color: #7d9a7d;
-    border-color: #697565;
+    background-color: #ffe8c4;
+    border-color: #d8c6a8;
   }
 
   /* Size variants */
@@ -471,16 +479,16 @@
   }
 
   .bg-gradient-radial-top {
-    background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(105, 117, 101, 0.06), transparent);
+    background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(225, 246, 144, 0.14), transparent);
   }
 
   /* Glow effects */
   .glow-primary {
-    box-shadow: 0 0 40px -10px rgba(105, 117, 101, 0.5);
+    box-shadow: 0 0 40px -10px rgba(225, 246, 144, 0.5);
   }
 
   .glow-accent {
-    box-shadow: 0 0 40px -10px rgba(236, 223, 204, 0.3);
+    box-shadow: 0 0 40px -10px rgba(124, 251, 253, 0.4);
   }
 
   /* Hide scrollbar */

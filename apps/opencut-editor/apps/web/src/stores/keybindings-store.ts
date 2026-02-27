@@ -141,7 +141,7 @@ export const useKeybindingsStore = create<KeybindingsState>()(
 			},
 		}),
 		{
-			name: "opencut-keybindings",
+			name: "elevo:keybindings",
 			version: CURRENT_VERSION,
 			partialize: (state) => ({
 				keybindings: state.keybindings,

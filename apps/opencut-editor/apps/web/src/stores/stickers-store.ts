@@ -185,7 +185,7 @@ export const useStickersStore = create<StickersStore>()(
 			clearRecentStickers: () => set({ recentStickers: [] }),
 		}),
 		{
-			name: "opencut:stickers-settings",
+			name: "elevo:stickers-settings",
 			migrate: (persistedState) => {
 				if (
 					typeof persistedState === "object" &&

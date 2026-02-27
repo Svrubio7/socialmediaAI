@@ -5,7 +5,7 @@ const appBase = process.env.E2E_BASE_URL || 'http://127.0.0.1:3000'
 const bearerToken = process.env.E2E_API_BEARER_TOKEN || ''
 const projectId = process.env.E2E_EDITOR_PROJECT_ID || ''
 
-test.describe('OpenCut integration @editor-integration', () => {
+test.describe('Elevo integration @editor-integration', () => {
   test('editor route is reachable', async ({ request }) => {
     test.skip(!projectId, 'Set E2E_EDITOR_PROJECT_ID to run editor route checks')
 

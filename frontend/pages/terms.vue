@@ -19,8 +19,8 @@
 
 <script setup lang="ts">
 useSeoMeta({
-  title: 'Terms of Service - ElevoAI',
-  description: 'ElevoAI terms of service.',
+  title: 'Terms of Service - Elevo',
+  description: 'Elevo terms of service.',
 })
 
 const localePath = useLocalePath()

@@ -8,13 +8,13 @@
     ]"
   >
     <!-- Logo Icon -->
-    <div 
+    <img
       v-if="variant !== 'text'"
-      class="relative flex items-center justify-center rounded-lg bg-gradient-to-br from-primary-500 to-primary-600"
+      src="/elevo_just_logo.png"
+      alt="Elevo logo"
+      class="rounded-lg object-contain"
       :class="iconSizeClass"
-    >
-      <span class="font-normal text-surface-950" :class="iconTextClass">E</span>
-    </div>
+    />
 
     <!-- Logo Text -->
     <span 
@@ -22,7 +22,7 @@
       class="font-medium tracking-tight"
       :class="[textSizeClass, textColorClass]"
     >
-      Elevo<span class="text-primary-400">AI</span>
+      Elevo
     </span>
   </NuxtLink>
 </template>
@@ -62,16 +62,6 @@ const iconSizeClass = computed(() => {
     case 'lg': return 'w-10 h-10'
     case 'xl': return 'w-12 h-12'
     default: return 'w-8 h-8'
-  }
-})
-
-const iconTextClass = computed(() => {
-  switch (props.size) {
-    case 'sm': return 'text-base'
-    case 'md': return 'text-lg'
-    case 'lg': return 'text-xl'
-    case 'xl': return 'text-2xl'
-    default: return 'text-lg'
   }
 })
 

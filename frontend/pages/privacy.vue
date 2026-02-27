@@ -19,8 +19,8 @@
 
 <script setup lang="ts">
 useSeoMeta({
-  title: 'Privacy Policy - ElevoAI',
-  description: 'ElevoAI privacy policy and data handling information.',
+  title: 'Privacy Policy - Elevo',
+  description: 'Elevo privacy policy and data handling information.',
 })
 
 const localePath = useLocalePath()

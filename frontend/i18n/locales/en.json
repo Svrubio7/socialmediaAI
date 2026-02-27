@@ -9,7 +9,7 @@
     "getStarted": "Get Started"
   },
   "hero": {
-    "badge": "AI-Powered Marketing Platform for SMEs",
+    "badge": "AI-powered marketing platform for SMEs",
     "title1": "Elevate Your",
     "title2": "Business Marketing",
     "title3": "with AI",
@@ -29,7 +29,7 @@
     "title": "Everything Your Business Needs to",
     "titleHighlight": "Dominate",
     "titleEnd": "Social Media",
-    "subtitle": "From AI-powered pattern analysis to automated publishing, ElevoAI provides all the tools your business needs to create engaging content consistently.",
+    "subtitle": "From AI-powered pattern analysis to automated publishing, Elevo provides all the tools your business needs to create engaging content consistently.",
     "pattern": {
       "title": "Pattern Analysis",
       "description": "AI analyzes your videos to identify what makes content successful—hooks, pacing, cuts, transitions, and more."
@@ -59,7 +59,7 @@
     "badge": "How It Works",
     "title": "Three Simple Steps to",
     "titleHighlight": "Better Engagement",
-    "subtitle": "ElevoAI makes content optimization effortless for your business. Upload, analyze, and publish in minutes.",
+    "subtitle": "Elevo makes content optimization effortless for your business. Upload, analyze, and publish in minutes.",
     "step1": {
       "title": "Upload Your Content",
       "description": "Simply drag and drop your videos or connect your existing social media accounts to import content.",
@@ -85,19 +85,19 @@
   "faq": {
     "badge": "FAQ",
     "title": "Frequently Asked Questions",
-    "subtitle": "Everything you need to know about ElevoAI",
-    "q1": "How does ElevoAI analyze my videos?",
-    "a1": "ElevoAI uses Google Gemini 2.0 Flash to analyze your videos at 5 frames per second (0.2s intervals). It examines visual patterns like scene types, camera motion, text overlays, transitions, and pacing to identify what makes content successful.",
+    "subtitle": "Everything you need to know about Elevo",
+    "q1": "How does Elevo analyze my videos?",
+    "a1": "Elevo uses Google Gemini 2.0 Flash to analyze your videos at 5 frames per second (0.2s intervals). It examines visual patterns like scene types, camera motion, text overlays, transitions, and pacing to identify what makes content successful.",
     "q2": "Which social media platforms are supported?",
-    "a2": "ElevoAI currently supports Instagram (Reels), TikTok, YouTube (Shorts and regular videos), and Facebook (Reels and posts). We connect via official OAuth integrations to ensure secure publishing.",
-    "q3": "Can ElevoAI edit my videos automatically?",
-    "a3": "Yes! Based on the patterns and scripts generated, ElevoAI can automatically create optimized variations of your videos for different platforms, adjusting duration, aspect ratio, pacing, and adding text overlays.",
+    "a2": "Elevo currently supports Instagram (Reels), TikTok, YouTube (Shorts and regular videos), and Facebook (Reels and posts). We connect via official OAuth integrations to ensure secure publishing.",
+    "q3": "Can Elevo edit my videos automatically?",
+    "a3": "Yes! Based on the patterns and scripts generated, Elevo can automatically create optimized variations of your videos for different platforms, adjusting duration, aspect ratio, pacing, and adding text overlays.",
     "q4": "Is this suitable for small businesses?",
-    "a4": "Absolutely! ElevoAI is designed specifically for SMEs who want to create professional social media content without hiring a dedicated marketing team. Our AI handles the complex analysis and optimization.",
+    "a4": "Absolutely! Elevo is designed specifically for SMEs who want to create professional social media content without hiring a dedicated marketing team. Our AI handles the complex analysis and optimization.",
     "q5": "Is my data secure?",
     "a5": "Yes. We use AES-256 encryption for all OAuth tokens, and your videos are stored securely. We never share your content or data with third parties.",
-    "q6": "Do I need technical knowledge to use ElevoAI?",
-    "a6": "Not at all! ElevoAI is designed to be intuitive and user-friendly. Simply upload your videos, and the AI handles the complex analysis and optimization work for you."
+    "q6": "Do I need technical knowledge to use Elevo?",
+    "a6": "Not at all! Elevo is designed to be intuitive and user-friendly. Simply upload your videos, and the AI handles the complex analysis and optimization work for you."
   },
   "cta": {
     "title": "Ready to Transform Your",
@@ -123,7 +123,7 @@
     "about": "About",
     "contact": "Contact",
     "careers": "Careers",
-    "copyright": "ElevoAI. All rights reserved.",
+    "copyright": "Elevo. All rights reserved.",
     "privacy": "Privacy Policy",
     "terms": "Terms of Service"
   },
@@ -134,9 +134,9 @@
     "subtitle": "We're on a mission to democratize social media marketing for small and medium-sized enterprises.",
     "story": {
       "title": "Our Story",
-      "p1": "ElevoAI was founded with a simple belief: every business deserves access to powerful marketing tools, regardless of their size or budget.",
+      "p1": "Elevo was founded with a simple belief: every business deserves access to powerful marketing tools, regardless of their size or budget.",
       "p2": "We saw how large corporations had entire teams dedicated to analyzing content performance and optimizing their social media strategies. Meanwhile, small businesses were left to figure it out on their own.",
-      "p3": "That's why we built ElevoAI—to level the playing field. Our AI-powered platform gives SMEs the same analytical capabilities that used to be reserved for companies with massive marketing budgets."
+      "p3": "That's why we built Elevo—to level the playing field. Our AI-powered platform gives SMEs the same analytical capabilities that used to be reserved for companies with massive marketing budgets."
     },
     "mission": {
       "title": "Our Mission",

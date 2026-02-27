@@ -9,7 +9,7 @@
     "getStarted": "Loslegen"
   },
   "hero": {
-    "badge": "KI-gestützte Marketing-Plattform für KMU",
+    "badge": "KI-gest?tzte Marketing-Plattform f?r KMU",
     "title1": "Heben Sie Ihr",
     "title2": "Unternehmensmarketing",
     "title3": "mit KI",
@@ -29,7 +29,7 @@
     "title": "Alles was Ihr Unternehmen braucht um",
     "titleHighlight": "Social Media zu dominieren",
     "titleEnd": "",
-    "subtitle": "Von KI-gestützter Musteranalyse bis zur automatisierten Veröffentlichung bietet ElevoAI alle Tools, die Ihr Unternehmen benötigt, um konsistent ansprechende Inhalte zu erstellen.",
+    "subtitle": "Von KI-gestützter Musteranalyse bis zur automatisierten Veröffentlichung bietet Elevo alle Tools, die Ihr Unternehmen benötigt, um konsistent ansprechende Inhalte zu erstellen.",
     "pattern": {
       "title": "Musteranalyse",
       "description": "KI analysiert Ihre Videos, um zu identifizieren, was Inhalte erfolgreich macht—Hooks, Tempo, Schnitte, Übergänge und mehr."
@@ -59,7 +59,7 @@
     "badge": "So funktioniert's",
     "title": "Drei einfache Schritte zu",
     "titleHighlight": "besserem Engagement",
-    "subtitle": "ElevoAI macht Content-Optimierung für Ihr Unternehmen mühelos. Hochladen, analysieren und veröffentlichen in Minuten.",
+    "subtitle": "Elevo macht Content-Optimierung für Ihr Unternehmen mühelos. Hochladen, analysieren und veröffentlichen in Minuten.",
     "step1": {
       "title": "Laden Sie Ihren Content hoch",
       "description": "Ziehen Sie einfach Ihre Videos per Drag & Drop oder verbinden Sie Ihre bestehenden Social-Media-Konten, um Inhalte zu importieren.",
@@ -85,19 +85,19 @@
   "faq": {
     "badge": "FAQ",
     "title": "Häufig gestellte Fragen",
-    "subtitle": "Alles, was Sie über ElevoAI wissen müssen",
-    "q1": "Wie analysiert ElevoAI meine Videos?",
-    "a1": "ElevoAI verwendet Google Gemini 2.0 Flash, um Ihre Videos mit 5 Bildern pro Sekunde (0,2s-Intervalle) zu analysieren. Es untersucht visuelle Muster wie Szenentypen, Kamerabewegung, Textüberlagerungen, Übergänge und Tempo, um zu identifizieren, was Inhalte erfolgreich macht.",
+    "subtitle": "Alles, was Sie über Elevo wissen müssen",
+    "q1": "Wie analysiert Elevo meine Videos?",
+    "a1": "Elevo verwendet Google Gemini 2.0 Flash, um Ihre Videos mit 5 Bildern pro Sekunde (0,2s-Intervalle) zu analysieren. Es untersucht visuelle Muster wie Szenentypen, Kamerabewegung, Textüberlagerungen, Übergänge und Tempo, um zu identifizieren, was Inhalte erfolgreich macht.",
     "q2": "Welche Social-Media-Plattformen werden unterstützt?",
-    "a2": "ElevoAI unterstützt derzeit Instagram (Reels), TikTok, YouTube (Shorts und reguläre Videos) und Facebook (Reels und Posts). Wir verbinden uns über offizielle OAuth-Integrationen, um sichere Veröffentlichung zu gewährleisten.",
-    "q3": "Kann ElevoAI meine Videos automatisch bearbeiten?",
-    "a3": "Ja! Basierend auf den generierten Mustern und Skripten kann ElevoAI automatisch optimierte Variationen Ihrer Videos für verschiedene Plattformen erstellen, wobei Dauer, Seitenverhältnis, Tempo angepasst und Textüberlagerungen hinzugefügt werden.",
+    "a2": "Elevo unterstützt derzeit Instagram (Reels), TikTok, YouTube (Shorts und reguläre Videos) und Facebook (Reels und Posts). Wir verbinden uns über offizielle OAuth-Integrationen, um sichere Veröffentlichung zu gewährleisten.",
+    "q3": "Kann Elevo meine Videos automatisch bearbeiten?",
+    "a3": "Ja! Basierend auf den generierten Mustern und Skripten kann Elevo automatisch optimierte Variationen Ihrer Videos für verschiedene Plattformen erstellen, wobei Dauer, Seitenverhältnis, Tempo angepasst und Textüberlagerungen hinzugefügt werden.",
     "q4": "Ist dies für kleine Unternehmen geeignet?",
-    "a4": "Absolut! ElevoAI ist speziell für KMU konzipiert, die professionelle Social-Media-Inhalte erstellen möchten, ohne ein dediziertes Marketing-Team einzustellen. Unsere KI übernimmt die komplexe Analyse und Optimierung.",
+    "a4": "Absolut! Elevo ist speziell für KMU konzipiert, die professionelle Social-Media-Inhalte erstellen möchten, ohne ein dediziertes Marketing-Team einzustellen. Unsere KI übernimmt die komplexe Analyse und Optimierung.",
     "q5": "Sind meine Daten sicher?",
     "a5": "Ja. Wir verwenden AES-256-Verschlüsselung für alle OAuth-Tokens, und Ihre Videos werden sicher gespeichert. Wir teilen niemals Ihre Inhalte oder Daten mit Dritten.",
-    "q6": "Brauche ich technisches Wissen, um ElevoAI zu nutzen?",
-    "a6": "Überhaupt nicht! ElevoAI ist intuitiv und benutzerfreundlich gestaltet. Laden Sie einfach Ihre Videos hoch, und die KI übernimmt die komplexe Analyse und Optimierung für Sie."
+    "q6": "Brauche ich technisches Wissen, um Elevo zu nutzen?",
+    "a6": "Überhaupt nicht! Elevo ist intuitiv und benutzerfreundlich gestaltet. Laden Sie einfach Ihre Videos hoch, und die KI übernimmt die komplexe Analyse und Optimierung für Sie."
   },
   "cta": {
     "title": "Bereit, Ihr",
@@ -123,7 +123,7 @@
     "about": "Über uns",
     "contact": "Kontakt",
     "careers": "Karriere",
-    "copyright": "ElevoAI. Alle Rechte vorbehalten.",
+    "copyright": "Elevo. Alle Rechte vorbehalten.",
     "privacy": "Datenschutzrichtlinie",
     "terms": "Nutzungsbedingungen"
   },
@@ -134,9 +134,9 @@
     "subtitle": "Wir haben die Mission, Social-Media-Marketing für kleine und mittlere Unternehmen zu demokratisieren.",
     "story": {
       "title": "Unsere Geschichte",
-      "p1": "ElevoAI wurde mit einem einfachen Glauben gegründet: Jedes Unternehmen verdient Zugang zu leistungsstarken Marketing-Tools, unabhängig von seiner Größe oder seinem Budget.",
+      "p1": "Elevo wurde mit einem einfachen Glauben gegründet: Jedes Unternehmen verdient Zugang zu leistungsstarken Marketing-Tools, unabhängig von seiner Größe oder seinem Budget.",
       "p2": "Wir haben gesehen, wie große Konzerne ganze Teams hatten, die sich der Analyse der Content-Performance und der Optimierung ihrer Social-Media-Strategien widmeten. Kleine Unternehmen mussten es hingegen allein herausfinden.",
-      "p3": "Deshalb haben wir ElevoAI entwickelt—um gleiche Bedingungen zu schaffen. Unsere KI-gestützte Plattform gibt KMU die gleichen analytischen Fähigkeiten, die früher Unternehmen mit riesigen Marketing-Budgets vorbehalten waren."
+      "p3": "Deshalb haben wir Elevo entwickelt—um gleiche Bedingungen zu schaffen. Unsere KI-gestützte Plattform gibt KMU die gleichen analytischen Fähigkeiten, die früher Unternehmen mit riesigen Marketing-Budgets vorbehalten waren."
     },
     "mission": {
       "title": "Unsere Mission",

@@ -38,8 +38,8 @@
 
 <script setup lang="ts">
 useSeoMeta({
-  title: 'API Reference - ElevoAI',
-  description: 'ElevoAI REST API documentation and schema.',
+  title: 'API Reference - Elevo',
+  description: 'Elevo REST API documentation and schema.',
 })
 
 const localePath = useLocalePath()

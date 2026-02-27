@@ -71,7 +71,7 @@ export const usePreviewStore = create<PreviewState>()(
 			},
 		}),
 		{
-			name: "opencut:preview-settings",
+			name: "elevo:preview-settings",
 			version: 2,
 			migrate: (persistedState) => {
 				const state = persistedState as

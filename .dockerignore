@@ -41,6 +41,7 @@ node_modules/
 **/node_modules/
 **/.next/
 **/.nuxt/
+**/.output/
 **/dist/
 **/.turbo/
 **/coverage/

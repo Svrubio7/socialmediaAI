@@ -17,8 +17,8 @@
 
 <script setup lang="ts">
 useSeoMeta({
-  title: 'Changelog - ElevoAI',
-  description: 'Product updates and release notes for ElevoAI.',
+  title: 'Changelog - Elevo',
+  description: 'Product updates and release notes for Elevo.',
 })
 
 const localePath = useLocalePath()

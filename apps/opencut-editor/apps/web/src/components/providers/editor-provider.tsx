@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import Image from "next/image";
 import { useEditor } from "@/hooks/use-editor";
 import {
 	useKeybindingsListener,
@@ -12,6 +13,7 @@ import { useEditorActions } from "@/hooks/actions/use-editor-actions";
 import { prefetchFontAtlas } from "@/lib/fonts/google-fonts";
 import { getReturnToPath } from "@/integrations/socialmediaai/project-adapter";
 import { recordTiming } from "@/integrations/socialmediaai/diagnostics";
+import { DEFAULT_LOGO_URL } from "@/constants/site-constants";
 
 interface EditorProviderProps {
 	projectId: string;
@@ -124,6 +126,14 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 		return (
 			<div className="bg-background flex h-screen w-screen items-center justify-center">
 				<div className="flex flex-col items-center gap-4">
+					<Image
+						src={DEFAULT_LOGO_URL}
+						alt="Elevo logo"
+						width={56}
+						height={56}
+						className="size-14"
+						priority
+					/>
 					<p className="text-destructive text-sm">{error}</p>
 				</div>
 			</div>
@@ -134,6 +144,14 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 		return (
 			<div className="bg-background flex h-screen w-screen items-center justify-center">
 				<div className="flex flex-col items-center gap-4">
+					<Image
+						src={DEFAULT_LOGO_URL}
+						alt="Elevo logo"
+						width={56}
+						height={56}
+						className="size-14"
+						priority
+					/>
 					<Loader2 className="text-muted-foreground size-8 animate-spin" />
 					<p className="text-muted-foreground text-sm">Loading project...</p>
 				</div>
@@ -145,6 +163,14 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 		return (
 			<div className="bg-background flex h-screen w-screen items-center justify-center">
 				<div className="flex flex-col items-center gap-4">
+					<Image
+						src={DEFAULT_LOGO_URL}
+						alt="Elevo logo"
+						width={56}
+						height={56}
+						className="size-14"
+						priority
+					/>
 					<Loader2 className="text-muted-foreground size-8 animate-spin" />
 					<p className="text-muted-foreground text-sm">Exiting project...</p>
 				</div>

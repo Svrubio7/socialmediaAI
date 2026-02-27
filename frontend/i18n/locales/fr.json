@@ -1,4 +1,4 @@
-﻿{
+{
   "nav": {
     "home": "Accueil",
     "about": "Ã€ propos",
@@ -9,7 +9,7 @@
     "getStarted": "Commencer"
   },
   "hero": {
-    "badge": "Plateforme Marketing IA pour PME",
+    "badge": "Plateforme marketing IA pour PME",
     "title1": "Ã‰levez Votre",
     "title2": "Marketing d'Entreprise",
     "title3": "avec l'IA",
@@ -29,7 +29,7 @@
     "title": "Tout ce dont Votre Entreprise a Besoin pour",
     "titleHighlight": "Dominer",
     "titleEnd": "les RÃ©seaux Sociaux",
-    "subtitle": "De l'analyse de patterns par IA Ã  la publication automatisÃ©e, ElevoAI fournit tous les outils dont votre entreprise a besoin pour crÃ©er du contenu engageant de maniÃ¨re cohÃ©rente.",
+    "subtitle": "De l'analyse de patterns par IA Ã  la publication automatisÃ©e, Elevo fournit tous les outils dont votre entreprise a besoin pour crÃ©er du contenu engageant de maniÃ¨re cohÃ©rente.",
     "pattern": {
       "title": "Analyse de Patterns",
       "description": "L'IA analyse vos vidÃ©os pour identifier ce qui rend le contenu rÃ©ussiâ€”accroches, rythme, coupes, transitions et plus."
@@ -59,7 +59,7 @@
     "badge": "Comment Ã‡a Marche",
     "title": "Trois Ã‰tapes Simples pour",
     "titleHighlight": "Plus d'Engagement",
-    "subtitle": "ElevoAI rend l'optimisation de contenu sans effort pour votre entreprise. TÃ©lÃ©chargez, analysez et publiez en minutes.",
+    "subtitle": "Elevo rend l'optimisation de contenu sans effort pour votre entreprise. TÃ©lÃ©chargez, analysez et publiez en minutes.",
     "step1": {
       "title": "TÃ©lÃ©chargez Votre Contenu",
       "description": "Glissez-dÃ©posez simplement vos vidÃ©os ou connectez vos comptes rÃ©seaux sociaux existants pour importer du contenu.",
@@ -85,19 +85,19 @@
   "faq": {
     "badge": "FAQ",
     "title": "Questions FrÃ©quentes",
-    "subtitle": "Tout ce que vous devez savoir sur ElevoAI",
-    "q1": "Comment ElevoAI analyse-t-il mes vidÃ©os?",
-    "a1": "ElevoAI utilise Google Gemini 2.0 Flash pour analyser vos vidÃ©os Ã  5 images par seconde (intervalles de 0.2s). Il examine les patterns visuels comme les types de scÃ¨nes, mouvements de camÃ©ra, superpositions de texte, transitions et rythme pour identifier ce qui rend le contenu rÃ©ussi.",
+    "subtitle": "Tout ce que vous devez savoir sur Elevo",
+    "q1": "Comment Elevo analyse-t-il mes vidÃ©os?",
+    "a1": "Elevo utilise Google Gemini 2.0 Flash pour analyser vos vidÃ©os Ã  5 images par seconde (intervalles de 0.2s). Il examine les patterns visuels comme les types de scÃ¨nes, mouvements de camÃ©ra, superpositions de texte, transitions et rythme pour identifier ce qui rend le contenu rÃ©ussi.",
     "q2": "Quelles plateformes de rÃ©seaux sociaux sont supportÃ©es?",
-    "a2": "ElevoAI supporte actuellement Instagram (Reels), TikTok, YouTube (Shorts et vidÃ©os rÃ©guliÃ¨res) et Facebook (Reels et posts). Nous nous connectons via des intÃ©grations OAuth officielles pour garantir une publication sÃ©curisÃ©e.",
-    "q3": "ElevoAI peut-il monter mes vidÃ©os automatiquement?",
-    "a3": "Oui! BasÃ© sur les patterns et scripts gÃ©nÃ©rÃ©s, ElevoAI peut automatiquement crÃ©er des variations optimisÃ©es de vos vidÃ©os pour diffÃ©rentes plateformes, ajustant la durÃ©e, le ratio d'aspect, le rythme et ajoutant des superpositions de texte.",
+    "a2": "Elevo supporte actuellement Instagram (Reels), TikTok, YouTube (Shorts et vidÃ©os rÃ©guliÃ¨res) et Facebook (Reels et posts). Nous nous connectons via des intÃ©grations OAuth officielles pour garantir une publication sÃ©curisÃ©e.",
+    "q3": "Elevo peut-il monter mes vidÃ©os automatiquement?",
+    "a3": "Oui! BasÃ© sur les patterns et scripts gÃ©nÃ©rÃ©s, Elevo peut automatiquement crÃ©er des variations optimisÃ©es de vos vidÃ©os pour diffÃ©rentes plateformes, ajustant la durÃ©e, le ratio d'aspect, le rythme et ajoutant des superpositions de texte.",
     "q4": "Est-ce adaptÃ© aux petites entreprises?",
-    "a4": "Absolument! ElevoAI est conÃ§u spÃ©cifiquement pour les PME qui veulent crÃ©er du contenu professionnel pour les rÃ©seaux sociaux sans embaucher une Ã©quipe marketing dÃ©diÃ©e. Notre IA gÃ¨re l'analyse et l'optimisation complexes.",
+    "a4": "Absolument! Elevo est conÃ§u spÃ©cifiquement pour les PME qui veulent crÃ©er du contenu professionnel pour les rÃ©seaux sociaux sans embaucher une Ã©quipe marketing dÃ©diÃ©e. Notre IA gÃ¨re l'analyse et l'optimisation complexes.",
     "q5": "Mes donnÃ©es sont-elles sÃ©curisÃ©es?",
     "a5": "Oui. Nous utilisons le chiffrement AES-256 pour tous les tokens OAuth, et vos vidÃ©os sont stockÃ©es en sÃ©curitÃ©. Nous ne partageons jamais votre contenu ou vos donnÃ©es avec des tiers.",
-    "q6": "Ai-je besoin de connaissances techniques pour utiliser ElevoAI?",
-    "a6": "Pas du tout! ElevoAI est conÃ§u pour Ãªtre intuitif et facile Ã  utiliser. TÃ©lÃ©chargez simplement vos vidÃ©os, et l'IA gÃ¨re l'analyse et l'optimisation complexes pour vous."
+    "q6": "Ai-je besoin de connaissances techniques pour utiliser Elevo?",
+    "a6": "Pas du tout! Elevo est conÃ§u pour Ãªtre intuitif et facile Ã  utiliser. TÃ©lÃ©chargez simplement vos vidÃ©os, et l'IA gÃ¨re l'analyse et l'optimisation complexes pour vous."
   },
   "cta": {
     "title": "PrÃªt Ã  Transformer Votre",
@@ -123,7 +123,7 @@
     "about": "Ã€ propos",
     "contact": "Contact",
     "careers": "CarriÃ¨res",
-    "copyright": "ElevoAI. Tous droits rÃ©servÃ©s.",
+    "copyright": "Elevo. Tous droits rÃ©servÃ©s.",
     "privacy": "Politique de ConfidentialitÃ©",
     "terms": "Conditions d'Utilisation"
   },
@@ -134,9 +134,9 @@
     "subtitle": "Nous sommes en mission pour dÃ©mocratiser le marketing sur les rÃ©seaux sociaux pour les petites et moyennes entreprises.",
     "story": {
       "title": "Notre Histoire",
-      "p1": "ElevoAI a Ã©tÃ© fondÃ©e avec une croyance simple: chaque entreprise mÃ©rite l'accÃ¨s Ã  des outils marketing puissants, quelle que soit sa taille ou son budget.",
+      "p1": "Elevo a Ã©tÃ© fondÃ©e avec une croyance simple: chaque entreprise mÃ©rite l'accÃ¨s Ã  des outils marketing puissants, quelle que soit sa taille ou son budget.",
       "p2": "Nous avons vu comment les grandes entreprises avaient des Ã©quipes entiÃ¨res dÃ©diÃ©es Ã  analyser les performances du contenu et optimiser leurs stratÃ©gies sur les rÃ©seaux sociaux. Pendant ce temps, les petites entreprises devaient se dÃ©brouiller seules.",
-      "p3": "C'est pourquoi nous avons crÃ©Ã© ElevoAIâ€”pour Ã©galiser les chances. Notre plateforme alimentÃ©e par IA donne aux PME les mÃªmes capacitÃ©s analytiques qui Ã©taient auparavant rÃ©servÃ©es aux entreprises avec d'Ã©normes budgets marketing."
+      "p3": "C'est pourquoi nous avons crÃ©Ã© Elevoâ€”pour Ã©galiser les chances. Notre plateforme alimentÃ©e par IA donne aux PME les mÃªmes capacitÃ©s analytiques qui Ã©taient auparavant rÃ©servÃ©es aux entreprises avec d'Ã©normes budgets marketing."
     },
     "mission": {
       "title": "Notre Mission",
@@ -159,4 +159,3 @@
     }
   }
 }
-

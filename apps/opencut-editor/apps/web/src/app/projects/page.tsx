@@ -43,7 +43,11 @@ import {
 	Edit03Icon,
 	ArrowDown02Icon,
 	InformationCircleIcon,
+	ArrowLeft02Icon,
 } from "@hugeicons/core-free-icons";
+import { DEFAULT_LOGO_URL } from "@/constants/site-constants";
+import { getReturnToPath } from "@/integrations/socialmediaai/project-adapter";
+import { ThemeToggleButton } from "@/components/theme/theme-controller";
 import { OcVideoIcon } from "@opencut/ui/icons";
 import { Label } from "@/components/ui/label";
 import {
@@ -131,20 +135,42 @@ export default function ProjectsPage() {
 function ProjectsHeader() {
 	const { viewMode, isHydrated, setViewMode } = useProjectsStore();
 
+	const handleBackToApp = () => {
+		const target = getReturnToPath();
+		if (typeof window !== "undefined") {
+			window.location.assign(target);
+		}
+	};
+
 	return (
 		<header className="sticky top-0 z-20 px-8 bg-background flex flex-col gap-2">
 			<div className="flex items-center justify-between h-16 pt-2">
 				<div className="flex items-center gap-5">
-					<Breadcrumb>
+					<div className="flex items-center gap-3">
+						<Link href="/projects" className="flex items-center">
+							<Image
+								src={DEFAULT_LOGO_URL}
+								alt="Elevo logo"
+								width={32}
+								height={32}
+								className="size-8"
+							/>
+						</Link>
+						<Button
+							variant="ghost"
+							size="sm"
+							className="gap-1.5 text-muted-foreground hover:text-foreground"
+							onClick={handleBackToApp}
+						>
+							<HugeiconsIcon icon={ArrowLeft02Icon} className="size-4" />
+							<span className="hidden sm:inline">Back to app</span>
+						</Button>
+					</div>
+
+					<div className="h-6 w-px bg-border/50 hidden md:block" />
+
+					<Breadcrumb className="hidden md:block">
 						<BreadcrumbList>
-							<BreadcrumbItem>
-								<BreadcrumbLink asChild>
-									<Link href="/" className="text-sm sm:text-base">
-										Home
-									</Link>
-								</BreadcrumbLink>
-							</BreadcrumbItem>
-							<BreadcrumbSeparator />
 							<BreadcrumbItem>
 								<BreadcrumbPage className="text-sm sm:text-base font-medium">
 									All projects
@@ -175,6 +201,7 @@ function ProjectsHeader() {
 
 				<div className="flex items-center gap-3 md:gap-4">
 					<SearchBar className="hidden md:block" />
+					<ThemeToggleButton />
 					<NewProjectButton />
 				</div>
 			</div>

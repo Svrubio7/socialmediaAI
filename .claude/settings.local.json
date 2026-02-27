@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude mcp add --scope project --transport http supabase \"https://mcp.supabase.com/mcp?project_ref=cribjchtrbmhammtmbhi\")"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "supabase"
+  ],
+  "enableAllProjectMcpServers": true
+}

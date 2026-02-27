@@ -15,10 +15,8 @@
           class="inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 cream-btn transition-colors"
           @click="$emit('go-home')"
         >
-          <div class="h-6 w-6 rounded-md bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center">
-            <span class="text-sm font-normal text-surface-950">E</span>
-          </div>
-          <span class="text-sm font-normal text-surface-900">Elevo<span class="text-primary-400">AI</span></span>
+          <img src="/elevo_just_logo.png" alt="Elevo logo" class="h-6 w-6 rounded-md object-contain" />
+          <span class="text-sm font-normal text-surface-900">Elevo</span>
         </button>
         <input
           v-model="localProjectName"

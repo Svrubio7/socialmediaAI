@@ -110,8 +110,8 @@
 
 <script setup lang="ts">
 useSeoMeta({
-  title: 'About Us - ElevoAI',
-  description: 'Learn about ElevoAI and our mission to empower businesses with AI-driven marketing tools.',
+  title: 'About Us - Elevo',
+  description: 'Learn about Elevo and our mission to empower businesses with AI-driven marketing tools.',
 })
 
 const values = [

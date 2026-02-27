@@ -18,8 +18,8 @@
 
 <script setup lang="ts">
 useSeoMeta({
-  title: 'Careers - ElevoAI',
-  description: 'Join the ElevoAI team.',
+  title: 'Careers - Elevo',
+  description: 'Join the Elevo team.',
 })
 
 const localePath = useLocalePath()

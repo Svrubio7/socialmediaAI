@@ -11,7 +11,7 @@
             Get in <span class="gradient-text">touch</span>
           </h1>
           <p class="text-lg text-surface-600 dark:text-surface-400 leading-relaxed font-mono">
-            Have questions about ElevoAI? We'd love to hear from you.
+            Have questions about Elevo? We'd love to hear from you.
           </p>
         </div>
       </div>
@@ -136,8 +136,8 @@
 
 <script setup lang="ts">
 useSeoMeta({
-  title: 'Contact Us - ElevoAI',
-  description: 'Get in touch with the ElevoAI team.',
+  title: 'Contact Us - Elevo',
+  description: 'Get in touch with the Elevo team.',
 })
 
 const form = reactive({

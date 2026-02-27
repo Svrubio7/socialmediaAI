@@ -40,7 +40,7 @@ export const usePanelStore = create<PanelState>()(
 			resetPanels: () => set({ ...PANEL_CONFIG }),
 		}),
 		{
-			name: "opencut:panel-sizes",
+			name: "elevo:panel-sizes",
 			version: 2,
 			migrate: (persistedState) => {
 				const state = persistedState as

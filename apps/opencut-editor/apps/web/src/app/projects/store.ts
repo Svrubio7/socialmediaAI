@@ -121,7 +121,7 @@ export const useProjectsStore = create<ProjectsState>()(
 				}),
 		}),
 		{
-			name: "opencut:projects-view-mode",
+			name: "elevo:projects-view-mode",
 			partialize: (state) => ({
 				viewMode: state.viewMode,
 				sortKey: state.sortKey,

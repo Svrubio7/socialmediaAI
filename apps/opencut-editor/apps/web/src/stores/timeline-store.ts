@@ -46,7 +46,7 @@ export const useTimelineStore = create<TimelineStore>()(
 			},
 		}),
 		{
-			name: "opencut:timeline-store",
+			name: "elevo:timeline-store",
 			partialize: (state) => ({
 				snappingEnabled: state.snappingEnabled,
 				rippleEditingEnabled: state.rippleEditingEnabled,

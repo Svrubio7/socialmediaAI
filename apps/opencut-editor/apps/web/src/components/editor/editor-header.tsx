@@ -9,14 +9,11 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import Link from "next/link";
 import { RenameProjectDialog } from "./dialogs/rename-project-dialog";
 import { DeleteProjectDialog } from "./dialogs/delete-project-dialog";
 import { useRouter } from "next/navigation";
-import { FaDiscord } from "react-icons/fa6";
 import { ExportButton } from "./export-button";
-import { ThemeToggle } from "../theme-toggle";
-import { DEFAULT_LOGO_URL, SOCIAL_LINKS } from "@/constants/site-constants";
+import { DEFAULT_LOGO_URL } from "@/constants/site-constants";
 import { toast } from "sonner";
 import { useEditor } from "@/hooks/use-editor";
 import { CommandIcon, Logout05Icon } from "@hugeicons/core-free-icons";
@@ -24,7 +21,8 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { ShortcutsDialog } from "./dialogs/shortcuts-dialog";
 import Image from "next/image";
 import { cn } from "@/utils/ui";
-import { getReturnToPath } from "@/integrations/socialmediaai/project-adapter";
+import { getEditorProjectsPath } from "@/integrations/socialmediaai/project-adapter";
+import { ThemeToggleButton } from "@/components/theme/theme-controller";
 
 export function EditorHeader() {
 	return (
@@ -34,15 +32,15 @@ export function EditorHeader() {
 				<EditableProjectName />
 			</div>
 			<nav className="flex items-center gap-2">
+				<ThemeToggleButton className="size-8 rounded-sm" />
 				<ExportButton />
-				<ThemeToggle />
 			</nav>
 		</header>
 	);
 }
 
-function navigateToHostReturnPath(router: ReturnType<typeof useRouter>) {
-	const target = getReturnToPath();
+function navigateToEditorProjects(router: ReturnType<typeof useRouter>) {
+	const target = getEditorProjectsPath();
 	if (typeof window !== "undefined") {
 		window.location.assign(target);
 		return;
@@ -70,7 +68,7 @@ function ProjectDropdown() {
 			console.error("Failed to prepare project exit:", error);
 		} finally {
 			editor.project.closeProject();
-			navigateToHostReturnPath(router);
+			navigateToEditorProjects(router);
 		}
 	};
 
@@ -102,7 +100,7 @@ function ProjectDropdown() {
 				await editor.project.deleteProjects({
 					ids: [activeProject.metadata.id],
 				});
-				navigateToHostReturnPath(router);
+				navigateToEditorProjects(router);
 			} catch (error) {
 				toast.error("Failed to delete project", {
 					description:
@@ -121,10 +119,10 @@ function ProjectDropdown() {
 					<Button variant="ghost" size="icon" className="p-1 rounded-sm size-8">
 						<Image
 							src={DEFAULT_LOGO_URL}
-							alt="Project thumbnail"
+							alt="Elevo logo"
 							width={32}
 							height={32}
-							className="invert dark:invert-0 size-5"
+							className="size-5"
 						/>
 					</Button>
 				</DropdownMenuTrigger>
@@ -142,18 +140,6 @@ function ProjectDropdown() {
 						icon={<HugeiconsIcon icon={CommandIcon} />}
 					>
 						Shortcuts
-					</DropdownMenuItem>
-
-					<DropdownMenuSeparator />
-
-					<DropdownMenuItem asChild icon={<FaDiscord className="!size-4" />}>
-						<Link
-							href={SOCIAL_LINKS.discord}
-							target="_blank"
-							rel="noopener noreferrer"
-						>
-							Discord
-						</Link>
 					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
