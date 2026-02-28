@@ -13,13 +13,24 @@ definePageMeta({
 })
 
 const route = useRoute()
+const supabase = useSupabaseClient()
 
-onMounted(() => {
+onMounted(async () => {
   const returnTo = encodeURIComponent(route.query.returnTo?.toString() || '/videos')
-  const isDev = window.location.port === '3000'
-  
+  const isDev = window.location.port === '3001'
+
+  // Get the current session to pass the auth token to the editor (different origin in dev)
+  let tokenParam = ''
   if (isDev) {
-    window.location.href = `http://localhost:3002/editor/projects?returnTo=${returnTo}`
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.access_token) {
+      tokenParam = `&access_token=${encodeURIComponent(session.access_token)}&refresh_token=${encodeURIComponent(session.refresh_token || '')}`
+    }
+  }
+
+  if (isDev) {
+    // In dev, the editor runs at localhost:3002 with no basePath, so /projects is the correct path
+    window.location.href = `http://localhost:3002/projects?returnTo=${returnTo}${tokenParam}`
   } else {
     window.location.href = `/editor/projects?returnTo=${returnTo}`
   }

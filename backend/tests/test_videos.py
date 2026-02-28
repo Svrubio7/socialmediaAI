@@ -329,7 +329,7 @@ def test_media_urls_rejects_invalid_id(client, auth_headers):
 
 
 def test_register_video_accepts_editor_output_namespace(client, auth_headers, test_user):
-    """Register endpoint should accept editor/outputs namespace for OpenCut exports."""
+    """Register endpoint should accept editor/outputs namespace for Elevo Editor exports."""
     previous_storage_backend = settings.STORAGE_BACKEND
     settings.STORAGE_BACKEND = "supabase"
     try:

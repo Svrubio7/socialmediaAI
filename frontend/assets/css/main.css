@@ -7,8 +7,8 @@
     --grid-size: 64px;
     --grid-line: rgba(0, 0, 0, 0.045);
     --app-bg: #ffffff;
-    --cream-ui: #fff0d9;
-    --cream-border: #e7d8bd;
+    --cream-ui: #E8F6FD;
+    --cream-border: #C5DCE9;
   }
 
   .dark {
@@ -23,7 +23,7 @@
   }
 
   body {
-    @apply text-surface-900 min-h-screen font-mono dark:text-surface-200;
+    @apply text-surface-900 min-h-screen font-mono dark:text-white;
     font-feature-settings: 'kern' 1, 'liga' 1;
     background-color: var(--app-bg);
     background-image:
@@ -128,10 +128,10 @@
   .btn-secondary {
     @apply btn
            active:translate-y-0
-           focus-visible:ring-surface-500;
-    background-color: #fff0d9;
+           focus-visible:ring-accent-300;
+    background-color: #7cfbfd;
     color: #0a0a09;
-    border: 1px solid #e5d5bc;
+    border: 1px solid #59e3e5;
   }
 
   .btn-accent {
@@ -170,8 +170,8 @@
   }
 
   .btn-secondary:hover {
-    background-color: #ffe8c4;
-    border-color: #d8c6a8;
+    background-color: #95fdff;
+    border-color: #6cecf0;
   }
 
   .btn-accent:hover {
@@ -180,36 +180,25 @@
   }
 
   .cream-btn {
-    background-color: #fff0d9;
+    background-color: #7cfbfd;
     color: #0a0a09;
-    border: 1px solid #e5d5bc;
+    border: 1px solid #59e3e5;
   }
 
   .cream-btn:hover {
-    background-color: #ffe8c4;
-    border-color: #d8c6a8;
+    background-color: #95fdff;
+    border-color: #6cecf0;
   }
 
   .dark .editor-header button {
-    background-color: #fff0d9;
+    background-color: #7cfbfd;
     color: #0a0a09;
-    border-color: #e5d5bc;
+    border-color: #59e3e5;
   }
 
   .dark .editor-header button:hover {
-    background-color: #ffe8c4;
-    border-color: #d8c6a8;
-  }
-
-  .dark .btn {
-    background-color: #fff0d9;
-    color: #0a0a09;
-    border-color: #e5d5bc;
-  }
-
-  .dark .btn:hover {
-    background-color: #ffe8c4;
-    border-color: #d8c6a8;
+    background-color: #95fdff;
+    border-color: #6cecf0;
   }
 
   /* Size variants */
@@ -273,7 +262,7 @@
 
   .dark .card {
     color: #e8e8e8;
-    border-color: rgba(191, 181, 166, 0.35);
+    border-color: rgba(110, 170, 205, 0.25);
   }
 
   .card .text-surface-100 {

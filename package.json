@@ -2,9 +2,16 @@
   "name": "socialmediaai-monorepo",
   "private": true,
   "scripts": {
-    "dev:app": "docker compose up --build",
-    "verify:app": "node ./scripts/verify-app.mjs",
-    "dev:editor": "npm run dev:app",
-    "verify:editor": "npm run verify:app"
+    "dev": "concurrently --kill-others --names NUXT,EDITOR,API --prefix-colors blue,magenta,green \"npm run dev:frontend\" \"npm run dev:editor\" \"npm run dev:backend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:editor": "cd apps/elevo-editor && bun run dev:web",
+    "dev:backend": "cd backend && .\\venv\\Scripts\\python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "dev:redis": "docker compose -f docker-compose.dev.yml up -d",
+    "dev:redis:stop": "docker compose -f docker-compose.dev.yml down",
+    "dev:docker": "docker compose up --build",
+    "verify:app": "node ./scripts/verify-app.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }

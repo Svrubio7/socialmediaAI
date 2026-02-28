@@ -112,8 +112,8 @@ async function run() {
 				"Content-Type": "application/json",
 			},
 			body: JSON.stringify({
-				name: `verify-opencut-${randomId()}`,
-				editor_engine: "opencut",
+				name: `verify-elevo-editor-${randomId()}`,
+				editor_engine: "elevo-editor",
 			}),
 			redirect: "manual",
 		});
@@ -134,7 +134,7 @@ async function run() {
 			},
 			body: JSON.stringify({
 				revision: projectRevision,
-				editor_engine: "opencut",
+				editor_engine: "elevo-editor",
 				schema_version: 6,
 				state: {
 					version: 6,
@@ -233,7 +233,7 @@ async function run() {
 				filename: "verify-upload.mp4",
 				metadata: {
 					project_id: projectId,
-					opencut_media_id: assetId,
+					elevo_editor_media_id: assetId,
 				},
 			}),
 			redirect: "manual",

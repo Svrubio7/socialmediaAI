@@ -1,24 +1,24 @@
-# OpenCut Upstream Sync
+# Elevo Editor Upstream Sync
 
 ## Initial fork import
 
 ```bash
 git remote add opencut-upstream https://github.com/OpenCut-app/OpenCut.git
 git fetch opencut-upstream main
-git subtree add --prefix=apps/opencut-editor opencut-upstream main --squash
+git subtree add --prefix=apps/elevo-editor opencut-upstream main --squash
 ```
 
 ## Update from upstream
 
 ```bash
 git fetch opencut-upstream main
-git subtree pull --prefix=apps/opencut-editor opencut-upstream main --squash
+git subtree pull --prefix=apps/elevo-editor opencut-upstream main --squash
 ```
 
 ## Local run
 
 ```bash
-cd apps/opencut-editor
+cd apps/elevo-editor
 bun install
 bun run dev:web
 ```

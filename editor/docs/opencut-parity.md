@@ -1,4 +1,4 @@
-# OpenCut Parity Verification
+# Elevo Editor Parity Verification
 
 ## Verification gate (must pass before cutover)
 
@@ -6,7 +6,7 @@
 
 ```bash
 cd backend
-pytest tests/test_editor_opencut_contract.py tests/test_editor_opencut_storage.py -v
+pytest tests/test_editor_elevo_editor_contract.py tests/test_editor_elevo_editor_storage.py -v
 ```
 
 2. Existing editor project tests
@@ -30,7 +30,7 @@ npm run test:editor-integration
 3. Import video/image/audio and verify objects upload under:
    - `editor/assets/{userId}/{projectId}/{assetId}/{filename}`
 4. Reload and verify timeline/media state round-trips without schema coercion.
-5. Confirm `GET /api/v1/projects/{id}` returns `editor_engine=opencut` and raw state version.
+5. Confirm `GET /api/v1/projects/{id}` returns `editor_engine=elevo-editor` and raw state version.
 
 ## Frame-accurate acceptance fixtures (legacy parity route)
 

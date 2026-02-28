@@ -158,8 +158,8 @@ const showProjectNameModal = ref(false)
 const newProjectName = ref('')
 const checkingProject = ref(false)
 const creatingProject = ref(false)
-const preferredEditorEngine = computed<'legacy' | 'opencut'>(() =>
-  editorRouting.isForkEnabledForUser.value ? 'opencut' : 'legacy'
+const preferredEditorEngine = computed<'legacy' | 'elevo-editor'>(() =>
+  editorRouting.isForkEnabledForUser.value ? 'elevo-editor' : 'legacy'
 )
 
 function formatDate(iso: string) {
@@ -328,7 +328,7 @@ async function createProjectFromVideo() {
         metadata: {
           project_id: project.id,
           source_video_id: String(videoEntry.id),
-          opencut_media_id: `video_${videoEntry.id}`,
+          elevo_editor_media_id: `video_${videoEntry.id}`,
         },
       })
     }

@@ -9,7 +9,7 @@ from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000,https://social-media-ai-frontend.onrender.com"
+DEFAULT_CORS_ORIGINS = "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:3002,https://social-media-ai-frontend.onrender.com"
 
 
 class Settings(BaseSettings):
@@ -67,7 +67,7 @@ class Settings(BaseSettings):
 
     # Editor integration
     EDITOR_ENGINE_DEFAULT: str = "legacy"
-    EDITOR_OPENCUT_ENABLED: bool = True
+    EDITOR_ELEVO_ENABLED: bool = True
     EDITOR_API_DIAGNOSTICS: bool = False
     EDITOR_SIGNED_UPLOAD_RATE_LIMIT: int = 30
     EDITOR_SIGNED_UPLOAD_RATE_WINDOW_SEC: int = 60

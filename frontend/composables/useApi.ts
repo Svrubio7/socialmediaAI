@@ -9,7 +9,7 @@ interface ApiOptions {
   timeoutMs?: number
 }
 
-export type EditorEngine = 'legacy' | 'opencut'
+export type EditorEngine = 'legacy' | 'elevo-editor'
 
 interface VideoMediaUrlItem {
   id: string

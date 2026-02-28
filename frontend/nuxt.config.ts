@@ -1,5 +1,15 @@
 // @ts-nocheck
 // https://nuxt.com/docs/api/configuration/nuxt-config
+
+// Load .env.local overrides on top of .env (Nuxt only auto-loads .env)
+import { config as dotenvConfig } from 'dotenv'
+import { existsSync } from 'fs'
+import { resolve } from 'path'
+const envLocalPath = resolve(__dirname, '.env.local')
+if (existsSync(envLocalPath)) {
+  dotenvConfig({ path: envLocalPath, override: true })
+}
+
 const supabaseUrl =
   process.env.NUXT_PUBLIC_SUPABASE_URL || 'https://example.supabase.co'
 const supabaseKey =
@@ -151,6 +161,15 @@ export default defineNuxtConfig({
           type: 'text/javascript',
         },
       ],
+    },
+  },
+
+  nitro: {
+    devProxy: {
+      '/api/': {
+        target: 'http://localhost:8000/api/',
+        changeOrigin: true,
+      },
     },
   },
 

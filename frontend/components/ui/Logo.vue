@@ -47,31 +47,31 @@ const linkClass = computed(() => props.class || '')
 const gapClass = computed(() => {
   if (props.variant === 'icon' || props.variant === 'text') return ''
   switch (props.size) {
-    case 'sm': return 'gap-2'
-    case 'md': return 'gap-2'
-    case 'lg': return 'gap-2.5'
-    case 'xl': return 'gap-3'
-    default: return 'gap-2'
+    case 'sm': return 'gap-3'
+    case 'md': return 'gap-3'
+    case 'lg': return 'gap-3.5'
+    case 'xl': return 'gap-4'
+    default: return 'gap-3'
   }
 })
 
 const iconSizeClass = computed(() => {
   switch (props.size) {
-    case 'sm': return 'w-7 h-7'
-    case 'md': return 'w-8 h-8'
-    case 'lg': return 'w-10 h-10'
-    case 'xl': return 'w-12 h-12'
-    default: return 'w-8 h-8'
+    case 'sm': return 'w-9 h-9'
+    case 'md': return 'w-10 h-10'
+    case 'lg': return 'w-12 h-12'
+    case 'xl': return 'w-14 h-14'
+    default: return 'w-10 h-10'
   }
 })
 
 const textSizeClass = computed(() => {
   switch (props.size) {
-    case 'sm': return 'text-lg'
-    case 'md': return 'text-xl'
-    case 'lg': return 'text-2xl'
-    case 'xl': return 'text-3xl'
-    default: return 'text-xl'
+    case 'sm': return 'text-xl'
+    case 'md': return 'text-2xl'
+    case 'lg': return 'text-3xl'
+    case 'xl': return 'text-4xl'
+    default: return 'text-2xl'
   }
 })
 

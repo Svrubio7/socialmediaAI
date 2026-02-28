@@ -34,11 +34,11 @@ storage = get_storage_service()
 logger = logging.getLogger(__name__)
 
 LEGACY_EDITOR_ENGINE = "legacy"
-OPENCUT_EDITOR_ENGINE = "opencut"
-SUPPORTED_EDITOR_ENGINES = {LEGACY_EDITOR_ENGINE, OPENCUT_EDITOR_ENGINE}
+ELEVO_EDITOR_ENGINE = "elevo-editor"
+SUPPORTED_EDITOR_ENGINES = {LEGACY_EDITOR_ENGINE, ELEVO_EDITOR_ENGINE}
 
 CURRENT_PROJECT_SCHEMA_VERSION = 2
-CURRENT_OPENCUT_SCHEMA_VERSION = 6
+CURRENT_ELEVO_EDITOR_SCHEMA_VERSION = 6
 
 
 class ProjectListItem(BaseModel):
@@ -197,12 +197,12 @@ def _normalize_editor_engine(
         )
     if (
         enforce_enabled
-        and value == OPENCUT_EDITOR_ENGINE
-        and not settings.EDITOR_OPENCUT_ENABLED
+        and value == ELEVO_EDITOR_ENGINE
+        and not settings.EDITOR_ELEVO_ENABLED
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="OpenCut editor engine is currently disabled",
+            detail="Elevo editor engine is currently disabled",
         )
     return value
 
@@ -258,7 +258,7 @@ def _default_legacy_project_state(project_name: str) -> Dict[str, Any]:
     }
 
 
-def _default_opencut_project_state(project_name: str, project_id: str) -> Dict[str, Any]:
+def _default_elevo_editor_project_state(project_name: str, project_id: str) -> Dict[str, Any]:
     now_iso = datetime.utcnow().isoformat() + "Z"
     scene_id = "scene_main"
     return {
@@ -288,15 +288,15 @@ def _default_opencut_project_state(project_name: str, project_id: str) -> Dict[s
             "background": {"type": "color", "color": "#000000"},
         },
         "timelineViewState": {"zoomLevel": 1.0, "scrollLeft": 0, "playheadTime": 0},
-        "version": CURRENT_OPENCUT_SCHEMA_VERSION,
+        "version": CURRENT_ELEVO_EDITOR_SCHEMA_VERSION,
     }
 
 
-def _normalize_opencut_project_state(
+def _normalize_elevo_editor_project_state(
     raw_state: Optional[Dict[str, Any]], project_name: str, project_id: str
 ) -> Dict[str, Any]:
     if not isinstance(raw_state, dict):
-        return _default_opencut_project_state(project_name, project_id)
+        return _default_elevo_editor_project_state(project_name, project_id)
 
     state = dict(raw_state)
     metadata = state.get("metadata")
@@ -316,9 +316,9 @@ def _normalize_opencut_project_state(
 
     version_value = state.get("version")
     try:
-        state["version"] = int(version_value) if version_value is not None else CURRENT_OPENCUT_SCHEMA_VERSION
+        state["version"] = int(version_value) if version_value is not None else CURRENT_ELEVO_EDITOR_SCHEMA_VERSION
     except (TypeError, ValueError):
-        state["version"] = CURRENT_OPENCUT_SCHEMA_VERSION
+        state["version"] = CURRENT_ELEVO_EDITOR_SCHEMA_VERSION
 
     scenes = state.get("scenes")
     if not isinstance(scenes, list):
@@ -470,8 +470,8 @@ def _normalize_project_state(
     editor_engine: str,
     project_id: str,
 ) -> Dict[str, Any]:
-    if editor_engine == OPENCUT_EDITOR_ENGINE:
-        return _normalize_opencut_project_state(raw_state, project_name, project_id)
+    if editor_engine == ELEVO_EDITOR_ENGINE:
+        return _normalize_elevo_editor_project_state(raw_state, project_name, project_id)
     return _normalize_legacy_project_state(raw_state, project_name)
 
 
@@ -514,8 +514,8 @@ def _build_project_response(project: EditorProject) -> ProjectResponse:
         schema_version=int(
             project.schema_version
             or (
-                CURRENT_OPENCUT_SCHEMA_VERSION
-                if editor_engine == OPENCUT_EDITOR_ENGINE
+                CURRENT_ELEVO_EDITOR_SCHEMA_VERSION
+                if editor_engine == ELEVO_EDITOR_ENGINE
                 else CURRENT_PROJECT_SCHEMA_VERSION
             )
         ),
@@ -697,8 +697,8 @@ async def list_projects(
                 schema_version=int(
                     project.schema_version
                     or (
-                        CURRENT_OPENCUT_SCHEMA_VERSION
-                        if project.editor_engine == OPENCUT_EDITOR_ENGINE
+                        CURRENT_ELEVO_EDITOR_SCHEMA_VERSION
+                        if project.editor_engine == ELEVO_EDITOR_ENGINE
                         else CURRENT_PROJECT_SCHEMA_VERSION
                     )
                 ),
@@ -736,8 +736,8 @@ async def create_project(
     )
     project_id = uuid4()
     initial_state = (
-        _default_opencut_project_state(name, str(project_id))
-        if editor_engine == OPENCUT_EDITOR_ENGINE
+        _default_elevo_editor_project_state(name, str(project_id))
+        if editor_engine == ELEVO_EDITOR_ENGINE
         else _default_legacy_project_state(name)
     )
     project = EditorProject(
@@ -748,8 +748,8 @@ async def create_project(
         state=initial_state,
         editor_engine=editor_engine,
         schema_version=(
-            CURRENT_OPENCUT_SCHEMA_VERSION
-            if editor_engine == OPENCUT_EDITOR_ENGINE
+            CURRENT_ELEVO_EDITOR_SCHEMA_VERSION
+            if editor_engine == ELEVO_EDITOR_ENGINE
             else CURRENT_PROJECT_SCHEMA_VERSION
         ),
         revision=0,
@@ -843,8 +843,8 @@ async def update_project(
         )
         if payload.schema_version is None and payload.state is None:
             project.schema_version = (
-                CURRENT_OPENCUT_SCHEMA_VERSION
-                if target_engine == OPENCUT_EDITOR_ENGINE
+                CURRENT_ELEVO_EDITOR_SCHEMA_VERSION
+                if target_engine == ELEVO_EDITOR_ENGINE
                 else CURRENT_PROJECT_SCHEMA_VERSION
             )
         dirty = True
@@ -859,8 +859,8 @@ async def update_project(
             payload.schema_version
             or normalized_state.get("version")
             or (
-                CURRENT_OPENCUT_SCHEMA_VERSION
-                if target_engine == OPENCUT_EDITOR_ENGINE
+                CURRENT_ELEVO_EDITOR_SCHEMA_VERSION
+                if target_engine == ELEVO_EDITOR_ENGINE
                 else CURRENT_PROJECT_SCHEMA_VERSION
             )
         )
@@ -900,8 +900,8 @@ async def update_project(
         if requested_schema != int(
             project.schema_version
             or (
-                CURRENT_OPENCUT_SCHEMA_VERSION
-                if target_engine == OPENCUT_EDITOR_ENGINE
+                CURRENT_ELEVO_EDITOR_SCHEMA_VERSION
+                if target_engine == ELEVO_EDITOR_ENGINE
                 else CURRENT_PROJECT_SCHEMA_VERSION
             )
         ):
@@ -1291,12 +1291,12 @@ async def create_project_export_job(
     current_user: User = Depends(get_current_user),
 ):
     project = _project_or_404(project_id, db, current_user)
-    if project.editor_engine == OPENCUT_EDITOR_ENGINE:
+    if project.editor_engine == ELEVO_EDITOR_ENGINE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
-                "Server-side export is not available for OpenCut projects yet. "
-                "Use client export in the OpenCut editor."
+                "Server-side export is not available for Elevo Editor projects yet. "
+                "Use client export in the Elevo Editor."
             ),
         )
     job = EditorJob(
@@ -1407,12 +1407,12 @@ async def export_project(
     current_user: User = Depends(get_current_user),
 ):
     project = _project_or_404(project_id, db, current_user)
-    if project.editor_engine == OPENCUT_EDITOR_ENGINE:
+    if project.editor_engine == ELEVO_EDITOR_ENGINE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
-                "Server-side export is not available for OpenCut projects yet. "
-                "Use client export in the OpenCut editor."
+                "Server-side export is not available for Elevo Editor projects yet. "
+                "Use client export in the Elevo Editor."
             ),
         )
 

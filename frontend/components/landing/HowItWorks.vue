@@ -8,7 +8,7 @@
           {{ $t('howItWorks.title') }}
           <span class="gradient-text">{{ $t('howItWorks.titleHighlight') }}</span>
         </h2>
-        <p class="text-surface-400 leading-relaxed font-mono">
+        <p class="text-surface-800 dark:text-surface-400 leading-relaxed font-mono">
           {{ $t('howItWorks.subtitle') }}
         </p>
       </div>
@@ -47,7 +47,7 @@
                 {{ $t(step.titleKey) }}
               </h3>
               <p 
-                class="text-surface-400 text-sm leading-relaxed mb-4 font-mono transition-all duration-500"
+                class="text-surface-300 text-sm leading-relaxed mb-4 font-mono transition-all duration-500"
                 :class="visibleSteps[index] ? 'opacity-100' : 'opacity-0'"
                 :style="{ transitionDelay: `${index * 200 + 300}ms` }"
               >
@@ -59,7 +59,7 @@
                 <li 
                   v-for="(feature, fIndex) in step.features" 
                   :key="feature"
-                  class="flex items-start gap-2 text-sm text-surface-400 font-mono transition-all duration-500"
+                  class="flex items-start gap-2 text-sm text-surface-300 font-mono transition-all duration-500"
                   :class="visibleSteps[index] ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'"
                   :style="{ transitionDelay: `${index * 200 + 400 + fIndex * 75}ms` }"
                 >

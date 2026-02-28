@@ -17,7 +17,7 @@
             v-for="item in navItems"
             :key="item.to"
             :to="localePath(item.to)"
-            class="font-mono text-sm text-surface-600 hover:text-surface-950 dark:text-surface-300 dark:hover:text-surface-50"
+            class="font-mono text-sm text-surface-600 hover:text-surface-950 dark:text-white dark:hover:text-white"
             style="white-space: nowrap;"
           >
             {{ $t(item.label) }}
@@ -30,7 +30,7 @@
           <button
             v-if="theme"
             type="button"
-            class="flex items-center justify-center w-9 h-9 rounded-lg text-surface-500 hover:text-surface-900 dark:text-surface-400 dark:hover:text-surface-100 hover:bg-surface-200/80 dark:hover:bg-surface-800/50 transition-colors"
+            class="flex items-center justify-center w-9 h-9 rounded-lg text-surface-500 hover:text-surface-900 dark:text-white dark:hover:text-white hover:bg-surface-200/80 dark:hover:bg-surface-800/50 transition-colors"
             :aria-label="theme.isDark ? 'Switch to light mode' : 'Switch to dark mode'"
             @click="theme.toggle()"
           >
@@ -41,7 +41,7 @@
           <UiDropdown align="right" width="sm">
             <template #trigger="{ open }">
               <button 
-                class="flex items-center font-mono text-sm text-surface-600 hover:text-surface-950 dark:text-surface-300 dark:hover:text-surface-50"
+                class="flex items-center font-mono text-sm text-surface-600 hover:text-surface-950 dark:text-white dark:hover:text-white"
                 style="gap: 6px;"
               >
                 <span>{{ currentLocaleName }}</span>
@@ -52,7 +52,7 @@
               <button
                 v-for="loc in availableLocales"
                 :key="loc.code"
-                class="w-full px-4 py-2 text-left font-mono text-sm text-surface-600 hover:text-surface-950 dark:text-surface-300 dark:hover:text-surface-50 hover:bg-surface-200/50 dark:hover:bg-white/5"
+                class="w-full px-4 py-2 text-left font-mono text-sm text-surface-600 hover:text-surface-950 dark:text-white dark:hover:text-white hover:bg-surface-200/50 dark:hover:bg-white/5"
                 :class="{ 'text-primary-500 dark:text-primary-400': loc.code === currentLocale }"
                 @click="switchLocale(loc.code)"
               >
@@ -71,7 +71,7 @@
           <button
             v-if="theme"
             type="button"
-            class="p-2 rounded-lg text-surface-500 hover:text-surface-900 dark:text-surface-400 dark:hover:text-surface-100"
+            class="p-2 rounded-lg text-surface-500 hover:text-surface-900 dark:text-white dark:hover:text-white"
             :aria-label="theme.isDark ? 'Switch to light mode' : 'Switch to dark mode'"
             @click="theme.toggle()"
           >
@@ -79,7 +79,7 @@
             <UiIcon v-else name="Moon" :size="20" />
           </button>
           <button
-            class="p-2 rounded-lg text-surface-600 hover:text-surface-950 dark:text-surface-300 dark:hover:text-surface-50 hover:bg-surface-200/50 dark:hover:bg-white/5"
+            class="p-2 rounded-lg text-surface-600 hover:text-surface-950 dark:text-white dark:hover:text-white hover:bg-surface-200/50 dark:hover:bg-white/5"
             @click="mobileMenuOpen = true"
           >
             <UiIcon name="Menu" :size="22" />

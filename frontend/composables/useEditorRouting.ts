@@ -1,6 +1,6 @@
 import { computed } from 'vue'
 
-type EditorEngine = 'legacy' | 'opencut'
+type EditorEngine = 'legacy' | 'elevo-editor'
 
 export const useEditorRouting = () => {
   const isForkEnabledForUser = computed(() => true)

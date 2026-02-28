@@ -31,7 +31,7 @@
         
         <!-- Subheadline with reveal animation -->
         <p 
-          class="text-lg lg:text-xl text-surface-600 max-w-2xl mx-auto mb-10 leading-relaxed font-mono opacity-0 animate-fade-in-up animate-fill-both dark:text-surface-400"
+          class="text-lg lg:text-xl text-surface-800 max-w-2xl mx-auto mb-10 leading-relaxed font-mono opacity-0 animate-fade-in-up animate-fill-both dark:text-surface-300"
           style="animation-delay: 0.8s"
         >
           {{ $t('hero.subtitle') }}
@@ -64,7 +64,7 @@
           class="opacity-0 animate-fade-in animate-fill-both"
           style="animation-delay: 1.5s"
         >
-          <p class="text-sm text-surface-500 font-mono dark:text-surface-500">
+          <p class="text-sm text-surface-700 font-mono dark:text-surface-500">
             <UiTypewriterText 
               :text="$t('hero.trustLine') || 'Free to start. No credit card required.'" 
               :speed="25" 
@@ -74,16 +74,18 @@
           </p>
         </div>
 
-        <!-- Image placeholder with animation -->
-        <div 
+        <!-- Dashboard Preview -->
+        <div
           class="mt-16 opacity-0 animate-fade-in-up animate-fill-both"
           style="animation-delay: 1.8s"
         >
-          <div class="image-placeholder aspect-video max-w-3xl mx-auto p-8 hover:border-surface-600 transition-colors duration-300 bg-surface-100 border-surface-200 dark:bg-surface-800 dark:border-surface-700 dark:hover:border-surface-600">
-            <div class="flex flex-col items-center gap-3 text-surface-600 dark:text-surface-500">
-              <UiIcon name="Image" :size="48" class="text-surface-600 dark:text-surface-500" />
-              <span class="text-sm font-mono">Dashboard Preview</span>
-            </div>
+          <div class="relative max-w-5xl mx-auto rounded-2xl overflow-hidden border border-surface-200 dark:border-surface-800 shadow-2xl shadow-black/20 dark:shadow-black/60">
+            <img
+              src="/dashboard-preview.png"
+              alt="Elevo Dashboard Preview"
+              class="w-full h-auto block"
+              loading="lazy"
+            />
           </div>
         </div>
       </div>

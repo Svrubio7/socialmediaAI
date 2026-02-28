@@ -30,22 +30,22 @@ ENV NUXT_PUBLIC_API_URL=${NUXT_PUBLIC_API_URL} \
 RUN npm run build
 
 
-FROM oven/bun:1.2.18 AS opencut-builder
+FROM oven/bun:1.2.18 AS elevo-editor-builder
 
-WORKDIR /build/opencut
+WORKDIR /build/elevo-editor
 
-COPY apps/opencut-editor/package.json ./package.json
-COPY apps/opencut-editor/bun.lock ./bun.lock
-COPY apps/opencut-editor/turbo.json ./turbo.json
-COPY apps/opencut-editor/apps/web/package.json ./apps/web/package.json
-COPY apps/opencut-editor/packages/env/package.json ./packages/env/package.json
-COPY apps/opencut-editor/packages/ui/package.json ./packages/ui/package.json
+COPY apps/elevo-editor/package.json ./package.json
+COPY apps/elevo-editor/bun.lock ./bun.lock
+COPY apps/elevo-editor/turbo.json ./turbo.json
+COPY apps/elevo-editor/apps/web/package.json ./apps/web/package.json
+COPY apps/elevo-editor/packages/env/package.json ./packages/env/package.json
+COPY apps/elevo-editor/packages/ui/package.json ./packages/ui/package.json
 
 RUN bun install --frozen-lockfile
 
-COPY apps/opencut-editor/apps/web ./apps/web
-COPY apps/opencut-editor/packages/env ./packages/env
-COPY apps/opencut-editor/packages/ui ./packages/ui
+COPY apps/elevo-editor/apps/web ./apps/web
+COPY apps/elevo-editor/packages/env ./packages/env
+COPY apps/elevo-editor/packages/ui ./packages/ui
 
 ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ARG NEXT_PUBLIC_FASTAPI_URL=/api/v1
@@ -66,7 +66,7 @@ ENV NODE_ENV=production \
     NEXT_PUBLIC_EDITOR_BASE_PATH=${NEXT_PUBLIC_EDITOR_BASE_PATH} \
     NEXT_PUBLIC_EDITOR_RETURN_TO=${NEXT_PUBLIC_EDITOR_RETURN_TO} \
     NEXT_PUBLIC_EDITOR_DIAGNOSTICS=${NEXT_PUBLIC_EDITOR_DIAGNOSTICS} \
-    DATABASE_URL=postgresql://opencut:opencut@localhost:5432/opencut \
+    DATABASE_URL=postgresql://elevo:elevo@localhost:5432/elevo \
     BETTER_AUTH_SECRET=build-time-placeholder-secret \
     UPSTASH_REDIS_REST_URL=http://localhost:8079 \
     UPSTASH_REDIS_REST_TOKEN=build-time-placeholder-token \
@@ -99,7 +99,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     NODE_ENV=production \
     APP_PORT=3000 \
     NUXT_PORT=3001 \
-    OPENCUT_PORT=3002 \
+    ELEVO_EDITOR_PORT=3002 \
     FASTAPI_PORT=8000 \
     NEXT_PUBLIC_FASTAPI_URL=/api/v1 \
     NEXT_PUBLIC_EDITOR_BASE_PATH=/editor \
@@ -130,9 +130,9 @@ COPY backend /srv/backend
 
 COPY --from=nuxt-builder /build/frontend/.output /srv/frontend/.output
 
-COPY --from=opencut-builder /build/opencut/apps/web/public /srv/opencut/apps/web/public
-COPY --from=opencut-builder /build/opencut/apps/web/.next/standalone /srv/opencut
-COPY --from=opencut-builder /build/opencut/apps/web/.next/static /srv/opencut/apps/web/.next/static
+COPY --from=elevo-editor-builder /build/elevo-editor/apps/web/public /srv/elevo-editor/apps/web/public
+COPY --from=elevo-editor-builder /build/elevo-editor/apps/web/.next/standalone /srv/elevo-editor
+COPY --from=elevo-editor-builder /build/elevo-editor/apps/web/.next/static /srv/elevo-editor/apps/web/.next/static
 
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
 COPY docker/supervisord.conf /etc/supervisor/conf.d/socialmediaai.conf
